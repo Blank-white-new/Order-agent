@@ -28,6 +28,9 @@ Invoke-QualityStep "Frontend Vitest" {
   Push-Location $FrontendDir
   try {
     npm test -- --cache=false --reporter=dot
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm test failed with exit code $LASTEXITCODE"
+    }
   } finally {
     Pop-Location
   }
@@ -37,6 +40,9 @@ Invoke-QualityStep "Frontend TypeScript" {
   Push-Location $FrontendDir
   try {
     npm run typecheck
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm run typecheck failed with exit code $LASTEXITCODE"
+    }
   } finally {
     Pop-Location
   }
@@ -47,6 +53,9 @@ if ($Build) {
     Push-Location $FrontendDir
     try {
       npm run build
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm run build failed with exit code $LASTEXITCODE"
+      }
     } finally {
       Pop-Location
     }

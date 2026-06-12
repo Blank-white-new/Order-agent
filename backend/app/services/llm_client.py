@@ -1,17 +1,32 @@
 from __future__ import annotations
 
 import os
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
+
+
+@lru_cache(maxsize=1)
+def _env_file_values() -> dict[str, str]:
+    env_path = Path(__file__).resolve().parents[3] / ".env"
+    values = dotenv_values(env_path) if env_path.exists() else {}
+    return {key: str(value) for key, value in values.items() if value not in (None, "")}
+
+
+def _config_value(name: str, default: str | None = None) -> str | None:
+    value = os.getenv(name)
+    if value not in (None, ""):
+        return value
+    return _env_file_values().get(name, default)
 
 
 class LLMClient:
     def __init__(self) -> None:
-        load_dotenv()
-        self.api_key = os.getenv("DEEPSEEK_API_KEY")
-        self.base_url = os.getenv("DEEPSEEK_BASE_URL")
-        self.model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro")
+        self.api_key = _config_value("DEEPSEEK_API_KEY")
+        self.base_url = _config_value("DEEPSEEK_BASE_URL")
+        self.model = _config_value("DEEPSEEK_MODEL", "deepseek-v4-pro")
 
     def is_configured(self) -> bool:
         return bool(self.api_key and self.base_url)

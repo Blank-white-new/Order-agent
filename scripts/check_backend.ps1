@@ -2,6 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $BackendDir = Join-Path $ProjectRoot "backend"
+$VenvPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
+$Python = if (Test-Path $VenvPython) { $VenvPython } else { "python" }
 
 function Invoke-QualityStep {
   param(
@@ -23,7 +25,10 @@ function Invoke-QualityStep {
 Invoke-QualityStep "Backend pytest" {
   Push-Location $BackendDir
   try {
-    python -B -m pytest -q -p no:cacheprovider
+    & $Python -B -m pytest -q -p no:cacheprovider
+    if ($LASTEXITCODE -ne 0) {
+      throw "pytest failed with exit code $LASTEXITCODE"
+    }
   } finally {
     Pop-Location
   }
