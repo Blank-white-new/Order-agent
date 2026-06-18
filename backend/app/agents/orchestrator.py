@@ -24,6 +24,7 @@ from app.services.llm_fallback_validation import (
 )
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
+from app.services.reference_normalizer import normalize_recommendation_ordinal_reference
 from app.state.session_state import DeliveryAddressCandidate, OrderItem, SessionState, order_to_dicts
 
 
@@ -534,14 +535,30 @@ class OrchestratorAgent:
                 entities={"index": resolved_index, "item_name": state.current_order[resolved_index].name},
                 preferences=interpretation.preferences,
             )
-        if state.last_recommendations and (index is not None or raw in {"就这个", "要这个", "这些都要"}):
-            resolved_index = 0 if index is None else index
+        if state.last_recommendations and index is not None:
+            if index >= len(state.last_recommendations):
+                return Interpretation(
+                    intent="fallback",
+                    confidence=0.86,
+                    source="merged",
+                    should_mutate_order=False,
+                    entities={"directed_message": "请在推荐列表中选择有效序号，比如第一个、第二个或第三个。"},
+                )
             return Interpretation(
                 intent="select_recommendation",
                 confidence=0.92,
                 source="merged",
                 should_mutate_order=True,
-                entities={"index": resolved_index},
+                entities={"index": index},
+                preferences=interpretation.preferences,
+            )
+        if state.last_recommendations and raw in {"就这个", "要这个", "这些都要"}:
+            return Interpretation(
+                intent="select_recommendation",
+                confidence=0.92,
+                source="merged",
+                should_mutate_order=True,
+                entities={"index": 0},
                 preferences=interpretation.preferences,
             )
         if state.current_order and index is not None:
@@ -831,6 +848,9 @@ class OrchestratorAgent:
         return interpretation.copy(update=update)
 
     def _reference_to_index(self, reference: str) -> int | None:
+        normalized = normalize_recommendation_ordinal_reference(reference)
+        if normalized is not None:
+            return normalized
         if reference in {"第一个"}:
             return 0
         if reference == "第二个":

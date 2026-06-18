@@ -133,6 +133,122 @@ def test_high_frequency_recommendation_phrases_skip_llm_when_enabled(message):
     assert result["state"]["last_recommendations"]
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "第一个吧",
+        "就第一个",
+        "就第一个吧",
+        "第1个",
+        "第1个吧",
+        "选第一个",
+        "选第一个吧",
+        "要第一个",
+        "要第一个吧",
+        "来第一个",
+        "第一个来一份",
+        "第1个来一份",
+    ],
+)
+def test_recommendation_ordinal_references_resolve_without_llm(message):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("牛肉饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    first_recommendation = recommendation["state"]["last_recommendations"][0]["name"]
+    result = orchestrator.handle_user_message(message, recommendation["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "select_recommendation"
+    assert result["trace"]["selectedAgent"] == "OrderAgent"
+    assert [item["name"] for item in result["state"]["current_order"]] == [first_recommendation]
+
+
+@pytest.mark.parametrize(
+    ("message", "index"),
+    [
+        ("第二个吧", 1),
+        ("第2个吧", 1),
+        ("第三个吧", 2),
+        ("第3个吧", 2),
+    ],
+)
+def test_second_and_third_recommendation_ordinal_references(message, index):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("牛肉饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    expected = recommendation["state"]["last_recommendations"][index]["name"]
+    result = orchestrator.handle_user_message(message, recommendation["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "select_recommendation"
+    assert [item["name"] for item in result["state"]["current_order"]] == [expected]
+
+
+def test_recommendation_ordinal_out_of_range_clarifies_without_llm():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    result = orchestrator.handle_user_message("第9个吧", recommendation["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "fallback"
+    assert result["state"]["current_order"] == []
+    assert "推荐列表" in result["response"]
+
+
+def test_ambiguous_recommendation_reference_still_does_not_add_item():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    result = orchestrator.handle_user_message("那个吧", recommendation["raw_state"])
+
+    assert result["state"]["current_order"] == []
+    if fake.calls:
+        assert result["trace"]["llmFallbackValidationOk"] is False
+        assert result["trace"]["llmFallbackDegradeReason"] == "llm_order_action_requires_target_item_evidence"
+
+
+@pytest.mark.parametrize("message", ["鸡腿饭来1份", "我要1份鸡腿饭"])
+def test_quantity_orders_are_not_treated_as_recommendation_ordinals(message):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("牛肉饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    result = orchestrator.handle_user_message(message, recommendation["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "order_food"
+    assert [item["name"] for item in result["state"]["current_order"]] == ["鸡腿饭"]
+
+
+@pytest.mark.parametrize("message", ["中山大学1号门", "第1教学楼", "1号楼"])
+def test_address_numbers_are_not_treated_as_recommendation_ordinals(message):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", SessionState())
+    result = orchestrator.handle_user_message(message, recommendation["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "replace_delivery_candidate"
+    assert result["state"]["current_order"] == []
+
+
 def test_llm_add_item_requires_order_evidence_globally():
     parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
     assert parsed is not None
@@ -199,14 +315,15 @@ def test_llm_add_item_accepts_direct_target_menu_evidence():
     assert converted.interpretation.intent == "order_food"
 
 
-def test_llm_add_item_accepts_unique_recommendation_reference():
+@pytest.mark.parametrize("message", ["第一个", "第一个吧", "就第一个", "第1个吧"])
+def test_llm_add_item_accepts_unique_recommendation_reference(message):
     parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
     assert parsed is not None
     state = SessionState(last_recommendations=[{"name": "鸡腿饭", "id": "chicken_leg_rice"}])
 
     converted = convert_llm_to_interpretation(
         parsed,
-        original_message="第一个",
+        original_message=message,
         menu_service=MenuService(),
         state=state,
         min_confidence=0.65,

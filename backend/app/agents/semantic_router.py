@@ -10,6 +10,7 @@ from app.agents.semantic_rules import (
 )
 from app.models.schemas import Interpretation
 from app.services.menu_service import MenuService
+from app.services.reference_normalizer import normalize_recommendation_ordinal_reference
 
 
 QUESTION_MARKERS = (
@@ -821,6 +822,8 @@ class SemanticRouterAgent:
     def _is_context_reference(self, text: str) -> bool:
         if "能送" in text or "能配送" in text:
             return False
+        if normalize_recommendation_ordinal_reference(text) is not None:
+            return True
         if text in {"第一个", "第二个", "第三个", "就这个", "要这个", "就那个", "要那个", "来那个"}:
             return True
         reference_tokens = ["这个", "那个", "第一个", "第二个", "第三个", "刚才那个", "这些", "那些"]
@@ -900,6 +903,9 @@ class SemanticRouterAgent:
         )
 
     def _extract_reference(self, text: str) -> str:
+        index = normalize_recommendation_ordinal_reference(text)
+        if index is not None:
+            return f"第{index + 1}个"
         for token in ["第一个", "第二个", "第三个", "刚才那个", "这些", "那些", "这个", "那个"]:
             if token in text:
                 return token

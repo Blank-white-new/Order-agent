@@ -14,6 +14,7 @@ from app.services.llm_fallback_schemas import (
     LLMFallbackInterpretation,
 )
 from app.services.menu_service import MenuService
+from app.services.reference_normalizer import normalize_recommendation_ordinal_reference
 from app.state.session_state import SessionState
 from app.voice.transcript_normalizer import normalize_ordering_voice_transcript
 
@@ -350,6 +351,12 @@ def _has_quantity_cue(text: str) -> bool:
 
 
 def _has_unique_reference_to_item(text: str, target_item_name: str, state: SessionState) -> bool:
+    ordinal_index = normalize_recommendation_ordinal_reference(text)
+    if ordinal_index is not None:
+        if ordinal_index < len(state.last_recommendations):
+            return state.last_recommendations[ordinal_index].get("name") == target_item_name
+        return False
+
     for token, index in REFERENCE_INDEXES.items():
         if text != token:
             continue
