@@ -16,7 +16,7 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-`.env` 只放本机配置和真实密钥，不要提交。没有 DeepSeek API Key 时，确定性规则路由、订餐主流程和测试仍可运行。
+`.env` 只放本机配置和真实密钥，不要提交。LLM fallback 默认关闭；没有 DeepSeek API Key 时，确定性规则路由、订餐主流程和测试仍可运行。
 
 3. 安装后端依赖：
 
@@ -201,15 +201,21 @@ pip install -r requirements.txt
 
 ## 配置 `.env`
 
-复制 `.env.example` 为 `.env` 后填写自己的 DeepSeek 配置。不要提交真实 `.env`。
+复制 `.env.example` 为 `.env` 后按需填写自己的 DeepSeek / LLM fallback 配置。不要提交真实 `.env`。
 
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-pro
+
+LLM_FALLBACK_ENABLED=false
+LLM_FALLBACK_PROVIDER=deepseek
+LLM_FALLBACK_BASE_URL=https://api.deepseek.com
+LLM_FALLBACK_MODEL=deepseek-chat
+LLM_FALLBACK_API_KEY=
 ```
 
-没有真实 API Key 时，核心规则路由和测试仍可运行。更多后端、前端、ASR、TTS 变量见 `.env.example`。如果需要让后端读取其他 env 文件，可以设置 `BACKEND_ENV_FILE`。
+`LLM_FALLBACK_ENABLED=false` 是默认值。需要本地开启时，填写 `LLM_FALLBACK_API_KEY` 或兼容后备 `DEEPSEEK_API_KEY`，再设置 `LLM_FALLBACK_ENABLED=true`。没有真实 API Key 时，核心规则路由和测试仍可运行。更多后端、前端、ASR、TTS 变量见 `.env.example`。如果需要让后端读取其他 env 文件，可以设置 `BACKEND_ENV_FILE`。
 
 ## 启动后端
 
@@ -286,9 +292,13 @@ pytest -q
 .\scripts\check_frontend.ps1 -Build
 ```
 
-## DeepSeek 配置
+## DeepSeek / LLM fallback 配置
 
-模型名默认是 `deepseek-v4-pro`，由 `DEEPSEEK_MODEL` 控制。`LLMClient` 只读取环境变量，不硬编码 API Key。确定性高置信规则结果不会被 LLM 覆盖。
+`DEEPSEEK_MODEL` 仍用于兼容旧 DeepSeek 配置。LLM fallback 使用独立的 `LLM_FALLBACK_*` 配置，默认 `LLM_FALLBACK_ENABLED=false`。
+
+fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时尝试；确定性高置信规则命中不会调用 LLM。LLM 只做低置信兜底理解和候选动作抽取，不直接修改订单、不直接提交订单、不绕过 `ConfirmationAgent`。菜单项、价格和配送费仍必须来自服务层。
+
+`LLMClient` 只读取环境变量或项目 env 配置，不硬编码 API Key。测试使用 mock/fake client，不会真实调用 DeepSeek 或其他外部 LLM API。不要提交 `.env`、`.env.local`、其他真实 env 文件或真实 key。
 
 ## Trace 查看
 
@@ -296,6 +306,7 @@ pytest -q
 
 - 最终 intent 和 selected agent
 - fallback 是否使用
+- LLM fallback 是否启用、配置、触发、降级、耗时和校验结果
 - 状态修改是否允许
 - 当前订单、地址、pending candidate 的前后变化
 - 最终回复
