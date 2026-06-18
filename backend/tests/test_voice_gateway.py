@@ -7,11 +7,13 @@ from app.agents.voice_gateway_agent import VoiceGatewayAgent
 from app.agents.orchestrator import OrchestratorAgent
 from app.services.text_entry_service import TextEntryService
 from app.state.session_store import InMemorySessionStore
+from app.voice.asr.base import ASRProvider
 from app.voice.config import VoiceConfig
 from app.voice.runtime import create_voice_runtime
 from app.voice.session import VoiceSessionController
 from app.voice.text_cleaner import clean_text_for_tts, is_empty_transcript, normalize_voice_transcript
 from app.voice.tts.base import TTSProvider
+from app.voice.tts.pyttsx3_tts import Pyttsx3TTSProvider
 from app.voice.tts.runner import AsyncTTSRunner
 
 
@@ -57,6 +59,30 @@ class LockTrackingTextEntry(FakeTextEntryService):
         return result
 
 
+class PartialASR(ASRProvider):
+    def __init__(self) -> None:
+        self.chunks: list[bytes] = []
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.started = False
+
+    def accept_audio_chunk(self, chunk: bytes) -> None:
+        self.chunks.append(chunk)
+
+    def get_partial_transcript(self) -> str:
+        return "来一份"
+
+    def get_final_transcript(self) -> str:
+        return "来一份黑椒牛肉饭"
+
+    def reset(self) -> None:
+        self.chunks = []
+
+
 class SlowTTS(TTSProvider):
     def __init__(self, delay: float = 0.2) -> None:
         self.delay = delay
@@ -96,13 +122,42 @@ class BlockingTTS(TTSProvider):
     def __init__(self) -> None:
         self.started = threading.Event()
         self.release = threading.Event()
+        self.calls: list[str] = []
 
     def speak(self, text: str) -> None:
+        self.calls.append(text)
         self.started.set()
         self.release.wait(timeout=2)
 
     def stop(self) -> None:
         self.release.set()
+
+    def is_speaking(self) -> bool:
+        return self.started.is_set() and not self.release.is_set()
+
+
+class NonInterruptibleBlockingTTS(TTSProvider):
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.calls: list[str] = []
+        self.stop_calls = 0
+        self.active = 0
+        self.max_active = 0
+        self.lock = threading.Lock()
+
+    def speak(self, text: str) -> None:
+        with self.lock:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            self.calls.append(text)
+        self.started.set()
+        self.release.wait(timeout=2)
+        with self.lock:
+            self.active -= 1
+
+    def stop(self) -> None:
+        self.stop_calls += 1
 
     def is_speaking(self) -> bool:
         return self.started.is_set() and not self.release.is_set()
@@ -427,15 +482,86 @@ def test_auto_tts_debug_logs_skip_reasons(caplog, monkeypatch):
     assert "can_speak_false" in caplog.text
 
 
-def test_audio_chunk_ignored_while_muted():
+def test_audio_chunk_is_accepted_while_muted_or_speaking():
     gateway = make_gateway()
     session = gateway.session_controller.get_session("s1")
+    recognizer = PartialASR()
+    session.recognizer = recognizer
     session.muted = True
     session.status = "speaking"
 
     events = asyncio.run(gateway.on_audio_chunk("s1", b"pcm"))
 
-    assert events == [{"type": "status", "status": "speaking", "muted": True}]
+    assert events == [{"type": "partial", "text": "来一份"}]
+    assert recognizer.chunks == [b"pcm"]
+
+
+def test_final_transcript_stops_tts_before_text_entry():
+    text_entry = FakeTextEntryService()
+    tts = BlockingTTS()
+    gateway = make_gateway(text_entry, tts)
+    queued = gateway.runtime.queue_tts("旧播报", source="manual")
+    assert queued["queued"] is True
+    assert tts.started.wait(timeout=1)
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "u1", "来一份黑椒牛肉饭"))
+    asyncio.run(gateway.wait_for_tts_tasks())
+    status = gateway.tts_status()
+
+    assert [event["type"] for event in events][:2] == ["final", "agent_reply"]
+    assert text_entry.calls == [("s1", "来一份黑椒牛肉饭")]
+    assert status["lastInterruptedAt"] is not None
+
+
+def test_same_transcript_in_different_utterances_is_not_deduped():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry)
+
+    asyncio.run(gateway.on_final_transcript("s1", "u1", "再来一份"))
+    asyncio.run(gateway.on_final_transcript("s1", "u2", "再来一份"))
+
+    assert text_entry.calls == [("s1", "再来一份"), ("s1", "再来一份")]
+
+
+def test_recent_tts_echo_without_active_utterance_is_ignored():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry, SequenceTTS())
+
+    gateway.runtime.queue_tts("已加入一份黑椒牛肉饭", source="manual")
+    asyncio.run(gateway.wait_for_tts_tasks())
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "echo-u", "已加入一份黑椒牛肉饭"))
+
+    assert events[0] == {"type": "ignored_empty_transcript", "utterance_id": "echo-u", "ignored": True}
+    assert text_entry.calls == []
+
+
+def test_active_user_round_can_repeat_recent_tts_text():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry, SequenceTTS())
+
+    gateway.runtime.queue_tts("确认", source="manual")
+    asyncio.run(gateway.wait_for_tts_tasks())
+    gateway.begin_utterance("s1", "u-confirm", tts_enabled=False)
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "u-confirm", "确认"))
+
+    assert [event["type"] for event in events][:2] == ["final", "agent_reply"]
+    assert text_entry.calls == [("s1", "确认")]
+
+
+def test_active_user_round_can_repeat_recent_tts_menu_item():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry, SequenceTTS())
+
+    gateway.runtime.queue_tts("黑椒牛肉饭", source="manual")
+    asyncio.run(gateway.wait_for_tts_tasks())
+    gateway.begin_utterance("s1", "u-menu-item", tts_enabled=False)
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "u-menu-item", "黑椒牛肉饭"))
+
+    assert [event["type"] for event in events][:2] == ["final", "agent_reply"]
+    assert text_entry.calls == [("s1", "黑椒牛肉饭")]
 
 
 def test_tts_runner_reports_maybe_stuck_and_queue_full():
@@ -523,6 +649,146 @@ def test_tts_runner_shutdown_is_terminal_for_instance():
     result = runner.enqueue("不会播报", source="manual")
     assert result["queued"] is False
     assert result["error"] == "runner_shutdown"
+
+
+def test_tts_runner_stop_clears_queue_and_old_generation_cannot_overwrite_new_status():
+    blocking = BlockingTTS()
+    runner = AsyncTTSRunner(lambda: blocking, VoiceConfig(voice_enabled=True, tts_enabled=True), max_queue_size=3)
+
+    first = runner.enqueue("旧播报", source="manual")
+    second = runner.enqueue("待清空播报", source="manual")
+    assert first["queued"] is True
+    assert second["queued"] is True
+    assert blocking.started.wait(timeout=1)
+
+    stopped = runner.stop()
+    stopped_again = runner.stop()
+    status_after_stop = runner.status()
+
+    assert stopped["ok"] is True
+    assert stopped["interrupted"] is True
+    assert stopped["clearedJobs"] == 1
+    assert stopped_again["ok"] is True
+    assert status_after_stop["speaking"] is False
+    assert status_after_stop["queueSize"] == 0
+
+    next_job = runner.enqueue("新播报", source="manual")
+    assert next_job["queued"] is True
+    assert runner.wait_until_idle(timeout=2)
+    status = runner.status()
+    history = {job["jobId"]: job for job in status["jobHistory"]}
+
+    assert history[first["job_id"]]["status"] == "interrupted"
+    assert history[second["job_id"]]["status"] == "interrupted"
+    assert history[next_job["job_id"]]["status"] == "success"
+    assert status["lastFinishedJobId"] == next_job["job_id"]
+    assert status["lastSuccess"] is True
+    assert status["queueSize"] == 0
+    runner.shutdown()
+
+
+def test_tts_runner_stop_does_not_start_new_speech_while_provider_is_blocked():
+    blocking = NonInterruptibleBlockingTTS()
+    runner = AsyncTTSRunner(lambda: blocking, VoiceConfig(voice_enabled=True, tts_enabled=True), max_queue_size=3)
+
+    first = runner.enqueue("old tts", source="manual")
+    assert first["queued"] is True
+    assert blocking.started.wait(timeout=1)
+
+    stopped = runner.stop()
+    stopped_again = runner.stop()
+    next_job = runner.enqueue("new tts", source="manual")
+
+    time.sleep(0.05)
+    assert stopped["ok"] is True
+    assert stopped["interrupted"] is True
+    assert stopped_again["ok"] is True
+    assert blocking.stop_calls == 2
+    assert next_job["queued"] is True
+    assert blocking.calls == ["old tts"]
+    assert blocking.max_active == 1
+
+    blocking.release.set()
+    assert runner.wait_until_idle(timeout=2)
+    status = runner.status()
+    history = {job["jobId"]: job for job in status["jobHistory"]}
+
+    assert blocking.calls == ["old tts", "new tts"]
+    assert blocking.max_active == 1
+    assert history[first["job_id"]]["status"] == "interrupted"
+    assert history[next_job["job_id"]]["status"] == "success"
+    assert status["queueSize"] == 0
+    runner.shutdown()
+
+
+def test_pyttsx3_provider_does_not_start_second_engine_while_old_run_is_blocked(monkeypatch):
+    release = threading.Event()
+    run_started = threading.Event()
+    created_engines: list[FakePyttsx3Engine] = []
+
+    class FakePyttsx3Engine:
+        active_runs = 0
+        max_active_runs = 0
+        lock = threading.Lock()
+
+        def __init__(self) -> None:
+            self.say_calls: list[str] = []
+            self.stop_calls = 0
+
+        def setProperty(self, _name: str, _value: object) -> None:
+            return None
+
+        def getProperty(self, name: str) -> object:
+            if name == "voices":
+                return []
+            if name == "voice":
+                return None
+            return None
+
+        def say(self, text: str) -> None:
+            self.say_calls.append(text)
+
+        def runAndWait(self) -> None:
+            with type(self).lock:
+                type(self).active_runs += 1
+                type(self).max_active_runs = max(type(self).max_active_runs, type(self).active_runs)
+            run_started.set()
+            release.wait(timeout=2)
+            with type(self).lock:
+                type(self).active_runs -= 1
+
+        def stop(self) -> None:
+            self.stop_calls += 1
+
+    def fake_create_engine(self: Pyttsx3TTSProvider) -> FakePyttsx3Engine:
+        engine = FakePyttsx3Engine()
+        created_engines.append(engine)
+        return engine
+
+    monkeypatch.setattr(Pyttsx3TTSProvider, "_create_engine", fake_create_engine)
+    provider = Pyttsx3TTSProvider(VoiceConfig(voice_enabled=True, tts_enabled=True))
+    runner = AsyncTTSRunner(lambda: provider, provider.config, max_queue_size=3)
+
+    first = runner.enqueue("old tts", source="manual")
+    assert first["queued"] is True
+    assert run_started.wait(timeout=1)
+
+    runner.stop()
+    next_job = runner.enqueue("new tts", source="manual")
+    time.sleep(0.05)
+
+    assert next_job["queued"] is True
+    assert len(created_engines) == 1
+    assert created_engines[0].say_calls == ["old tts"]
+    assert FakePyttsx3Engine.max_active_runs == 1
+
+    release.set()
+    assert runner.wait_until_idle(timeout=2)
+
+    assert len(created_engines) == 2
+    assert created_engines[1].say_calls == ["new tts"]
+    assert FakePyttsx3Engine.max_active_runs == 1
+    runner.shutdown()
 
 
 def test_runtime_queue_tts_ignores_asr_readiness_and_uses_unified_result():

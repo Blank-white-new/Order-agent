@@ -1,5 +1,7 @@
 ﻿import time
 
+import threading
+
 from fastapi.testclient import TestClient
 
 from app.agents.voice_gateway_agent import VoiceGatewayAgent
@@ -96,6 +98,28 @@ class FailingTTS(RecordingTTS):
     def speak(self, text: str) -> None:
         self.calls.append(text)
         raise RuntimeError("tts failed")
+
+
+class BlockingTTS(TTSProvider):
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.speaking = False
+
+    def speak(self, text: str) -> None:
+        self.calls.append(text)
+        self.speaking = True
+        self.started.set()
+        self.release.wait(timeout=2)
+        self.speaking = False
+
+    def stop(self) -> None:
+        self.speaking = False
+        self.release.set()
+
+    def is_speaking(self) -> bool:
+        return self.speaking
 
 
 def test_voice_status_disabled_is_safe(monkeypatch):
@@ -267,6 +291,59 @@ def test_voice_tts_provider_failure_does_not_break_chat(monkeypatch):
     assert "RuntimeError" in status["lastError"]
     assert chat.status_code == 200
     assert "response" in chat.json()
+
+
+def test_voice_tts_stop_is_idempotent_preserves_asr_and_allows_new_tts(monkeypatch):
+    import asyncio
+    import app.api.voice as voice_api
+
+    tts = BlockingTTS()
+    gateway = VoiceGatewayAgent(
+        text_entry_service=TextEntryService(store=InMemorySessionStore(), orchestrator=CountingOrchestrator()),
+        session_controller=VoiceSessionController(),
+        config=VoiceConfig(voice_enabled=True, tts_enabled=True),
+        tts_provider=tts,
+    )
+    voice_api.reset_voice_runtime_for_test(gateway.runtime, gateway)
+    client = TestClient(app)
+    session = gateway.session_controller.get_session("stop-session")
+    recognizer = FixedFinalASR()
+    recognizer.start()
+    session.recognizer = recognizer
+    session.current_utterance_id = "u-active"
+    session.set_status("listening")
+
+    first = client.post("/api/voice/tts", json={"text": "旧播报"}).json()
+    assert first["queued"] is True
+    assert tts.started.wait(timeout=1)
+    second = client.post("/api/voice/tts", json={"text": "待清空播报"}).json()
+    assert second["queued"] is True
+
+    stop1 = client.post("/api/voice/tts/stop", json={"session_id": "stop-session"})
+    stop2 = client.post("/api/voice/tts/stop", json={"session_id": "stop-session"})
+
+    assert stop1.status_code == 200
+    assert stop2.status_code == 200
+    assert stop1.json()["ok"] is True
+    assert stop2.json()["ok"] is True
+    assert stop1.json()["status"]["speaking"] is False
+    assert stop1.json()["status"]["queueSize"] == 0
+    assert session.recognizer is recognizer
+    assert session.current_utterance_id == "u-active"
+    assert session.status == "listening"
+
+    third = client.post("/api/voice/tts", json={"text": "新播报"}).json()
+    assert third["queued"] is True
+    asyncio.run(gateway.wait_for_tts_tasks())
+    status = client.get("/api/voice/tts/status").json()
+    history = {job["jobId"]: job for job in status["jobHistory"]}
+
+    assert history[first["job_id"]]["status"] == "interrupted"
+    assert history[second["job_id"]]["status"] == "interrupted"
+    assert history[third["job_id"]]["status"] == "success"
+    assert status["lastFinishedJobId"] == third["job_id"]
+    assert status["lastSuccess"] is True
+    assert status["queueSize"] == 0
 
 
 def test_websocket_stop_utterance_flushes_final_once(monkeypatch):

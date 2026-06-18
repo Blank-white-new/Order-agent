@@ -116,6 +116,23 @@ class VoiceRuntime:
         status["runnerId"] = id(self._tts_runner) if self._tts_runner is not None else None
         return status
 
+    def stop_tts(self) -> dict[str, Any]:
+        if self._tts_runner is None:
+            return {
+                "ok": True,
+                "stopped": False,
+                "interrupted": False,
+                "clearedJobs": 0,
+                "status": self.tts_status(),
+            }
+        result = self._tts_runner.stop()
+        return {**result, "status": self.tts_status()}
+
+    def recent_tts_text_snapshot(self) -> tuple[str, float | None]:
+        if self._tts_runner is None:
+            return "", None
+        return self._tts_runner.recent_text_snapshot()
+
     def get_tts_runner(self) -> AsyncTTSRunner:
         if self._tts_runner is None:
             self._tts_runner = AsyncTTSRunner(self._tts_provider_factory, self.config)

@@ -25,6 +25,7 @@ class TTSJob:
     queued_at: float
     queued_at_iso: str
     preview: str
+    generation: int
     on_start: Callable[[], None] | None = None
     on_finish: Callable[[bool], None] | None = None
 
@@ -60,11 +61,15 @@ class AsyncTTSRunner:
         self._queue_initialized = False
         self._stopped = False
         self._speaking = False
+        self._generation = 0
+        self._current_job: TTSJob | None = None
+        self._interrupted_job_ids: set[int] = set()
         self._next_job_id = 0
         self._worker_restart_count = 0
         self._jobs_queued = 0
         self._jobs_started = 0
         self._jobs_finished = 0
+        self._jobs_interrupted = 0
         self._total_successes = 0
         self._total_failures = 0
         self._last_queued_at: str | None = None
@@ -87,6 +92,10 @@ class AsyncTTSRunner:
         self._last_run_and_wait_started_at: str | None = None
         self._last_run_and_wait_finished_at: str | None = None
         self._last_run_and_wait_started_monotonic: float | None = None
+        self._last_stopped_at: str | None = None
+        self._last_interrupted_at: str | None = None
+        self._last_spoken_text = ""
+        self._last_spoken_started_monotonic: float | None = None
         self._current_voice: dict[str, Any] = {"id": None, "name": None, "languages": []}
         self._job_history: list[dict[str, Any]] = []
 
@@ -107,6 +116,7 @@ class AsyncTTSRunner:
         with self._lock:
             self._next_job_id += 1
             job_id = self._next_job_id
+            generation = self._generation
         job = TTSJob(
             job_id=job_id,
             text=text,
@@ -114,6 +124,7 @@ class AsyncTTSRunner:
             queued_at=time.monotonic(),
             queued_at_iso=queued_at_iso,
             preview=text[:30],
+            generation=generation,
             on_start=on_start,
             on_finish=on_finish,
         )
@@ -147,7 +158,14 @@ class AsyncTTSRunner:
                     "preview": job.preview,
                 }
             )
-        logger.debug("voice tts queued: job_id=%s, source=%s, length=%s, queue_size=%s", job_id, source, len(text), self._queue.qsize())
+        logger.debug(
+            "voice tts queued: job_id=%s, source=%s, generation=%s, length=%s, queue_size=%s",
+            job_id,
+            source,
+            generation,
+            len(text),
+            self._queue.qsize(),
+        )
         return {"ok": True, "queued": True, "job_id": job_id, "playbackTarget": self.config.tts_playback_target}
 
     def status(self) -> dict[str, Any]:
@@ -192,6 +210,7 @@ class AsyncTTSRunner:
                 "jobsQueued": self._jobs_queued,
                 "jobsStarted": self._jobs_started,
                 "jobsFinished": self._jobs_finished,
+                "jobsInterrupted": self._jobs_interrupted,
                 "totalSuccesses": self._total_successes,
                 "totalFailures": self._total_failures,
                 "lastJobId": self._last_job_id,
@@ -203,6 +222,8 @@ class AsyncTTSRunner:
                 "lastInitFinishedAt": self._last_init_finished_at,
                 "lastRunAndWaitStartedAt": self._last_run_and_wait_started_at,
                 "lastRunAndWaitFinishedAt": self._last_run_and_wait_finished_at,
+                "lastStoppedAt": self._last_stopped_at,
+                "lastInterruptedAt": self._last_interrupted_at,
                 "jobHistory": job_history,
                 "latestManualJob": _latest_job(job_history, "manual"),
                 "latestAutoJob": _latest_job(job_history, "auto"),
@@ -248,13 +269,67 @@ class AsyncTTSRunner:
         waiter.start()
         return completed.wait(timeout=timeout)
 
-    def stop(self) -> None:
+    def stop(self) -> dict[str, Any]:
+        """Best-effort interrupt for barge-in.
+
+        Some pyttsx3 drivers do not unblock runAndWait immediately, so this
+        method only updates runner state and asks the provider to stop; it does
+        not wait for the provider thread to return.
+        """
         provider = self._provider
+        now = _now_iso()
+        cleared_jobs = 0
+        interrupted_current = False
+        with self._lock:
+            self._generation += 1
+            self._last_stopped_at = now
+            current_job = self._current_job
+            generation = self._generation
+            if current_job is not None:
+                interrupted_current = True
+                self._mark_job_interrupted_locked(current_job, now)
+                self._speaking = False
+                self._last_finished_at = now
+                self._last_finished_job_id = current_job.job_id
+                self._last_success = False
+                self._last_error = "tts_interrupted"
+                self._last_error_at = now
+                self._last_started_monotonic = None
+                self._last_run_and_wait_started_monotonic = None
+            while True:
+                try:
+                    queued_job = self._queue.get_nowait()
+                except queue.Empty:
+                    break
+                cleared_jobs += 1
+                self._mark_job_interrupted_locked(queued_job, now)
+                self._queue.task_done()
+        logger.debug(
+            "voice tts stop requested: generation=%s, current_job_id=%s, interrupted=%s, cleared_jobs=%s, provider_id=%s",
+            generation,
+            current_job.job_id if current_job is not None else None,
+            interrupted_current,
+            cleared_jobs,
+            id(provider) if provider is not None else None,
+        )
         if provider:
-            provider.stop()
+            try:
+                provider.stop()
+            except Exception as exc:
+                logger.warning("voice tts provider stop warning: %s: %s", type(exc).__name__, exc)
+        return {
+            "ok": True,
+            "stopped": interrupted_current or cleared_jobs > 0,
+            "interrupted": interrupted_current,
+            "clearedJobs": cleared_jobs,
+        }
 
     def is_speaking(self) -> bool:
         return self.status()["speaking"]
+
+    def recent_text_snapshot(self) -> tuple[str, float | None]:
+        with self._lock:
+            return self._last_spoken_text, self._last_spoken_started_monotonic
 
     def _ensure_worker(self) -> None:
         with self._lock:
@@ -280,11 +355,19 @@ class AsyncTTSRunner:
                     self._mark_job_started(job)
                     if job.on_start:
                         job.on_start()
-                    logger.debug("voice tts speak started: job_id=%s, source=%s, length=%s", job.job_id, job.source, len(job.text))
+                    logger.debug(
+                        "voice tts speak started: job_id=%s, source=%s, generation=%s, length=%s, queue_size=%s",
+                        job.job_id,
+                        job.source,
+                        job.generation,
+                        len(job.text),
+                        self._queue.qsize(),
+                    )
                     provider = self._get_provider(job.job_id)
+                    logger.debug("voice tts provider active: job_id=%s, provider_id=%s", job.job_id, id(provider))
                     provider.speak(job.text)
                     success = True
-                    logger.debug("voice tts speak finished: job_id=%s", job.job_id)
+                    logger.debug("voice tts speak finished: job_id=%s, generation=%s", job.job_id, job.generation)
                 except Exception as exc:
                     error = _summarize_error(exc)
                     logger.exception("voice tts speak error: job_id=%s, error=%s", job.job_id, error)
@@ -312,19 +395,23 @@ class AsyncTTSRunner:
 
     def _mark_job_started(self, job: TTSJob) -> None:
         now = _now_iso()
+        started_monotonic = time.monotonic()
         with self._lock:
             self._speaking = True
+            self._current_job = job
             self._jobs_started += 1
             self._last_job_id = job.job_id
             self._last_started_job_id = job.job_id
             self._last_started_at = now
             self._last_dequeued_at = now
-            self._last_started_monotonic = time.monotonic()
+            self._last_started_monotonic = started_monotonic
             self._last_finished_at = None
             self._last_success = None
             self._last_source = job.source
             self._last_text_length = len(job.text)
             self._last_text_preview = job.preview
+            self._last_spoken_text = job.text
+            self._last_spoken_started_monotonic = started_monotonic
             self._last_init_started_at = None
             self._last_init_finished_at = None
             self._last_run_and_wait_started_at = None
@@ -347,6 +434,24 @@ class AsyncTTSRunner:
             logger.exception("voice tts current voice read error: %s", _summarize_error(exc))
             self._current_voice = {"id": None, "name": "default", "languages": []}
         with self._lock:
+            interrupted = job.generation != self._generation or job.job_id in self._interrupted_job_ids
+            if self._current_job and self._current_job.job_id == job.job_id:
+                self._current_job = None
+            if interrupted:
+                if job.job_id not in self._interrupted_job_ids:
+                    self._mark_job_interrupted_locked(job, finished_at)
+                self._jobs_finished += 1
+                self._total_failures += 1
+                self._update_job_record(
+                    job.job_id,
+                    {
+                        "status": "interrupted",
+                        "success": False,
+                        "error": "tts_interrupted",
+                        "finishedAt": finished_at,
+                    },
+                )
+                return
             self._speaking = False
             self._jobs_finished += 1
             self._last_finished_at = finished_at
@@ -369,6 +474,21 @@ class AsyncTTSRunner:
                     "finishedAt": finished_at,
                 },
             )
+
+    def _mark_job_interrupted_locked(self, job: TTSJob, interrupted_at: str) -> None:
+        if job.job_id not in self._interrupted_job_ids:
+            self._interrupted_job_ids.add(job.job_id)
+            self._jobs_interrupted += 1
+        self._last_interrupted_at = interrupted_at
+        self._update_job_record(
+            job.job_id,
+            {
+                "status": "interrupted",
+                "success": False,
+                "error": "tts_interrupted",
+                "finishedAt": interrupted_at,
+            },
+        )
 
     def _record_provider_event(self, job_id: int, event: dict[str, Any]) -> None:
         event_type = event.get("type")
@@ -472,6 +592,7 @@ def default_tts_status(config: VoiceConfig, max_queue_size: int = 10) -> dict[st
         "jobsQueued": 0,
         "jobsStarted": 0,
         "jobsFinished": 0,
+        "jobsInterrupted": 0,
         "totalSuccesses": 0,
         "totalFailures": 0,
         "lastJobId": None,
@@ -483,6 +604,8 @@ def default_tts_status(config: VoiceConfig, max_queue_size: int = 10) -> dict[st
         "lastInitFinishedAt": None,
         "lastRunAndWaitStartedAt": None,
         "lastRunAndWaitFinishedAt": None,
+        "lastStoppedAt": None,
+        "lastInterruptedAt": None,
         "jobHistory": [],
         "latestManualJob": None,
         "latestAutoJob": None,

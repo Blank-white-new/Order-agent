@@ -1,7 +1,7 @@
 ﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ChatWindow } from "./ChatWindow";
-import { VoiceStatus } from "../api/voiceApi";
+import { VoiceStatus, VoiceTtsStatus } from "../api/voiceApi";
 import { VoiceControls } from "./VoiceControls";
 
 const baseStatus: VoiceStatus = {
@@ -44,10 +44,43 @@ const readyStatus: VoiceStatus = {
   ttsDisabledReason: null,
 };
 
+const idleTtsStatus: VoiceTtsStatus = {
+  queueInitialized: true,
+  speaking: false,
+  queueSize: 0,
+  maxQueueSize: 10,
+  lastQueuedAt: null,
+  lastStartedAt: null,
+  lastFinishedAt: null,
+  lastSuccess: null,
+  lastError: null,
+  lastTextLength: 0,
+  lastTextPreview: null,
+  currentVoice: { id: "fake", name: "Fake Voice", languages: ["zh"] },
+  playbackTarget: "server",
+  currentDurationMs: 0,
+  maybeStuck: false,
+  lastSource: null,
+};
+
+const speakingTtsStatus: VoiceTtsStatus = {
+  ...idleTtsStatus,
+  speaking: true,
+  queueSize: 1,
+  lastQueuedAt: "2026-05-25T00:00:00Z",
+  lastStartedAt: "2026-05-25T00:00:01Z",
+  lastTextLength: 3,
+  lastTextPreview: "旧播报",
+  currentDurationMs: 1200,
+};
+
 const getUserMedia = vi.fn();
 let socketInstances: MockWebSocket[] = [];
 let lastTrackStop = vi.fn();
 let lastAudioClose = vi.fn();
+let lastDestination: object;
+let lastSource: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
+let lastSilentGain: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>; gain: { value: number } };
 let lastProcessor: { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn>; onaudioprocess: ((event: AudioProcessingEvent) => void) | null };
 
 class MockWebSocket {
@@ -110,6 +143,9 @@ beforeEach(() => {
   getUserMedia.mockReset();
   lastTrackStop = vi.fn();
   lastAudioClose = vi.fn(() => Promise.resolve());
+  lastDestination = {};
+  lastSource = { connect: vi.fn(), disconnect: vi.fn() };
+  lastSilentGain = { connect: vi.fn(), disconnect: vi.fn(), gain: { value: 1 } };
   lastProcessor = { connect: vi.fn(), disconnect: vi.fn(), onaudioprocess: null };
   Object.defineProperty(navigator, "mediaDevices", {
     value: { getUserMedia },
@@ -193,8 +229,8 @@ describe("VoiceControls status sync", () => {
     fireEvent.submit(textbox.closest("form") as HTMLFormElement);
 
     await waitFor(() => expect(screen.getByText("好的，已加入一份米饭")).toBeInTheDocument());
-    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts"))).toBe(true));
-    const ttsCall = fetchMock.mock.calls.find(([url]) => String(url).includes("/voice/tts"));
+    await waitFor(() => expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(1));
+    const ttsCall = voiceTtsQueueCalls(fetchMock)[0];
     expect(ttsCall?.[1]).toMatchObject({
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -226,7 +262,7 @@ describe("VoiceControls status sync", () => {
     fireEvent.submit(textbox.closest("form") as HTMLFormElement);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/chat"), expect.anything()));
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts"))).toBe(false);
+    expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(0);
   });
 
   test("text chat does not queue TTS when backend cannot speak", async () => {
@@ -251,7 +287,7 @@ describe("VoiceControls status sync", () => {
     fireEvent.submit(textbox.closest("form") as HTMLFormElement);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/chat"), expect.anything()));
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts"))).toBe(false);
+    expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(0);
   });
 
   test("text chat still displays reply when TTS queue request fails", async () => {
@@ -345,6 +381,157 @@ describe("VoiceControls status sync", () => {
     expect(parseJsonMessage(socketInstances[0].sent[0]).tts_enabled).toBe(false);
   });
 
+  test("speaking TTS status does not disable starting a voice round", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/status")) {
+        return Promise.resolve(okJson(readyStatus));
+      }
+      if (url.includes("/voice/tts/status")) {
+        return Promise.resolve(okJson(speakingTtsStatus));
+      }
+      if (url.includes("/voice/tts")) {
+        return Promise.resolve(okJson({ ok: true, queued: true, playbackTarget: "server" }));
+      }
+      return Promise.resolve(okJson({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "测试播报" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/voice/tts/status")));
+    fireEvent.click(screen.getByLabelText("语音输入"));
+
+    expect(screen.getByRole("button", { name: "开始说话" })).toBeEnabled();
+  });
+
+  test("stops active TTS before starting recording", async () => {
+    getUserMedia.mockResolvedValue(makeStream());
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/status")) {
+        return Promise.resolve(okJson(readyStatus));
+      }
+      if (url.includes("/voice/tts/status")) {
+        return Promise.resolve(okJson(speakingTtsStatus));
+      }
+      if (url.includes("/voice/tts/stop")) {
+        return Promise.resolve(okJson({ ok: true, stopped: true, interrupted: true, clearedJobs: 1, status: idleTtsStatus }));
+      }
+      return Promise.resolve(okJson({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/voice/tts/status")));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/voice/tts/stop"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+    expect(screen.getByLabelText("语音输入")).toBeChecked();
+    expect(screen.getByRole("button", { name: "停止说话" })).toBeEnabled();
+    expect(socketInstances[0].close).not.toHaveBeenCalled();
+  });
+
+  test("waits for TTS stop before opening the microphone", async () => {
+    getUserMedia.mockResolvedValue(makeStream());
+    const stopDeferred = createDeferred<ReturnType<typeof okJson>>();
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/status")) {
+        return Promise.resolve(okJson(readyStatus));
+      }
+      if (url.includes("/voice/tts/status")) {
+        return Promise.resolve(okJson(speakingTtsStatus));
+      }
+      if (url.includes("/voice/tts/stop")) {
+        return stopDeferred.promise;
+      }
+      return Promise.resolve(okJson({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/voice/tts/stop"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    expect(getUserMedia).not.toHaveBeenCalled();
+
+    stopDeferred.resolve(okJson({ ok: true, stopped: true, interrupted: true, clearedJobs: 1, status: idleTtsStatus }));
+
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+  });
+
+  test("ScriptProcessor fallback routes through muted gain and clears output", async () => {
+    getUserMedia.mockResolvedValue(makeStream());
+    renderWithStatus(readyStatus);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    expect(lastSource.connect).toHaveBeenCalledWith(lastProcessor);
+    expect(lastProcessor.connect).not.toHaveBeenCalledWith(lastDestination);
+    expect(lastProcessor.connect).toHaveBeenCalledWith(lastSilentGain);
+    expect(lastSilentGain.gain.value).toBe(0);
+    expect(lastSilentGain.connect).toHaveBeenCalledWith(lastDestination);
+
+    const input = new Float32Array([0.25, -0.5]);
+    const outputLeft = new Float32Array([1, 2, 3]);
+    const outputRight = new Float32Array([4, 5, 6]);
+    const outputBuffer = {
+      numberOfChannels: 2,
+      getChannelData: vi.fn((index: number) => (index === 0 ? outputLeft : outputRight)),
+    };
+
+    lastProcessor.onaudioprocess?.({
+      inputBuffer: { getChannelData: vi.fn(() => input) },
+      outputBuffer,
+    } as unknown as AudioProcessingEvent);
+
+    expect(Array.from(outputLeft)).toEqual([0, 0, 0]);
+    expect(Array.from(outputRight)).toEqual([0, 0, 0]);
+  });
+
+  test("does not stop idle TTS before starting recording", async () => {
+    getUserMedia.mockResolvedValue(makeStream());
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/status")) {
+        return Promise.resolve(okJson(readyStatus));
+      }
+      if (url.includes("/voice/tts/status")) {
+        return Promise.resolve(okJson(idleTtsStatus));
+      }
+      if (url.includes("/voice/tts/stop")) {
+        return Promise.resolve(okJson({ ok: true, stopped: false, interrupted: false, clearedJobs: 0, status: idleTtsStatus }));
+      }
+      return Promise.resolve(okJson({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts/stop"))).toBe(false);
+  });
+
   test("start_utterance carries current TTS preference for consecutive rounds", async () => {
     getUserMedia.mockResolvedValue(makeStream());
     renderWithStatus(readyStatus);
@@ -389,6 +576,25 @@ describe("VoiceControls status sync", () => {
     await waitFor(() => expect(socketInstances[0].sent.some((payload) => payload instanceof ArrayBuffer)).toBe(true));
   });
 
+  test("continues sending PCM after backend reports speaking", async () => {
+    getUserMedia.mockResolvedValue(makeStream());
+    renderWithStatus(readyStatus);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    socketInstances[0].emitJson({ type: "status", status: "speaking", muted: true });
+    lastProcessor.onaudioprocess?.({
+      inputBuffer: {
+        getChannelData: () => new Float32Array([0, 0.25, -0.25, 0.5]),
+      },
+    } as unknown as AudioProcessingEvent);
+
+    await waitFor(() => expect(socketInstances[0].sent.some((payload) => payload instanceof ArrayBuffer)).toBe(true));
+  });
+
   test("does not start twice while start is in progress", async () => {
     const deferred = createDeferred<MediaStream>();
     getUserMedia.mockReturnValue(deferred.promise);
@@ -400,7 +606,7 @@ describe("VoiceControls status sync", () => {
     fireEvent.click(start);
     fireEvent.click(start);
 
-    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
     deferred.resolve(makeStream());
     await waitFor(() => expect(socketInstances).toHaveLength(1));
   });
@@ -475,7 +681,7 @@ describe("VoiceControls status sync", () => {
     expect(onUserFinal).toHaveBeenCalledWith("来一份黑椒牛肉饭");
     expect(onAgentReply).toHaveBeenCalledWith("已加入一份黑椒牛肉饭", {});
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/chat"), expect.anything());
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts"))).toBe(false);
+    expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(0);
     await waitFor(() => expect(screen.getByText(/已加入后端播报队列/)).toBeInTheDocument());
   });
 
@@ -605,7 +811,7 @@ describe("VoiceControls status sync", () => {
     expect(String(replyDebug.preview)).not.toContain("hidden");
     expect(onUserFinal).toHaveBeenCalledWith(longFinal);
     expect(onAgentReply).toHaveBeenCalledWith(longReply, { should: "not-log" });
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/voice/tts"))).toBe(false);
+    expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(0);
   });
 
   test("voice debug is silent when disabled", async () => {
@@ -694,6 +900,11 @@ describe("VoiceControls status sync", () => {
     socketInstances[0].unexpectedClose();
 
     expect(screen.queryByText(/语音连接已断开/)).not.toBeInTheDocument();
+    expect(lastProcessor.onaudioprocess).toBeNull();
+    expect(lastProcessor.disconnect).toHaveBeenCalled();
+    expect(lastSource.disconnect).toHaveBeenCalled();
+    expect(lastSilentGain.disconnect).toHaveBeenCalled();
+    expect(lastTrackStop).toHaveBeenCalled();
   });
 
   test("shows an error for unexpected close while recording", async () => {
@@ -713,7 +924,17 @@ describe("VoiceControls status sync", () => {
 
   test("refresh that makes canRecord false safely stops active recording", async () => {
     getUserMedia.mockResolvedValue(makeStream());
-    const fetchMock = vi.fn().mockResolvedValueOnce(okJson(readyStatus)).mockResolvedValueOnce(okJson(baseStatus));
+    let voiceStatusCalls = 0;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/tts/status")) {
+        return Promise.resolve(okJson(idleTtsStatus));
+      }
+      if (url.includes("/voice/status")) {
+        voiceStatusCalls += 1;
+        return Promise.resolve(okJson(voiceStatusCalls === 1 ? readyStatus : baseStatus));
+      }
+      return Promise.resolve(okJson({}));
+    });
     vi.stubGlobal("fetch", fetchMock);
     render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
 
@@ -744,6 +965,10 @@ describe("VoiceControls status sync", () => {
     expect(lastTrackStop).toHaveBeenCalled();
     expect(socketInstances[0].close).toHaveBeenCalled();
     expect(lastAudioClose).toHaveBeenCalled();
+    expect(lastProcessor.onaudioprocess).toBeNull();
+    expect(lastProcessor.disconnect).toHaveBeenCalled();
+    expect(lastSource.disconnect).toHaveBeenCalled();
+    expect(lastSilentGain.disconnect).toHaveBeenCalled();
   });
 
   test("disables TTS preference when canSpeak is false", async () => {
@@ -801,6 +1026,58 @@ describe("VoiceControls status sync", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/chat"))).toBe(false);
   });
 
+  test("shows interrupted TTS status without treating it as a failure", async () => {
+    const fetchMock = renderWithTestBroadcastTtsStatus({
+      ...idleTtsStatus,
+      lastSuccess: false,
+      lastError: "tts_interrupted",
+      lastFinishedAt: "2026-05-25T00:00:02Z",
+      currentVoice: { id: "fake", name: "Fake Voice", languages: ["zh"] },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "测试播报" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/voice/tts/status")));
+    expect(await screen.findByText(/播报已被打断/)).toBeInTheDocument();
+    expect(screen.queryByText(/最近失败/)).not.toBeInTheDocument();
+  });
+
+  test("shows real TTS errors as recent failures", async () => {
+    const fetchMock = renderWithTestBroadcastTtsStatus({
+      ...idleTtsStatus,
+      lastSuccess: false,
+      lastError: "tts_provider_error",
+      lastFinishedAt: "2026-05-25T00:00:02Z",
+      currentVoice: { id: "fake", name: "Fake Voice", languages: ["zh"] },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "测试播报" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/voice/tts/status")));
+    expect(await screen.findByText(/TTS 最近失败.*tts_provider_error/)).toBeInTheDocument();
+    expect(screen.queryByText(/播报已被打断/)).not.toBeInTheDocument();
+  });
+
+  test("empty ASR transcript message is not shown as a TTS failure", async () => {
+    renderWithStatus(readyStatus);
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    socketInstances[0].emitJson({
+      type: "tts_status",
+      utterance_id: "u-empty",
+      source: "auto",
+      queued: false,
+      reason: "ignored_empty_transcript",
+    });
+
+    expect(await screen.findByText(/本轮未识别到有效语音，因此没有触发新的回复播报/)).toBeInTheDocument();
+    expect(screen.queryByText(/最近失败/)).not.toBeInTheDocument();
+  });
+
   test("refresh only updates voice status controls", async () => {
     const fetchMock = renderWithStatus({ ...baseStatus, voiceEnabled: false, canRecord: false }).fetchMock;
     const refresh = await screen.findByRole("button", { name: "刷新语音状态" });
@@ -828,6 +1105,24 @@ function renderWithStatus(
   return { ...renderResult, fetchMock };
 }
 
+function renderWithTestBroadcastTtsStatus(ttsStatus: VoiceTtsStatus) {
+  const fetchMock = vi.fn((url: string) => {
+    if (url.includes("/voice/status")) {
+      return Promise.resolve(okJson(readyStatus));
+    }
+    if (url.includes("/voice/tts/status")) {
+      return Promise.resolve(okJson(ttsStatus));
+    }
+    if (url.includes("/voice/tts")) {
+      return Promise.resolve(okJson({ ok: true, queued: true, playbackTarget: "server" }));
+    }
+    return Promise.resolve(okJson({}));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<VoiceControls sessionId="s1" onUserFinal={vi.fn()} onAgentReply={vi.fn()} />);
+  return fetchMock;
+}
+
 function okJson(body: unknown) {
   return {
     ok: true,
@@ -853,6 +1148,13 @@ function findDebugPayload(debugSpy: { mock: { calls: unknown[][] } }, eventName:
   return call?.[1] as Record<string, unknown>;
 }
 
+function voiceTtsQueueCalls(fetchMock: { mock: { calls: unknown[][] } }) {
+  return fetchMock.mock.calls.filter(([url, init]) => {
+    const request = init as RequestInit | undefined;
+    return String(url).endsWith("/voice/tts") && request?.method === "POST";
+  });
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
@@ -866,10 +1168,13 @@ function createDeferred<T>() {
 class MockAudioContext {
   state: AudioContextState = "running";
   audioWorklet = undefined;
-  destination = {};
+  destination = lastDestination;
   sampleRate = 48000;
   createMediaStreamSource() {
-    return { connect: vi.fn(), disconnect: vi.fn() };
+    return lastSource;
+  }
+  createGain() {
+    return lastSilentGain;
   }
   createScriptProcessor() {
     return lastProcessor;

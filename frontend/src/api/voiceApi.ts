@@ -85,7 +85,7 @@ export type VoiceServerEvent =
 export type VoiceTtsJob = {
   jobId: number;
   source: "auto" | "manual";
-  status: "queued" | "running" | "success" | "failed";
+  status: "queued" | "running" | "success" | "failed" | "interrupted";
   success: boolean | null;
   error: string | null;
   queuedAt: string | null;
@@ -122,6 +122,7 @@ export type VoiceTtsStatus = {
   jobsQueued?: number;
   jobsStarted?: number;
   jobsFinished?: number;
+  jobsInterrupted?: number;
   totalSuccesses?: number;
   totalFailures?: number;
   lastJobId?: number | null;
@@ -133,6 +134,8 @@ export type VoiceTtsStatus = {
   lastInitFinishedAt?: string | null;
   lastRunAndWaitStartedAt?: string | null;
   lastRunAndWaitFinishedAt?: string | null;
+  lastStoppedAt?: string | null;
+  lastInterruptedAt?: string | null;
   jobHistory?: VoiceTtsJob[];
   latestManualJob?: VoiceTtsJob | null;
   latestAutoJob?: VoiceTtsJob | null;
@@ -171,6 +174,14 @@ export type VoiceTtsResponse = {
   playbackTarget: string;
 };
 
+export type VoiceTtsStopResponse = {
+  ok: boolean;
+  stopped: boolean;
+  interrupted: boolean;
+  clearedJobs: number;
+  status: VoiceTtsStatus;
+};
+
 export async function getVoiceStatus(): Promise<VoiceStatus> {
   const response = await fetch(`${API_BASE}/voice/status`);
   if (!response.ok) {
@@ -203,6 +214,18 @@ export async function getVoiceTtsStatus(): Promise<VoiceTtsStatus> {
   const response = await fetch(`${API_BASE}/voice/tts/status`);
   if (!response.ok) {
     throw new Error("voice tts status request failed");
+  }
+  return response.json();
+}
+
+export async function postVoiceTtsStop(sessionId: string): Promise<VoiceTtsStopResponse> {
+  const response = await fetch(`${API_BASE}/voice/tts/stop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!response.ok) {
+    throw new Error("voice tts stop request failed");
   }
   return response.json();
 }

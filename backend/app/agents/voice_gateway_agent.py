@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -66,6 +68,7 @@ class VoiceGatewayAgent:
         session = self.session_controller.get_session(session_id)
         session.current_utterance_id = utterance_id
         session.tts_enabled = bool(tts_enabled) if tts_enabled is not None else False
+        session.muted = False
         session.set_utterance_tts_preference(utterance_id, session.tts_enabled)
         session.set_status("listening")
         self._log_auto_tts_debug(
@@ -85,8 +88,6 @@ class VoiceGatewayAgent:
 
     async def on_audio_chunk(self, session_id: str, chunk: bytes) -> list[dict[str, Any]]:
         session = self.session_controller.get_session(session_id)
-        if session.muted or session.status == "speaking":
-            return [{"type": "status", "status": "speaking", "muted": True}]
         if not session.recognizer:
             started = self.start_session(session_id)
             if started.get("type") == "error":
@@ -153,6 +154,18 @@ class VoiceGatewayAgent:
                 {"type": "ignored_empty_transcript", "utterance_id": utterance_id, "ignored": True},
                 self._tts_skipped_event(utterance_id, "ignored_empty_transcript", tts_enabled=session.get_utterance_tts_preference(utterance_id)),
             ]
+        if self._looks_like_tts_echo(session, utterance_id, normalized):
+            session.clear_active_utterance(utterance_id)
+            self._log_auto_tts_debug(
+                "ignored_tts_echo_transcript",
+                session_id=session_id,
+                utterance_id=utterance_id,
+                tts_enabled=session.get_utterance_tts_preference(utterance_id),
+            )
+            return [
+                {"type": "ignored_empty_transcript", "utterance_id": utterance_id, "ignored": True},
+                self._tts_skipped_event(utterance_id, "ignored_empty_transcript", tts_enabled=session.get_utterance_tts_preference(utterance_id)),
+            ]
         if session.processed_utterances.has(utterance_id):
             session.clear_active_utterance(utterance_id)
             self._log_auto_tts_debug(
@@ -166,6 +179,7 @@ class VoiceGatewayAgent:
                 self._tts_skipped_event(utterance_id, "duplicate_utterance", tts_enabled=session.get_utterance_tts_preference(utterance_id)),
             ]
         session.processed_utterances.add(utterance_id)
+        self.stop_tts(session_id)
         session.set_status("thinking")
 
         text_result = await self.handle_final_text(session_id, normalized)
@@ -202,6 +216,15 @@ class VoiceGatewayAgent:
 
     def tts_status(self) -> dict[str, Any]:
         return self.runtime.tts_status()
+
+    def stop_tts(self, session_id: str | None = None) -> dict[str, Any]:
+        result = self.runtime.stop_tts()
+        if session_id:
+            session = self.session_controller.get_session(session_id)
+            session.muted = False
+            if session.status == "speaking":
+                session.set_status("idle")
+        return result
 
     def shutdown_tts(self) -> None:
         self.runtime.shutdown()
@@ -343,3 +366,32 @@ class VoiceGatewayAgent:
             "job_id": None,
             "tts_enabled": bool(tts_enabled),
         }
+
+    def _looks_like_tts_echo(self, session: Any, utterance_id: str, normalized: str) -> bool:
+        if utterance_id and session.current_utterance_id == utterance_id:
+            return False
+        recent_text, started_at = self.runtime.recent_tts_text_snapshot()
+        if not recent_text or started_at is None:
+            return False
+        if time.monotonic() - started_at > 2.0:
+            return False
+        return _texts_are_highly_similar(normalized, recent_text)
+
+
+def _compact_for_echo_compare(text: str) -> str:
+    return "".join(ch for ch in text.lower() if ch.isalnum())
+
+
+def _texts_are_highly_similar(left: str, right: str) -> bool:
+    compact_left = _compact_for_echo_compare(left)
+    compact_right = _compact_for_echo_compare(right)
+    if not compact_left or not compact_right:
+        return False
+    if compact_left == compact_right:
+        return True
+    shorter, longer = sorted((compact_left, compact_right), key=len)
+    if len(shorter) >= 8 and shorter in longer and len(shorter) / len(longer) >= 0.9:
+        return True
+    if min(len(compact_left), len(compact_right)) < 8:
+        return False
+    return difflib.SequenceMatcher(a=compact_left, b=compact_right).ratio() >= 0.92

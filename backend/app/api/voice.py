@@ -25,6 +25,10 @@ class VoiceTTSRequest(BaseModel):
     session_id: str = "voice-tts"
 
 
+class VoiceTTSStopRequest(BaseModel):
+    session_id: str | None = None
+
+
 @router.get("/voice/status")
 def voice_status(request: Request) -> dict[str, Any]:
     runtime = get_voice_runtime(request)
@@ -41,6 +45,13 @@ async def voice_tts(request: Request, payload: VoiceTTSRequest) -> dict[str, Any
 def voice_tts_status(request: Request) -> dict[str, Any]:
     runtime = get_voice_runtime(request)
     return runtime.tts_status()
+
+
+@router.post("/voice/tts/stop")
+async def voice_tts_stop(request: Request, payload: VoiceTTSStopRequest | None = None) -> dict[str, Any]:
+    runtime = get_voice_runtime(request)
+    gateway = get_voice_gateway(request, runtime)
+    return gateway.stop_tts(payload.session_id if payload else None)
 
 
 @router.websocket("/voice/asr")

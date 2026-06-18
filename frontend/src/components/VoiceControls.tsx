@@ -4,6 +4,7 @@ import {
   getVoiceTtsStatus,
   getVoiceWebSocketUrl,
   postVoiceTts,
+  postVoiceTtsStop,
   VoiceServerEvent,
   VoiceStatus,
   VoiceTtsStatus,
@@ -49,6 +50,7 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
   const utteranceIdRef = useRef<string>("");
   const shouldSendPcmRef = useRef(false);
   const pcmDebugLoggedRef = useRef(false);
@@ -171,6 +173,7 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
       setPartial("");
     });
     try {
+      await stopTtsBeforeRecordingIfNeeded();
       await startMicrophone();
       const websocket = await ensureWebSocket();
       const utteranceId = crypto.randomUUID();
@@ -194,6 +197,30 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
       });
     } finally {
       setStartingVoice(false);
+    }
+  }
+
+  async function stopTtsBeforeRecordingIfNeeded() {
+    if (!voiceStatus?.canSpeak) {
+      return;
+    }
+    let shouldStop = false;
+    try {
+      const status = await getVoiceTtsStatus();
+      safeSetState(() => setTtsStatus(status));
+      shouldStop = status.speaking || status.queueSize > 0;
+    } catch (err) {
+      shouldStop = true;
+      console.warn("Voice TTS status check failed before recording; trying best-effort stop.", err);
+    }
+    if (!shouldStop) {
+      return;
+    }
+    try {
+      const result = await postVoiceTtsStop(sessionId);
+      safeSetState(() => setTtsStatus(result.status));
+    } catch (err) {
+      console.warn("Voice TTS stop before recording failed.", err);
     }
   }
 
@@ -331,7 +358,7 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
   function handleVoiceEvent(event: VoiceServerEvent) {
     if (event.type === "status") {
       safeSetState(() => setStatusText(labelStatus(event.status)));
-      shouldSendPcmRef.current = event.status !== "speaking" && recordingRef.current;
+      shouldSendPcmRef.current = recordingRef.current;
       return;
     }
     if (event.type === "partial") {
@@ -434,9 +461,12 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
         new Blob(
           [
             `class VoicePcmProcessor extends AudioWorkletProcessor {
-              process(inputs) {
+              process(inputs, outputs) {
                 const input = inputs[0] && inputs[0][0];
                 if (input) this.port.postMessage(input.slice(0));
+                for (const output of outputs) {
+                  for (const channel of output) channel.fill(0);
+                }
                 return true;
               }
             }
@@ -462,15 +492,22 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
     } else {
       // ScriptProcessorNode is kept only as a compatibility fallback for browsers without AudioWorklet.
       const node = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
       node.onaudioprocess = (event) => {
-        if (!isMountedRef.current) {
-          return;
+        try {
+          if (isMountedRef.current) {
+            sendPcm(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
+          }
+        } finally {
+          clearAudioOutput(event.outputBuffer);
         }
-        sendPcm(event.inputBuffer.getChannelData(0), audioContext.sampleRate);
       };
       source.connect(node);
-      node.connect(audioContext.destination);
+      node.connect(silentGain);
+      silentGain.connect(audioContext.destination);
       processorRef.current = node;
+      silentGainRef.current = silentGain;
     }
   }
 
@@ -489,8 +526,12 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
       }
     }
 
+    const processor = processorRef.current;
+    if (processor && "onaudioprocess" in processor) {
+      processor.onaudioprocess = null;
+    }
     try {
-      processorRef.current?.disconnect();
+      processor?.disconnect();
     } catch (err) {
       console.warn("Failed to disconnect voice processor.", err);
     }
@@ -498,6 +539,11 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
       sourceRef.current?.disconnect();
     } catch (err) {
       console.warn("Failed to disconnect voice source.", err);
+    }
+    try {
+      silentGainRef.current?.disconnect();
+    } catch (err) {
+      console.warn("Failed to disconnect voice silent gain.", err);
     }
     if (streamRef.current) {
       stopTracks(streamRef.current);
@@ -513,6 +559,7 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
 
     processorRef.current = null;
     sourceRef.current = null;
+    silentGainRef.current = null;
     audioContextRef.current = null;
     streamRef.current = null;
     if (resetRecording) {
@@ -571,6 +618,10 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
     statusFormatInvalid;
   const stopDisabled = !recording || stoppingVoice;
   const testTtsDisabled = !voiceStatus?.canSpeak || statusLoading || statusError || statusFormatInvalid || testingTts;
+  const bargeInHint =
+    voiceInputPreference && ttsPreference && voiceStatus?.canRecord && voiceStatus.canSpeak
+      ? "播报中也可以点击开始说话，系统会先停止当前播报，再录入本轮语音。"
+      : "";
 
   return (
     <div className="voice-panel">
@@ -627,7 +678,7 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
         <span>TTS：{ttsLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
         <span>当前：{statusText}</span>
       </div>
-      {voiceHint ? <p className="voice-hint">{voiceHint}</p> : null}
+      {voiceHint ? <p className="voice-hint">{voiceHint}</p> : bargeInHint ? <p className="voice-hint">{bargeInHint}</p> : null}
       {ttsStatus ? <p className="voice-tts-status">{formatTtsStatus(ttsStatus)}</p> : null}
       {partial ? <p className="partial">识别中：{partial}</p> : null}
       {voiceStatus ? (
@@ -746,6 +797,15 @@ function stopTracks(stream: MediaStream) {
   }
 }
 
+function clearAudioOutput(outputBuffer: AudioBuffer | undefined) {
+  if (!outputBuffer) {
+    return;
+  }
+  for (let index = 0; index < outputBuffer.numberOfChannels; index += 1) {
+    outputBuffer.getChannelData(index).fill(0);
+  }
+}
+
 function labelStatus(status: string) {
   const labels: Record<string, string> = {
     idle: "空闲",
@@ -796,7 +856,7 @@ function ttsReasonMessage(reason: string | undefined) {
     tts_queue_full: "后端播报队列已满。",
     tts_queue_stuck: "后端播报队列可能卡住。",
     duplicate_utterance: "重复语音轮次未播报。",
-    ignored_empty_transcript: "未识别到有效语音，未播报。",
+    ignored_empty_transcript: "本轮未识别到有效语音，因此没有触发新的回复播报。",
     tts_error: "后端播报入队失败。",
   };
   return messages[reason ?? ""] ?? "语音播报未入队。";
@@ -811,6 +871,9 @@ function formatTtsStatus(status: VoiceTtsStatus) {
     return `TTS 最近完成，lastSuccess=true，voice=${voiceName}，finished=${status.lastFinishedAt ?? "-"}`;
   }
   if (status.lastSuccess === false) {
+    if (status.lastError === "tts_interrupted") {
+      return `TTS 最近一次播报已被打断，lastError=${status.lastError}，voice=${voiceName}`;
+    }
     return `TTS 最近失败，lastError=${status.lastError ?? "-"}，voice=${voiceName}`;
   }
   return `TTS 状态：queueInitialized=${status.queueInitialized}，queueSize=${status.queueSize}，lastSource=${status.lastSource ?? "-"}`;

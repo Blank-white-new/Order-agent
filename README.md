@@ -458,7 +458,7 @@ Windows 注意事项：
 - 麦克风权限不足：检查浏览器地址栏权限和 Windows 隐私设置。
 - `vosk` 安装失败：确认 Python 版本和 pip 源，或先保持 `VOICE_ENABLED=false` 使用文本模式。
 - 没有中文 TTS 声音：安装系统中文语音，或设置 `TTS_ENABLED=false`。
-- TTS 被 ASR 识别：后端 speaking 状态会 mute ASR，前端收到 speaking 后也会暂停发送 PCM。
+- TTS 回声与打断：用户已点击“开始说话”进入录音轮次时，TTS speaking 不再阻断 ASR；如果播报中点击“开始说话”，前端会先调用 `POST /api/voice/tts/stop` 做 best-effort 停止并清空待播队列，再录入本轮语音。`pyttsx3` 是否能立即停声取决于系统语音驱动。
 - 语音识别不准但文本 agent 正常：这是 ASR 模型问题；可以直接使用文本框，或更换更大的 Vosk 中文模型。
 
 语音接口：
@@ -466,6 +466,7 @@ Windows 注意事项：
 - `GET /api/voice/status`
 - `WebSocket /api/voice/asr?session_id=...`
 - `POST /api/voice/tts`
+- `POST /api/voice/tts/stop`
 - `GET /api/voice/tts/status`
 
 ### 让本地语音功能可用

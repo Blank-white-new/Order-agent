@@ -25,6 +25,7 @@ class Pyttsx3TTSProvider(TTSProvider):
     def __init__(self, config: VoiceConfig) -> None:
         self.config = config
         self._engine: Any = None
+        self._active_engine: Any = None
         self._speaking = False
         self._current_voice: dict[str, Any] = {"id": None, "name": "default", "languages": []}
         self._com_warning_logged = False
@@ -46,9 +47,16 @@ class Pyttsx3TTSProvider(TTSProvider):
             self._speak_with_reused_engine(text)
 
     def stop(self) -> None:
-        if self._engine is not None:
+        engine = self._active_engine or self._engine
+        logger.debug(
+            "voice tts pyttsx3 stop requested: active_engine_id=%s, reused_engine_id=%s, speaking=%s",
+            id(self._active_engine) if self._active_engine is not None else None,
+            id(self._engine) if self._engine is not None else None,
+            self._speaking,
+        )
+        if engine is not None:
             try:
-                self._engine.stop()
+                engine.stop()
             except Exception as exc:
                 logger.warning("voice tts engine stop warning: %s: %s", type(exc).__name__, exc)
         self._speaking = False
@@ -73,6 +81,8 @@ class Pyttsx3TTSProvider(TTSProvider):
             self._emit({"type": "init_started"})
             logger.debug("voice tts pyttsx3 init started")
             engine = self._create_engine()
+            self._active_engine = engine
+            logger.debug("voice tts pyttsx3 active engine set: engine_id=%s, mode=new", id(engine))
             self._emit({"type": "init_finished"})
             logger.debug("voice tts pyttsx3 init finished")
             self._configure_engine(engine)
@@ -88,6 +98,8 @@ class Pyttsx3TTSProvider(TTSProvider):
         finally:
             self._speaking = False
             self._stop_engine(engine)
+            if self._active_engine is engine:
+                self._active_engine = None
             engine = None
             self._co_uninitialize(pythoncom, com_initialized)
 
@@ -97,6 +109,8 @@ class Pyttsx3TTSProvider(TTSProvider):
         try:
             pythoncom, com_initialized = self._co_initialize()
             engine = self._get_reused_engine()
+            self._active_engine = engine
+            logger.debug("voice tts pyttsx3 active engine set: engine_id=%s, mode=reused", id(engine))
             self._speaking = True
             engine.say(text)
             self._emit({"type": "run_and_wait_started"})
@@ -108,6 +122,8 @@ class Pyttsx3TTSProvider(TTSProvider):
                 logger.debug("voice tts pyttsx3 runAndWait finished")
         finally:
             self._speaking = False
+            if self._active_engine is self._engine:
+                self._active_engine = None
             self._co_uninitialize(pythoncom, com_initialized)
 
     def _get_reused_engine(self) -> Any:
