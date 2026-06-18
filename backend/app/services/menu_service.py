@@ -3,6 +3,12 @@ from __future__ import annotations
 from app.models.schemas import MenuItem, dump_model
 
 
+SAFE_ITEM_MATCH_ALIASES = {
+    "black_pepper_beef_rice": ["黑胶牛肉饭", "黑角牛肉饭"],
+    "kung_pao_chicken_rice": ["宫保鸡丁"],
+}
+
+
 class MenuService:
     def __init__(self) -> None:
         self._items = [
@@ -260,12 +266,12 @@ class MenuService:
         if not text:
             return None
         for item in self._items:
-            names = [item.name, *item.aliases]
+            names = self._matching_names(item)
             if any(name and name == text for name in names):
                 return item
         matches: list[tuple[int, int, MenuItem]] = []
         for item in self._items:
-            names = [item.name, *item.aliases]
+            names = self._matching_names(item)
             for name in names:
                 if name and name in text:
                     matches.append((text.find(name), -len(name), item))
@@ -279,7 +285,7 @@ class MenuService:
         matches: list[MenuItem] = []
         positions: list[tuple[int, int, MenuItem]] = []
         for item in self._items:
-            names = [item.name, *item.aliases]
+            names = self._matching_names(item)
             found = [(text.find(name), len(name)) for name in names if name and name in text]
             if found:
                 position, length = min(found, key=lambda pair: (pair[0], -pair[1]))
@@ -408,3 +414,10 @@ class MenuService:
 
     def all_items_as_dicts(self) -> list[dict]:
         return [dump_model(item) for item in self._items]
+
+    def matching_names_for_item(self, name: str) -> list[str]:
+        item = self.find_item_by_name(name)
+        return self._matching_names(item) if item else []
+
+    def _matching_names(self, item: MenuItem) -> list[str]:
+        return [item.name, *item.aliases, *SAFE_ITEM_MATCH_ALIASES.get(item.id, [])]

@@ -19,6 +19,48 @@ QUESTION_MARKERS = (
 )
 CONFIRM_WORDS = {"确认", "可以", "好的", "好", "对", "是的", "没错", "没问题", "就这样", "就这些", "先这样", "下单", "提交订单", "用这个地址", "就这个地址"}
 CANCEL_WORDS = {"不用", "不要了", "算了", "取消", "先不点了", "不点了", "先不买了"}
+ORDER_ACTION_TOKENS = (
+    "来一份",
+    "来一个",
+    "来个",
+    "来一",
+    "再来",
+    "再加",
+    "点",
+    "加",
+    "要",
+    "想要",
+    "我要",
+)
+ADDRESS_TOKENS = (
+    "大学",
+    "校区",
+    "校园",
+    "小区",
+    "宿舍",
+    "楼",
+    "楼上",
+    "楼下",
+    "栋",
+    "单元",
+    "室",
+    "号",
+    "路",
+    "街",
+    "巷",
+    "学院",
+    "公司",
+    "园区",
+    "地铁站",
+    "饭店",
+    "餐厅",
+    "饭堂",
+    "旁边",
+    "附近",
+    "门口",
+    "对面",
+)
+ADDRESS_PLACE_SUFFIXES = ("店", "饭店", "餐厅", "饭堂", "楼", "楼上", "楼下", "旁边", "附近", "门口", "对面")
 
 OPTION_TOKENS = [
     "不辣",
@@ -158,6 +200,13 @@ class SemanticRouterAgent:
         recommendation = self._interpret_recommendation(compact)
         if recommendation:
             return recommendation
+
+        address_order = self._interpret_address_order_mix(compact)
+        if address_order:
+            return address_order
+
+        if self._looks_like_address_text(compact) and not self._has_explicit_order_action(compact):
+            return Interpretation(intent="fallback", confidence=0.2, source="deterministic", is_question=False)
 
         repeat = self._interpret_repeat_last_item(compact)
         if repeat:
@@ -375,7 +424,7 @@ class SemanticRouterAgent:
                 entities={"budget": self._extract_budget(text)},
                 preferences={"budget": self._extract_budget(text)},
             )
-        if any(token in text for token in ["快一点", "快点", "快的"]):
+        if self._is_speed_recommendation(text):
             return Interpretation(intent="ask_recommendation_by_speed", confidence=0.88, source="rule", is_question=True, preferences={"options": ["快"]})
         if self._is_preference_recommendation(text):
             return Interpretation(
@@ -481,6 +530,140 @@ class SemanticRouterAgent:
             entities={"item_name": item.name, "quantity": self._extract_quantity(text), "unit": self._extract_unit(text)},
             preferences=self._extract_preferences(text),
         )
+
+    def _interpret_address_order_mix(self, text: str) -> Interpretation | None:
+        if not self._looks_like_address_text(text) or not self._has_explicit_order_action(text):
+            return None
+        items = self._items_with_order_evidence(text)
+        if not items:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                is_question=False,
+                should_mutate_order=False,
+                entities={"directed_message": "这句里有地址和点菜信息，我没确认具体要加哪个菜。请把菜名和地址分开发我。"},
+            )
+        if len(items) > 1:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                is_question=False,
+                should_mutate_order=False,
+                entities={"directed_message": "这句里有多个菜和地址，我先不改订单。请把要点的菜和配送地址分开发我。"},
+            )
+
+        item, position = items[0]
+        children = [
+            {
+                "intent": "order_food",
+                "confidence": 0.93,
+                "source": "rule",
+                "is_question": False,
+                "should_mutate_order": True,
+                "entities": {"item_name": item.name, "quantity": self._extract_quantity(text), "unit": self._extract_unit(text)},
+                "preferences": self._extract_preferences(text),
+                "target": item.name,
+                "raw": item.name,
+            }
+        ]
+        address = self._extract_mixed_address(text, position)
+        if address:
+            children.append(
+                {
+                    "intent": "replace_delivery_candidate",
+                    "confidence": 0.88,
+                    "source": "rule",
+                    "is_question": False,
+                    "should_mutate_order": True,
+                    "entities": {"address": address},
+                    "preferences": {},
+                    "target": address,
+                    "raw": address,
+                }
+            )
+        if len(children) == 1:
+            child = children[0]
+            return Interpretation(
+                intent="order_food",
+                confidence=child["confidence"],
+                source="rule",
+                should_mutate_order=True,
+                entities=child["entities"],
+                preferences=child["preferences"],
+                target=child["target"],
+            )
+        return Interpretation(
+            intent="composite_intent",
+            confidence=0.92,
+            source="rule",
+            should_mutate_order=True,
+            entities={"children": children},
+        )
+
+    def _items_with_order_evidence(self, text: str) -> list[tuple[object, int]]:
+        matches: list[tuple[int, int, object]] = []
+        for item in self.menu_service.find_items_in_text(text):
+            evidence = self._best_item_evidence_span(text, item)
+            if evidence is None:
+                continue
+            position, length = evidence
+            matches.append((position, length, item))
+        matches.sort(key=lambda match: (match[0], -match[1]))
+        return [(item, position) for position, _length, item in matches]
+
+    def _best_item_evidence_span(self, text: str, item: object) -> tuple[int, int] | None:
+        names = self.menu_service.matching_names_for_item(getattr(item, "name", ""))
+        spans: list[tuple[int, int]] = []
+        for name in names:
+            if not name:
+                continue
+            start = text.find(name)
+            while start >= 0:
+                end = start + len(name)
+                if not self._is_embedded_in_address_place(text, end) and self._has_order_action_near_span(text, start, end):
+                    spans.append((start, len(name)))
+                start = text.find(name, start + 1)
+        if not spans:
+            return None
+        return sorted(spans, key=lambda span: (span[0], -span[1]))[0]
+
+    def _is_embedded_in_address_place(self, text: str, end: int) -> bool:
+        tail = text[end : end + 4]
+        return any(tail.startswith(suffix) for suffix in ADDRESS_PLACE_SUFFIXES)
+
+    def _has_order_action_near_span(self, text: str, start: int, end: int) -> bool:
+        window = text[max(0, start - 8) : min(len(text), end + 8)]
+        if any(token in window for token in ORDER_ACTION_TOKENS):
+            return True
+        return bool(re.search(r"(?:\d+|[一二两俩三四五六七八九十]+)(?:份|个|瓶|杯|碗)", window))
+
+    def _extract_mixed_address(self, text: str, item_position: int) -> str | None:
+        order_positions = [text.find(token) for token in ORDER_ACTION_TOKENS if token in text]
+        before_item_order_positions = [position for position in order_positions if 0 <= position < item_position]
+        boundary = min(before_item_order_positions, default=item_position)
+        address = text[:boundary]
+        if not address and "送到" in text:
+            address = text[text.find("送到") : item_position]
+        for token in ["配送到", "外卖到", "送到", "配送", "外卖", "到"]:
+            address = address.replace(token, "")
+        address = address.strip()
+        return address if self._looks_like_address_text(address) else None
+
+    def _looks_like_address_text(self, text: str) -> bool:
+        if not text:
+            return False
+        if any(token in text for token in ["有啥", "喝的", "菜单", "配送费", "多久", "确认", "不用"]):
+            return False
+        return any(token in text for token in ADDRESS_TOKENS)
+
+    def _has_explicit_order_action(self, text: str) -> bool:
+        if not text or text.startswith("不要"):
+            return False
+        if any(token in text for token in ORDER_ACTION_TOKENS):
+            return True
+        return bool(re.search(r"(?:\d+|[一二两俩三四五六七八九十]+)(?:份|个|瓶|杯|碗)", text))
 
     def _interpret_replacement(self, text: str) -> Interpretation | None:
         if "换成" not in text and "换" not in text:
@@ -774,6 +957,13 @@ class SemanticRouterAgent:
 
     def _is_preference_recommendation(self, text: str) -> bool:
         return any(token in text for token in ["清淡", "不辣", "便宜", "舒服", "有汤", "热乎", "不要太油", "不吃牛肉", "不要香菜", "主食", "小份", "一个人吃"])
+
+    def _is_speed_recommendation(self, text: str) -> bool:
+        if not any(token in text for token in ["快一点", "快点", "快的", "出餐快", "赶时间", "马上"]):
+            return False
+        if any(token in text for token in ["推荐", "出餐", "赶时间", "马上", "来个快", "来点快", "要个快"]):
+            return True
+        return text in {"快点", "快一点的", "快点的", "快的"}
 
     def _should_use_composite(self, composite: dict) -> bool:
         intents = {child.get("intent") for child in composite.get("children", [])}

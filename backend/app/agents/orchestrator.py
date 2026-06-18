@@ -313,6 +313,8 @@ class OrchestratorAgent:
         if state.pending_delivery_address_candidate and interpretation.intent in ADDRESS_CANDIDATE_LIVE_INTENTS:
             return None
         compact = re.sub(r"[，,。！？!?；;、：:\"'“”‘’（）()【】\[\].…\s-]+", "", message)
+        if state.stage in {"collecting_address", "collecting_phone"} and interpretation.intent in {"fallback", "unknown"}:
+            return None
         if state.stage == "collecting_address" and self._looks_like_address(compact):
             return None
         if state.pending_delivery_address_candidate and self._looks_like_address(compact):
@@ -441,6 +443,22 @@ class OrchestratorAgent:
                 source="deterministic",
                 should_mutate_order=True,
                 entities={"address": compact},
+            )
+        if state.stage == "collecting_address" and interpretation.intent in {"fallback", "unknown"}:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                should_mutate_order=False,
+                entities={"directed_message": "请告诉我配送地址。"},
+            )
+        if state.stage == "collecting_phone" and interpretation.intent in {"fallback", "unknown"}:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                should_mutate_order=False,
+                entities={"directed_message": "请提供联系电话。"},
             )
         if state.pending_delivery_address_candidate and self._looks_like_address(compact):
             return Interpretation(
@@ -892,4 +910,35 @@ class OrchestratorAgent:
             return False
         if any(token in text for token in ["有啥", "喝", "菜单", "多少钱", "配送费", "多久", "确认", "不用"]):
             return False
-        return any(token in text for token in ["大学", "校区", "校园", "门", "路", "街", "号", "宿舍", "楼", "学校", "饭堂", "餐厅", "饭店", "旁边"])
+        return any(
+            token in text
+            for token in [
+                "大学",
+                "校区",
+                "校园",
+                "小区",
+                "宿舍",
+                "楼",
+                "楼上",
+                "楼下",
+                "栋",
+                "单元",
+                "室",
+                "号",
+                "路",
+                "街",
+                "巷",
+                "学院",
+                "公司",
+                "园区",
+                "地铁站",
+                "饭店",
+                "餐厅",
+                "饭堂",
+                "旁边",
+                "附近",
+                "门口",
+                "对面",
+                "学校",
+            ]
+        )

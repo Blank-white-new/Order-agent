@@ -70,6 +70,7 @@ REFERENCE_INDEXES = {
     "3": 2,
 }
 GENERIC_REFERENCE_TOKENS = ("这个", "那个", "刚才那个", "就这个", "就那个", "要这个", "要那个", "来这个", "来那个")
+ADDRESS_PLACE_SUFFIXES = ("店", "饭店", "餐厅", "饭堂", "楼", "楼上", "楼下", "旁边", "附近", "门口", "对面")
 UNSAFE_REPLY_PATTERNS = (
     re.compile(r"\d+\s*元"),
     re.compile(r"已\s*(下单|提交)"),
@@ -218,7 +219,7 @@ def _convert_add_item(
     if not item:
         return LLMFallbackValidationResult(ok=False, reason="menu_item_not_found", parsed=parsed)
     if not _has_add_item_evidence(original_message, item.name, menu_service, state):
-        return LLMFallbackValidationResult(ok=False, reason="llm_order_action_requires_explicit_order_cue", parsed=parsed)
+        return LLMFallbackValidationResult(ok=False, reason="llm_order_action_requires_target_item_evidence", parsed=parsed)
     options = _extract_options(action)
     interpretation = Interpretation(
         intent="order_food",
@@ -299,16 +300,8 @@ def _has_add_item_evidence(
 ) -> bool:
     text = _compact(original_message)
     normalized = _compact(_normalize_with_menu(original_message, menu_service, state))
-    address_like = _looks_like_address(text)
-
-    if address_like:
-        return _has_explicit_order_action_for_item(text, normalized, target_item_name, menu_service)
 
     if _mentions_item(text, normalized, target_item_name, menu_service):
-        return True
-    if has_explicit_order_action(original_message):
-        return True
-    if _has_quantity_cue(text):
         return True
     if _has_unique_reference_to_item(text, target_item_name, state):
         return True
@@ -333,18 +326,23 @@ def _mentions_item(text: str, normalized: str, target_item_name: str, menu_servi
     item = menu_service.find_item_by_name(target_item_name)
     if not item:
         return False
-    names = [_compact(item.name), *[_compact(alias) for alias in item.aliases]]
-    return any(name and (name in text or name in normalized) for name in names)
+    names = [_compact(name) for name in menu_service.matching_names_for_item(item.name)]
+    return any(_contains_menu_evidence(text, name) or _contains_menu_evidence(normalized, name) for name in names if name)
 
 
-def _has_explicit_order_action_for_item(text: str, normalized: str, target_item_name: str, menu_service: MenuService) -> bool:
-    if not has_explicit_order_action(text):
-        return False
-    if _mentions_item(text, normalized, target_item_name, menu_service):
-        return True
-    if _has_quantity_cue(text):
-        return True
+def _contains_menu_evidence(text: str, name: str) -> bool:
+    start = text.find(name)
+    while start >= 0:
+        end = start + len(name)
+        if not _is_embedded_in_address_place(text, end):
+            return True
+        start = text.find(name, start + 1)
     return False
+
+
+def _is_embedded_in_address_place(text: str, end: int) -> bool:
+    tail = text[end : end + 4]
+    return any(tail.startswith(suffix) for suffix in ADDRESS_PLACE_SUFFIXES)
 
 
 def _has_quantity_cue(text: str) -> bool:

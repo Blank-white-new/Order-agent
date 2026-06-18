@@ -145,6 +145,48 @@ def test_router_ordering_and_modification_matrix(message, intent, should_mutate)
 
 
 @pytest.mark.parametrize(
+    ("message", "expected_item"),
+    [
+        ("宫保鸡丁来一份吧", "宫保鸡丁饭"),
+        ("黑胶牛肉饭来一份", "黑椒牛肉饭"),
+        ("黑角牛肉饭来一份", "黑椒牛肉饭"),
+    ],
+)
+def test_router_common_alias_orders_use_specific_menu_item(message, expected_item):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "order_food"
+    assert result.entities["item_name"] == expected_item
+    assert result.should_mutate_order is True
+
+
+@pytest.mark.parametrize("message", ["中山大学鸡腿饭店旁边", "鸡腿饭餐厅楼上", "饭堂三楼"])
+def test_router_address_like_text_with_menu_fragments_does_not_order(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "fallback"
+    assert result.should_mutate_order is False
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_item"),
+    [
+        ("送到中山大学，鸡腿饭来一份", "鸡腿饭"),
+        ("送到中山大学，宫保鸡丁来一份", "宫保鸡丁饭"),
+    ],
+)
+def test_router_mixed_address_and_order_uses_only_evidenced_order_fragment(message, expected_item):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "composite_intent"
+    children = result.entities["children"]
+    assert children[0]["intent"] == "order_food"
+    assert children[0]["entities"]["item_name"] == expected_item
+    assert children[1]["intent"] == "replace_delivery_candidate"
+    assert children[1]["entities"]["address"] == "中山大学"
+
+
+@pytest.mark.parametrize(
     ("message", "intent"),
     [
         ("配送", "provide_fulfillment_slot"),
@@ -265,3 +307,4 @@ def test_router_new_conflict_negative_cases():
     assert router.interpret("鸡腿饭可以不辣吗").intent == "ask_option"
     assert router.interpret("不要辣").intent != "cancel"
     assert router.interpret("配送费多少").intent == "ask_delivery_fee"
+    assert router.interpret("蓝色的云能不能快一点").intent != "ask_recommendation_by_speed"
