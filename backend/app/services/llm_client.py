@@ -131,6 +131,8 @@ class LLMClient:
             return LLMClientResult(status="network_error", error=type(exc).__name__, latency_ms=self._elapsed_ms(started))
 
         latency_ms = self._elapsed_ms(started)
+        if self._timed_out_by_wall_clock(latency_ms):
+            return LLMClientResult(status="timeout", latency_ms=latency_ms, timed_out=True)
         if response.status_code < 200 or response.status_code >= 300:
             return LLMClientResult(status="http_error", latency_ms=latency_ms, http_status=response.status_code)
 
@@ -199,3 +201,6 @@ class LLMClient:
 
     def _elapsed_ms(self, started: float) -> int:
         return int((time.perf_counter() - started) * 1000)
+
+    def _timed_out_by_wall_clock(self, latency_ms: int) -> bool:
+        return latency_ms > int(self.timeout_seconds * 1000)

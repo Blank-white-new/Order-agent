@@ -82,6 +82,18 @@ def test_router_menu_information_matrix(message, intent):
         ("不知道吃啥", "ask_recommendation"),
         ("你看着办", "ask_recommendation"),
         ("来个好吃的", "ask_recommendation"),
+        ("有啥推荐的", "ask_recommendation"),
+        ("有什么推荐", "ask_recommendation"),
+        ("有啥好推荐的", "ask_recommendation"),
+        ("推荐一下", "ask_recommendation"),
+        ("推荐点好吃的", "ask_recommendation"),
+        ("推荐个菜", "ask_recommendation"),
+        ("推荐几个菜", "ask_recommendation"),
+        ("你推荐什么", "ask_recommendation"),
+        ("你有什么推荐", "ask_recommendation"),
+        ("有啥好吃的", "ask_recommendation"),
+        ("随便推荐一个", "ask_recommendation"),
+        ("随便来个好吃的", "ask_recommendation"),
         ("推荐个饭", "ask_recommendation_by_category"),
         ("小吃推荐一下", "ask_recommendation_by_category"),
         ("来个清淡点的", "ask_recommendation_by_preference"),
@@ -98,6 +110,8 @@ def test_router_recommendation_matrix(message, intent):
 
     assert result.intent == intent
     assert result.confidence >= 0.8
+    assert result.source in {"rule", "deterministic"}
+    assert result.should_mutate_order is False
 
 
 @pytest.mark.parametrize(
@@ -196,7 +210,14 @@ def test_router_explicit_conflicts():
         ("饭类哪个推荐", "ask_recommendation_by_category_ranked"),
         ("饮品哪个好喝", "ask_recommendation_by_category_ranked"),
         ("主食哪个推荐", "ask_recommendation_by_category_ranked"),
+        ("哪个好吃", "ask_recommendation_by_category_ranked"),
+        ("哪个比较好吃", "ask_recommendation_by_category_ranked"),
         ("哪个最好吃", "ask_recommendation_by_category_ranked"),
+        ("招牌菜是啥", "ask_recommendation_by_category_ranked"),
+        ("招牌菜是什么", "ask_recommendation_by_category_ranked"),
+        ("热门菜有啥", "ask_recommendation_by_category_ranked"),
+        ("热门推荐", "ask_recommendation_by_category_ranked"),
+        ("哪个卖得好", "ask_recommendation_by_category_ranked"),
         ("你帮我选一个", "ask_recommendation_by_category_ranked"),
         ("清淡点", "ask_recommendation_by_preference"),
         ("便宜点", "ask_recommendation_by_preference"),

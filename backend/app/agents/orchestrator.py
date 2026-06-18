@@ -19,6 +19,7 @@ from app.services.llm_fallback_prompt import SYSTEM_PROMPT, build_llm_fallback_p
 from app.services.llm_fallback_validation import (
     build_directed_clarification,
     convert_llm_to_interpretation,
+    has_explicit_order_action,
     parse_llm_fallback_payload,
 )
 from app.services.menu_service import MenuService
@@ -209,6 +210,7 @@ class OrchestratorAgent:
         trace = self._new_llm_fallback_trace()
         trace["llmFallbackEnabled"] = self._llm_is_enabled()
         trace["llmFallbackConfigured"] = self._llm_is_configured()
+        trace["llmFallbackTimeoutSeconds"] = getattr(self.llm_client, "timeout_seconds", None)
         trigger_reason = self._llm_fallback_trigger_reason(message, interpretation, state)
         trace["llmFallbackReason"] = trigger_reason
         if not trigger_reason:
@@ -281,6 +283,7 @@ class OrchestratorAgent:
             "llmFallbackActionCount": 0,
             "llmFallbackDegraded": False,
             "llmFallbackDegradeReason": None,
+            "llmFallbackTimeoutSeconds": None,
         }
 
     def _llm_is_enabled(self) -> bool:
@@ -313,6 +316,12 @@ class OrchestratorAgent:
         if state.stage == "collecting_address" and self._looks_like_address(compact):
             return None
         if state.pending_delivery_address_candidate and self._looks_like_address(compact):
+            return None
+        if (
+            interpretation.intent in {"fallback", "unknown"}
+            and self._looks_like_address(compact)
+            and not has_explicit_order_action(message)
+        ):
             return None
         min_confidence = getattr(self.llm_client, "min_confidence", 0.65)
         if interpretation.intent in {"fallback", "unknown"}:
@@ -883,4 +892,4 @@ class OrchestratorAgent:
             return False
         if any(token in text for token in ["有啥", "喝", "菜单", "多少钱", "配送费", "多久", "确认", "不用"]):
             return False
-        return any(token in text for token in ["大学", "校区", "校园", "门", "路", "街", "号", "宿舍", "楼", "学校"])
+        return any(token in text for token in ["大学", "校区", "校园", "门", "路", "街", "号", "宿舍", "楼", "学校", "饭堂", "餐厅", "饭店", "旁边"])

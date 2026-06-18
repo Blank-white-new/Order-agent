@@ -22,7 +22,7 @@ class DeliveryAgent:
         if handler == "address_candidate":
             return self._address_candidate(interpretation, state)
         if handler == "provide_delivery_address":
-            return self._provide_address(interpretation)
+            return self._provide_address(interpretation, state)
         if handler == "provide_phone":
             return self._provide_phone(interpretation)
         if interpretation.intent == "ask_delivery_fee":
@@ -49,7 +49,7 @@ class DeliveryAgent:
 
     def _address_candidate(self, interpretation: Interpretation, state: SessionState) -> dict:
         if state.pending_delivery_address_candidate or state.stage == "collecting_address":
-            return self._provide_address(interpretation)
+            return self._provide_address(interpretation, state)
         address = self.delivery_service.normalize_address(interpretation.entities.get("address"))
         if not address:
             return {
@@ -145,7 +145,7 @@ class DeliveryAgent:
             "patch": {"pending_delivery_address_candidate": candidate},
         }
 
-    def _provide_address(self, interpretation: Interpretation) -> dict:
+    def _provide_address(self, interpretation: Interpretation, state: SessionState) -> dict:
         address = self.delivery_service.normalize_address(interpretation.entities.get("address"))
         if not address:
             return {
@@ -154,14 +154,16 @@ class DeliveryAgent:
                 "message": "这个地址我没识别清楚，可以再发一次吗？",
                 "patch": {},
             }
+        next_stage = "confirming" if state.phone else "collecting_phone"
+        message = f"配送地址记为{address}。确认订单后就可以提交。" if state.phone else f"配送地址记为{address}。请发一下联系电话。"
         return {
             "agent": self.name,
             "handler": "provide_delivery_address",
-            "message": f"配送地址记为{address}。请发一下联系电话。",
+            "message": message,
             "patch": {
                 "official_delivery_address": address,
                 "pending_delivery_address_candidate": None,
-                "stage": "collecting_phone",
+                "stage": next_stage,
             },
         }
 
@@ -183,14 +185,20 @@ class DeliveryAgent:
                 "message": "现在没有待确认地址。",
                 "patch": {},
             }
+        next_stage = "confirming" if state.phone else "collecting_phone"
+        message = (
+            f"好，配送地址用{candidate.normalized}。确认订单后就可以提交。"
+            if state.phone
+            else f"好，配送地址用{candidate.normalized}。请发一下联系电话。"
+        )
         return {
             "agent": self.name,
             "handler": "confirm_pending_address",
-            "message": f"好，配送地址用{candidate.normalized}。请发一下联系电话。",
+            "message": message,
             "patch": {
                 "official_delivery_address": candidate.normalized,
                 "pending_delivery_address_candidate": None,
-                "stage": "collecting_phone",
+                "stage": next_stage,
             },
         }
 

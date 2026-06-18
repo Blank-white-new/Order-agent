@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import pytest
+
 from app.agents.orchestrator import OrchestratorAgent
 from app.services.llm_client import LLMClientResult
-from app.state.session_state import SessionState
+from app.services.llm_fallback_validation import convert_llm_to_interpretation, parse_llm_fallback_payload
+from app.services.menu_service import MenuService
+from app.state.session_state import OrderItem, SessionState
 
 
 class FakeLLMClient:
     top_candidates = 8
     min_confidence = 0.65
+    timeout_seconds = 2.5
 
     def __init__(
         self,
@@ -67,6 +72,112 @@ def test_unknown_can_trigger_mock_llm_and_add_existing_menu_item():
     assert result["state"]["current_order"][0]["name"] == "黑椒牛肉饭"
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "有啥推荐的",
+        "有什么推荐",
+        "有啥好推荐的",
+        "推荐一下",
+        "推荐点好吃的",
+        "推荐个菜",
+        "推荐几个菜",
+        "你推荐什么",
+        "你有什么推荐",
+        "有啥好吃的",
+        "哪个好吃",
+        "哪个比较好吃",
+        "招牌菜是啥",
+        "招牌菜是什么",
+        "热门菜有啥",
+        "热门推荐",
+        "哪个卖得好",
+        "随便推荐一个",
+        "随便来个好吃的",
+    ],
+)
+def test_high_frequency_recommendation_phrases_skip_llm_when_enabled(message):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    result = orchestrator.handle_user_message(message, SessionState())
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["selectedAgent"] == "RecommendationAgent"
+    assert result["trace"]["finalIntent"].startswith("ask_recommendation")
+    assert result["state"]["current_order"] == []
+    assert result["state"]["last_recommendations"]
+
+
+def test_llm_add_item_requires_order_evidence_globally():
+    parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
+    assert parsed is not None
+
+    converted = convert_llm_to_interpretation(
+        parsed,
+        original_message="随便处理一下",
+        menu_service=MenuService(),
+        state=SessionState(),
+        min_confidence=0.65,
+    )
+
+    assert converted.ok is False
+    assert converted.reason == "llm_order_action_requires_explicit_order_cue"
+
+
+def test_llm_add_item_accepts_asr_menu_evidence():
+    parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
+    assert parsed is not None
+
+    converted = convert_llm_to_interpretation(
+        parsed,
+        original_message="机腿饭",
+        menu_service=MenuService(),
+        state=SessionState(),
+        min_confidence=0.65,
+    )
+
+    assert converted.ok is True
+    assert converted.interpretation is not None
+    assert converted.interpretation.intent == "order_food"
+
+
+def test_llm_add_item_accepts_unique_recommendation_reference():
+    parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
+    assert parsed is not None
+    state = SessionState(last_recommendations=[{"name": "鸡腿饭", "id": "chicken_leg_rice"}])
+
+    converted = convert_llm_to_interpretation(
+        parsed,
+        original_message="第一个",
+        menu_service=MenuService(),
+        state=state,
+        min_confidence=0.65,
+    )
+
+    assert converted.ok is True
+    assert converted.interpretation is not None
+    assert converted.interpretation.intent == "order_food"
+
+
+def test_address_like_messages_with_dish_fragments_cannot_be_llm_add_item():
+    parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
+    assert parsed is not None
+
+    for message in ["中山大学鸡腿饭店旁边", "饭堂三楼", "鸡腿饭餐厅楼上"]:
+        converted = convert_llm_to_interpretation(
+            parsed,
+            original_message=message,
+            menu_service=MenuService(),
+            state=SessionState(),
+            min_confidence=0.65,
+        )
+        assert converted.ok is False, message
+        assert converted.reason == "llm_order_action_requires_explicit_order_cue"
+
+
 def test_pending_confirm_action_skips_llm():
     orchestrator = OrchestratorAgent()
     fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
@@ -94,6 +205,97 @@ def test_collecting_address_skips_llm_and_uses_delivery_agent():
     assert result["trace"]["llmFallbackTriggered"] is False
     assert result["trace"]["finalIntent"] == "provide_delivery_address"
     assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["stage"] == "collecting_phone"
+
+
+def test_collecting_address_with_existing_phone_returns_to_confirming():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+    state = SessionState(stage="collecting_address", phone="13812345678")
+
+    result = orchestrator.handle_user_message("中山大学南校园", state)
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "provide_delivery_address"
+    assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["stage"] == "confirming"
+
+
+def test_ordering_address_like_fallback_skips_llm_but_records_candidate():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    result = orchestrator.handle_user_message("中山大学南校园", SessionState())
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "replace_delivery_candidate"
+    assert result["state"]["current_order"] == []
+    assert result["state"]["official_delivery_address"] is None
+    assert result["state"]["pending_delivery_address_candidate"]["normalized"] == "中山大学南校园"
+
+
+def test_just_these_uses_confirmation_flow_and_collects_address_before_llm():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_confirm_payload())
+    orchestrator.llm_client = fake
+    state = SessionState(
+        current_order=[
+            OrderItem(
+                item_id="kung_pao_chicken_rice",
+                name="宫保鸡丁饭",
+                price=29,
+                quantity=1,
+                category="饭类",
+            )
+        ]
+    )
+
+    result = orchestrator.handle_user_message("就这些", state)
+
+    assert fake.calls == []
+    assert result["trace"]["finalIntent"] == "confirm"
+    assert result["trace"]["selectedAgent"] == "ConfirmationAgent"
+    assert result["state"]["submitted"] is False
+    assert result["state"]["stage"] == "collecting_address"
+
+    result = orchestrator.handle_user_message("中山大学南校园", result["raw_state"])
+
+    assert fake.calls == []
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["finalIntent"] == "provide_delivery_address"
+    assert [item["name"] for item in result["state"]["current_order"]] == ["宫保鸡丁饭"]
+    assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["stage"] == "collecting_phone"
+
+
+def test_just_these_missing_phone_enters_phone_collection_without_submit():
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_confirm_payload())
+    orchestrator.llm_client = fake
+    state = SessionState(
+        current_order=[
+            OrderItem(
+                item_id="kung_pao_chicken_rice",
+                name="宫保鸡丁饭",
+                price=29,
+                quantity=1,
+                category="饭类",
+            )
+        ],
+        official_delivery_address="中山大学南校园",
+    )
+
+    result = orchestrator.handle_user_message("就这些", state)
+
+    assert fake.calls == []
+    assert result["trace"]["finalIntent"] == "confirm"
+    assert result["trace"]["selectedAgent"] == "ConfirmationAgent"
+    assert result["state"]["submitted"] is False
+    assert result["state"]["stage"] == "collecting_phone"
 
 
 def test_phone_collection_skips_llm():
@@ -147,6 +349,7 @@ def test_timeout_degrades_without_mechanical_reply_or_order_mutation():
 
     assert len(fake.calls) == 1
     assert result["trace"]["llmFallbackTimedOut"] is True
+    assert result["trace"]["llmFallbackTimeoutSeconds"] == 2.5
     assert result["trace"]["llmFallbackDegraded"] is True
     assert result["state"]["current_order"] == []
     assert "没理解" not in result["response"]

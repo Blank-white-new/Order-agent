@@ -42,6 +42,7 @@ def isolated_llm_env(monkeypatch, tmp_path):
         "LLM_FALLBACK_API_KEY",
         "LLM_FALLBACK_BASE_URL",
         "LLM_FALLBACK_MODEL",
+        "LLM_FALLBACK_TIMEOUT_SECONDS",
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_BASE_URL",
         "DEEPSEEK_MODEL",
@@ -106,4 +107,23 @@ def test_successful_client_call_parses_short_json(monkeypatch):
     assert result.ok is True
     assert result.payload["intent"] == "ask_menu"
     assert result.parse_ok is True
+    assert len(fake_http.calls) == 1
+
+
+def test_successful_http_response_after_total_budget_is_timeout(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_ENABLED", "true")
+    monkeypatch.setenv("LLM_FALLBACK_API_KEY", "test-placeholder-key")
+    monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")
+    monkeypatch.setenv("LLM_FALLBACK_MODEL", "deepseek-chat")
+    monkeypatch.setenv("LLM_FALLBACK_TIMEOUT_SECONDS", "2.5")
+    fake_http = FakeHttpClient()
+    ticks = iter([100.0, 103.0])
+    monkeypatch.setattr(llm_module.time, "perf_counter", lambda: next(ticks))
+
+    result = LLMClient(http_client=fake_http).interpret("看菜单", prompt="{}", system_prompt="json only")
+
+    assert result.status == "timeout"
+    assert result.timed_out is True
+    assert result.latency_ms == 3000
+    assert result.payload is None
     assert len(fake_http.calls) == 1

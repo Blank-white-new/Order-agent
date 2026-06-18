@@ -20,11 +20,16 @@ class ConfirmationAgent:
                 return handled
         valid, reason = self.order_service.validate_before_submit(state)
         if not valid:
+            patch = {}
+            if reason == "还需要配送地址。":
+                patch["stage"] = "collecting_address"
+            elif reason == "还需要联系电话。":
+                patch["stage"] = "collecting_phone"
             return {
                 "agent": self.name,
                 "handler": "confirm",
                 "message": reason,
-                "patch": {},
+                "patch": patch,
             }
         order_id = self.order_service.submit_order(state)
         summary = self.order_service.summarize_order(state)

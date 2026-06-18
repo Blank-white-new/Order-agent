@@ -1,3 +1,5 @@
+import pytest
+
 from .conftest import assert_trace_basics, send
 
 
@@ -7,6 +9,33 @@ def test_general_recommendation_variants(orchestrator):
         assert_trace_basics(result, agent="RecommendationAgent", handler="ask_recommendation", intent="ask_recommendation")
         assert len(result["state"]["last_recommendations"]) >= 2
         assert "没太理解" not in result["response"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["有啥推荐的", "推荐一下", "有啥好吃的", "招牌菜是啥", "热门菜有啥"],
+)
+def test_high_frequency_recommendation_phrases_route_to_recommendation_agent(orchestrator, message):
+    result = send(orchestrator, message)
+
+    assert result["trace"]["selectedAgent"] == "RecommendationAgent"
+    assert result["trace"]["finalIntent"].startswith("ask_recommendation")
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["state"]["last_recommendations"]
+    assert result["state"]["current_order"] == []
+    assert "推荐" in result["response"]
+    assert "没太理解" not in result["response"]
+
+
+@pytest.mark.parametrize("message", ["热门菜有啥", "热门推荐", "招牌菜是啥", "招牌菜是什么"])
+def test_hot_and_signature_recommendations_do_not_invent_sales(orchestrator, message):
+    result = send(orchestrator, message)
+
+    assert result["trace"]["selectedAgent"] == "RecommendationAgent"
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert "销量第一" not in result["response"]
+    assert "卖得最多" not in result["response"]
+    assert "卖得最好" not in result["response"]
 
 
 def test_recommendation_by_category(orchestrator):

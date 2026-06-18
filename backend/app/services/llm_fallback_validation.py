@@ -15,10 +15,61 @@ from app.services.llm_fallback_schemas import (
 )
 from app.services.menu_service import MenuService
 from app.state.session_state import SessionState
+from app.voice.transcript_normalizer import normalize_ordering_voice_transcript
 
 
 EXPLICIT_CONFIRM_WORDS = ("确认", "下单", "提交订单", "就这样", "就这些", "可以下单")
 EXPLICIT_CANCEL_WORDS = ("取消", "算了", "不要了", "不点了", "先不要")
+ORDER_ACTION_TOKENS = (
+    "来一份",
+    "来个",
+    "来一",
+    "再来",
+    "再加",
+    "点",
+    "加",
+    "换成",
+    "改成",
+    "order",
+    "add",
+    "want",
+    "give me",
+)
+ADDRESS_TOKENS = (
+    "地址",
+    "校区",
+    "校园",
+    "大学",
+    "宿舍",
+    "楼",
+    "街",
+    "路",
+    "号",
+    "门",
+    "小区",
+    "公寓",
+    "饭堂",
+    "餐厅",
+    "饭店",
+    "旁边",
+    "楼上",
+    "楼下",
+)
+REFERENCE_INDEXES = {
+    "第一个": 0,
+    "第1个": 0,
+    "一": 0,
+    "1": 0,
+    "第二个": 1,
+    "第2个": 1,
+    "二": 1,
+    "2": 1,
+    "第三个": 2,
+    "第3个": 2,
+    "三": 2,
+    "3": 2,
+}
+GENERIC_REFERENCE_TOKENS = ("这个", "那个", "刚才那个", "就这个", "就那个", "要这个", "要那个", "来这个", "来那个")
 UNSAFE_REPLY_PATTERNS = (
     re.compile(r"\d+\s*元"),
     re.compile(r"已\s*(下单|提交)"),
@@ -80,7 +131,7 @@ def convert_llm_to_interpretation(
         return LLMFallbackValidationResult(ok=False, reason="missing_action", parsed=parsed)
 
     if parsed.intent == "add_item" or action.type == "add_item":
-        return _convert_add_item(parsed, action, menu_service)
+        return _convert_add_item(parsed, action, menu_service, original_message=original_message, state=state)
     if parsed.intent == "ask_menu" or action.type == "ask_menu":
         return _converted(parsed, Interpretation(intent="ask_menu", confidence=parsed.confidence, source="llm", is_question=True))
     if parsed.intent == "ask_recommendation" or action.type == "ask_recommendation":
@@ -140,15 +191,34 @@ def build_directed_clarification(message: str, state: SessionState, reason: str 
     return "你是想点菜、看菜单、问配送，还是修改订单？"
 
 
+def has_explicit_order_action(text: str | None) -> bool:
+    normalized = _compact(text)
+    lowered = (text or "").lower()
+    if not normalized and not lowered:
+        return False
+    if re.search(r"\b(?:order|add|want)\b|give me", lowered):
+        return True
+    if any(token in normalized for token in ORDER_ACTION_TOKENS):
+        return True
+    if "不要" not in normalized and re.search(r"(?:要|想要|我要)(?!送|配送|多久|地址)", normalized):
+        return True
+    return False
+
+
 def _convert_add_item(
     parsed: LLMFallbackInterpretation,
     action: LLMFallbackAction,
     menu_service: MenuService,
+    *,
+    original_message: str,
+    state: SessionState,
 ) -> LLMFallbackValidationResult:
     item_name = action.item_name
     item = menu_service.find_item_by_name(item_name)
     if not item:
         return LLMFallbackValidationResult(ok=False, reason="menu_item_not_found", parsed=parsed)
+    if not _has_add_item_evidence(original_message, item.name, menu_service, state):
+        return LLMFallbackValidationResult(ok=False, reason="llm_order_action_requires_explicit_order_cue", parsed=parsed)
     options = _extract_options(action)
     interpretation = Interpretation(
         intent="order_food",
@@ -219,3 +289,93 @@ def _safe_candidate_reply(parsed: LLMFallbackInterpretation, menu_service: MenuS
     if any(name not in menu_names for name in dish_like):
         return None
     return candidate
+
+
+def _has_add_item_evidence(
+    original_message: str,
+    target_item_name: str,
+    menu_service: MenuService,
+    state: SessionState,
+) -> bool:
+    text = _compact(original_message)
+    normalized = _compact(_normalize_with_menu(original_message, menu_service, state))
+    address_like = _looks_like_address(text)
+
+    if address_like:
+        return _has_explicit_order_action_for_item(text, normalized, target_item_name, menu_service)
+
+    if _mentions_item(text, normalized, target_item_name, menu_service):
+        return True
+    if has_explicit_order_action(original_message):
+        return True
+    if _has_quantity_cue(text):
+        return True
+    if _has_unique_reference_to_item(text, target_item_name, state):
+        return True
+    return False
+
+
+def _normalize_with_menu(message: str, menu_service: MenuService, state: SessionState) -> str:
+    names = [item["name"] for item in menu_service.all_items_as_dicts()]
+    context = {
+        "stage": state.stage,
+        "current_order_count": len(state.current_order),
+        "viewed_category": state.viewed_category,
+        "viewed_category_group": state.viewed_category_group,
+        "last_mentioned_category": state.last_mentioned_category,
+        "pending_question": state.pending_question,
+        "last_question_intent": state.last_question_intent,
+    }
+    return normalize_ordering_voice_transcript(message, menu_items=names, context=context).normalized_text
+
+
+def _mentions_item(text: str, normalized: str, target_item_name: str, menu_service: MenuService) -> bool:
+    item = menu_service.find_item_by_name(target_item_name)
+    if not item:
+        return False
+    names = [_compact(item.name), *[_compact(alias) for alias in item.aliases]]
+    return any(name and (name in text or name in normalized) for name in names)
+
+
+def _has_explicit_order_action_for_item(text: str, normalized: str, target_item_name: str, menu_service: MenuService) -> bool:
+    if not has_explicit_order_action(text):
+        return False
+    if _mentions_item(text, normalized, target_item_name, menu_service):
+        return True
+    if _has_quantity_cue(text):
+        return True
+    return False
+
+
+def _has_quantity_cue(text: str) -> bool:
+    return bool(re.search(r"(?:\d+|[一二两俩三四五六七八九十]+)\s*(?:份|个|瓶|杯|碗|份儿)", text))
+
+
+def _has_unique_reference_to_item(text: str, target_item_name: str, state: SessionState) -> bool:
+    for token, index in REFERENCE_INDEXES.items():
+        if text != token:
+            continue
+        if index < len(state.last_recommendations):
+            return state.last_recommendations[index].get("name") == target_item_name
+        return False
+
+    if not any(token in text for token in GENERIC_REFERENCE_TOKENS):
+        return False
+
+    candidates: list[str] = []
+    if state.last_mentioned_item:
+        candidates.append(state.last_mentioned_item)
+    if len(state.last_recommendations) == 1:
+        candidates.append(str(state.last_recommendations[0].get("name")))
+    if len(state.current_order) == 1:
+        candidates.append(state.current_order[0].name)
+    unique_candidates = {candidate for candidate in candidates if candidate}
+    return len(unique_candidates) == 1 and target_item_name in unique_candidates
+
+
+def _looks_like_address(text: str) -> bool:
+    return any(token in text for token in ADDRESS_TOKENS)
+
+
+def _compact(text: str | None) -> str:
+    return re.sub(r"[\s，,。！？!?；;、：:\"'“”‘’（）()【】\[\].…-]+", "", text or "")
