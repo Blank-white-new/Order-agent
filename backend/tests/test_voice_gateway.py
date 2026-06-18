@@ -227,6 +227,37 @@ def test_spaced_asr_final_transcript_calls_text_entry_with_normalized_text():
     assert events[0]["text"] == "来一份黑椒牛肉饭"
 
 
+def test_ordering_normalizer_corrects_final_transcript_before_text_entry():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry)
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "u-asr-fix", "来一分机腿饭"))
+
+    assert text_entry.calls == [("s1", "来一份鸡腿饭")]
+    assert events[0] == {"type": "final", "utterance_id": "u-asr-fix", "text": "来一份鸡腿饭"}
+    assert [event["type"] for event in events] == ["final", "agent_reply", "tts_status"]
+
+
+def test_ordering_normalizer_debug_logs_changed_transcript(caplog):
+    caplog.set_level(logging.INFO)
+    text_entry = FakeTextEntryService()
+    gateway = VoiceGatewayAgent(
+        text_entry_service=text_entry,
+        session_controller=VoiceSessionController(),
+        config=VoiceConfig(voice_enabled=True, tts_enabled=False, voice_debug=True),
+    )
+
+    asyncio.run(gateway.on_final_transcript("debug-normalizer", "u-normalized", "黑角牛肉饭"))
+
+    log_text = caplog.text
+    assert "voice_transcript_normalized" in log_text
+    assert "original_text" in log_text
+    assert "黑角牛肉饭" in log_text
+    assert "normalized_text" in log_text
+    assert "黑椒牛肉饭" in log_text
+    assert "menu_item_correction" in log_text
+
+
 def test_empty_or_filler_final_is_ignored():
     text_entry = FakeTextEntryService()
     gateway = make_gateway(text_entry)
@@ -536,6 +567,19 @@ def test_recent_tts_echo_without_active_utterance_is_ignored():
     assert text_entry.calls == []
 
 
+def test_tts_echo_filter_runs_before_ordering_normalizer():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry, SequenceTTS())
+
+    gateway.runtime.queue_tts("已加入一份牛肉反", source="manual")
+    asyncio.run(gateway.wait_for_tts_tasks())
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "echo-normalizable", "已加入一份牛肉反"))
+
+    assert events[0] == {"type": "ignored_empty_transcript", "utterance_id": "echo-normalizable", "ignored": True}
+    assert text_entry.calls == []
+
+
 def test_active_user_round_can_repeat_recent_tts_text():
     text_entry = FakeTextEntryService()
     gateway = make_gateway(text_entry, SequenceTTS())
@@ -548,6 +592,21 @@ def test_active_user_round_can_repeat_recent_tts_text():
 
     assert [event["type"] for event in events][:2] == ["final", "agent_reply"]
     assert text_entry.calls == [("s1", "确认")]
+
+
+def test_active_user_round_can_normalize_recent_tts_like_text():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry, SequenceTTS())
+
+    gateway.runtime.queue_tts("牛肉反", source="manual")
+    asyncio.run(gateway.wait_for_tts_tasks())
+    gateway.begin_utterance("s1", "u-active-normalized", tts_enabled=False)
+
+    events = asyncio.run(gateway.on_final_transcript("s1", "u-active-normalized", "牛肉反"))
+
+    assert [event["type"] for event in events][:2] == ["final", "agent_reply"]
+    assert events[0]["text"] == "牛肉饭"
+    assert text_entry.calls == [("s1", "牛肉饭")]
 
 
 def test_active_user_round_can_repeat_recent_tts_menu_item():
@@ -880,6 +939,30 @@ def test_duplicate_final_does_not_duplicate_real_order():
     ]
     assert len(state.current_order) == 1
     assert state.current_order[0].name == "黑椒牛肉饭"
+
+
+def test_duplicate_utterance_check_is_unchanged_for_normalizable_text():
+    text_entry = FakeTextEntryService()
+    gateway = make_gateway(text_entry)
+
+    first = asyncio.run(gateway.on_final_transcript("s1", "u-normalizable-dup", "牛肉反"))
+    second = asyncio.run(gateway.on_final_transcript("s1", "u-normalizable-dup", "牛肉反"))
+
+    assert [event["type"] for event in first] == ["final", "agent_reply", "tts_status"]
+    assert first[0]["text"] == "牛肉饭"
+    assert second == [
+        {"type": "duplicate_utterance", "utterance_id": "u-normalizable-dup", "ignored": True},
+        {
+            "type": "tts_status",
+            "utterance_id": "u-normalizable-dup",
+            "source": "auto",
+            "queued": False,
+            "reason": "duplicate_utterance",
+            "job_id": None,
+            "tts_enabled": False,
+        },
+    ]
+    assert text_entry.calls == [("s1", "牛肉饭")]
 
 
 def test_voice_final_and_text_chat_share_serial_state_updates():
