@@ -14,6 +14,7 @@ from app.voice.config import VoiceConfig
 from app.voice.debug import log_auto_tts_debug, preview_text
 from app.voice.session import VoiceSessionController
 from app.voice.text_cleaner import clean_text_for_tts, is_empty_transcript, normalize_voice_transcript
+from app.voice.transcript_normalizer import normalize_ordering_voice_transcript
 from app.voice.tts.base import TTSProvider
 from app.voice.runtime import VoiceRuntime, create_voice_runtime
 
@@ -182,8 +183,26 @@ class VoiceGatewayAgent:
         self.stop_tts(session_id)
         session.set_status("thinking")
 
-        text_result = await self.handle_final_text(session_id, normalized)
-        final_event = {"type": "final", "utterance_id": utterance_id, "text": normalized}
+        normalization = normalize_ordering_voice_transcript(
+            normalized,
+            menu_items=self._menu_items_for_transcript_normalizer(),
+            context=self._transcript_normalizer_context(session_id),
+        )
+        final_text = normalization.normalized_text
+        if normalization.changed:
+            self._log_auto_tts_debug(
+                "voice_transcript_normalized",
+                session_id=session_id,
+                utterance_id=utterance_id,
+                original_text=normalization.original_text,
+                normalized_text=normalization.normalized_text,
+                reasons=normalization.reasons,
+                corrections=normalization.corrections,
+                confidence=normalization.confidence,
+            )
+
+        text_result = await self.handle_final_text(session_id, final_text)
+        final_event = {"type": "final", "utterance_id": utterance_id, "text": final_text}
         reply_event = {
             "type": "agent_reply",
             "utterance_id": utterance_id,
@@ -332,6 +351,49 @@ class VoiceGatewayAgent:
             event,
             **fields,
         )
+
+    def _menu_items_for_transcript_normalizer(self) -> list[str]:
+        menu_service = getattr(getattr(self.text_entry_service, "orchestrator", None), "menu_service", None)
+        if menu_service is None:
+            try:
+                from app.services.menu_service import MenuService
+
+                menu_service = MenuService()
+            except Exception:
+                return []
+        try:
+            items = menu_service.all_items_as_dicts()
+        except Exception:
+            return []
+        menu_items: list[str] = []
+        for item in items:
+            name = item.get("name")
+            if name:
+                menu_items.append(name)
+            aliases = item.get("aliases") or []
+            menu_items.extend(alias for alias in aliases if alias)
+        return menu_items
+
+    def _transcript_normalizer_context(self, session_id: str) -> dict[str, Any]:
+        store = getattr(self.text_entry_service, "store", None)
+        if store is None:
+            return {}
+        try:
+            state = store.get(session_id)
+        except Exception:
+            return {}
+        current_order = getattr(state, "current_order", []) or []
+        return {
+            "stage": getattr(state, "stage", None),
+            "fulfillment_type": getattr(state, "fulfillment_type", None),
+            "pending_question": getattr(state, "pending_question", None),
+            "last_question_intent": getattr(state, "last_question_intent", None),
+            "current_order_count": len(current_order),
+            "last_mentioned_item": getattr(state, "last_mentioned_item", None),
+            "last_mentioned_category": getattr(state, "last_mentioned_category", None),
+            "viewed_category": getattr(state, "viewed_category", None),
+            "viewed_category_group": getattr(state, "viewed_category_group", None),
+        }
 
     def _queue_tts(
         self,
