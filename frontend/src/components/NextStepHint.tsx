@@ -1,0 +1,33 @@
+import { OrderStateView } from "../types/order";
+
+type NextStepHintProps = {
+  state: OrderStateView;
+};
+
+export function NextStepHint({ state }: NextStepHintProps) {
+  return (
+    <section className="panel next-step" aria-labelledby="next-step-title">
+      <h2 id="next-step-title">下一步建议</h2>
+      <p>{nextStepText(state)}</p>
+    </section>
+  );
+}
+
+export function nextStepText(state: OrderStateView): string {
+  if (state.submitted) {
+    return "订单已提交，可以等待店员处理。";
+  }
+  if (state.currentOrder.length === 0) {
+    return "你可以说：我要一份牛肉饭。";
+  }
+  if (!state.fulfillmentType) {
+    return "请选择配送或自取。";
+  }
+  if (state.stage === "collecting_address" || (state.fulfillmentType === "delivery" && !state.officialDeliveryAddress)) {
+    return "请补充配送地址。";
+  }
+  if (state.stage === "collecting_phone" || (state.fulfillmentType === "delivery" && !state.phone)) {
+    return "请提供联系电话。";
+  }
+  return "你可以继续添加菜品，或回复“确认订单”。";
+}

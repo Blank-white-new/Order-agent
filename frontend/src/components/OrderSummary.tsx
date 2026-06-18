@@ -1,0 +1,146 @@
+import {
+  formatPrice,
+  hasUnknownOrderPrice,
+  knownOrderTotal,
+  orderLineSubtotal,
+  OrderStateView,
+} from "../types/order";
+
+type OrderSummaryProps = {
+  state: OrderStateView;
+};
+
+export function OrderSummary({ state }: OrderSummaryProps) {
+  const hasItems = state.currentOrder.length > 0;
+  const total = knownOrderTotal(state.currentOrder);
+  const hasUnknownPrice = hasUnknownOrderPrice(state.currentOrder);
+
+  return (
+    <section className="panel order-summary" aria-labelledby="order-summary-title">
+      <div className="panel-heading">
+        <div>
+          <h2 id="order-summary-title">当前文本对话订单状态</h2>
+          <p>基于文字聊天最近返回的状态显示</p>
+        </div>
+        {state.submitted ? <span className="status-pill success">已提交</span> : <span className="status-pill">进行中</span>}
+      </div>
+
+      {hasItems ? (
+        <ul className="order-lines" aria-label="已点菜品">
+          {state.currentOrder.map((item, index) => {
+            const subtotal = orderLineSubtotal(item);
+            return (
+              <li key={`${item.key}-${index}`} className="order-line">
+                <div className="order-line-main">
+                  <strong>{item.name}</strong>
+                  <span>
+                    {item.category ?? "分类待确认"} · {item.quantity}
+                    {item.unit ?? "份"}
+                  </span>
+                  {item.options.length > 0 ? <small>口味：{item.options.join("、")}</small> : null}
+                  {item.notes ? <small>备注：{item.notes}</small> : null}
+                </div>
+                <div className="order-line-price">
+                  <span>单价：{formatPrice(item.price)}</span>
+                  <span>小计：{subtotal === null ? "价格待确认" : formatPrice(subtotal)}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="empty-state">还没有添加菜品。</p>
+      )}
+
+      <dl className="order-status-grid">
+        <div>
+          <dt>取餐方式</dt>
+          <dd>{fulfillmentLabel(state.fulfillmentType)}</dd>
+        </div>
+        <div>
+          <dt>配送地址</dt>
+          <dd>{addressLabel(state)}</dd>
+        </div>
+        <div>
+          <dt>联系电话</dt>
+          <dd>{phoneLabel(state)}</dd>
+        </div>
+        <div>
+          <dt>当前阶段</dt>
+          <dd>{stageLabel(state.stage)}</dd>
+        </div>
+      </dl>
+
+      {hasItems ? (
+        <div className="order-total" aria-label="订单总价">
+          <span>总价</span>
+          <strong>{totalLabel(total, hasUnknownPrice)}</strong>
+        </div>
+      ) : null}
+
+      {state.submittedOrderId ? <p className="order-id">订单号：{state.submittedOrderId}</p> : null}
+    </section>
+  );
+}
+
+function fulfillmentLabel(value: string | null): string {
+  if (value === "delivery") {
+    return "配送";
+  }
+  if (value === "pickup") {
+    return "自取";
+  }
+  return value ?? "待确认";
+}
+
+function addressLabel(state: OrderStateView): string {
+  if (state.fulfillmentType === "pickup") {
+    return "自取无需填写";
+  }
+  if (state.officialDeliveryAddress) {
+    return `已填写：${state.officialDeliveryAddress}`;
+  }
+  if (state.pendingDeliveryAddress) {
+    return `待确认：${state.pendingDeliveryAddress}`;
+  }
+  return "待填写";
+}
+
+function phoneLabel(state: OrderStateView): string {
+  if (state.phone) {
+    return `已填写：${state.phone}`;
+  }
+  if (state.fulfillmentType === "pickup") {
+    return "自取可不填写";
+  }
+  return "待填写";
+}
+
+function stageLabel(value: string | null): string {
+  if (value === "ordering") {
+    return "点餐中";
+  }
+  if (value === "collecting_address") {
+    return "等待地址";
+  }
+  if (value === "collecting_phone") {
+    return "等待电话";
+  }
+  if (value === "confirming") {
+    return "待确认";
+  }
+  if (value === "submitted") {
+    return "已提交";
+  }
+  return value ?? "待确认";
+}
+
+function totalLabel(total: number, hasUnknownPrice: boolean): string {
+  if (!hasUnknownPrice) {
+    return formatPrice(total);
+  }
+  if (total > 0) {
+    return `已知 ${formatPrice(total)}，部分价格待确认`;
+  }
+  return "价格待确认";
+}
