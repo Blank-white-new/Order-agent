@@ -147,6 +147,71 @@ def test_router_ordering_and_modification_matrix(message, intent, should_mutate)
 @pytest.mark.parametrize(
     ("message", "expected_item"),
     [
+        ("宫保鸡丁去掉吧", "宫保鸡丁饭"),
+        ("宫保鸡丁去掉", "宫保鸡丁饭"),
+        ("去掉宫保鸡丁吧", "宫保鸡丁饭"),
+        ("去掉宫保鸡丁", "宫保鸡丁饭"),
+        ("鸡腿饭去掉吧", "鸡腿饭"),
+        ("番茄鸡蛋面去掉吧", "番茄鸡蛋面"),
+        ("牛肉饭去掉吧", "牛肉饭"),
+        ("删掉宫保鸡丁", "宫保鸡丁饭"),
+        ("删除宫保鸡丁", "宫保鸡丁饭"),
+        ("拿掉宫保鸡丁", "宫保鸡丁饭"),
+        ("取消宫保鸡丁", "宫保鸡丁饭"),
+    ],
+)
+def test_router_explicit_item_removal_verbs_do_not_order(message, expected_item):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "remove_item"
+    assert result.intent != "order_food"
+    assert result.entities["item_name"] == expected_item
+    assert result.should_mutate_order is True
+    assert result.confidence >= 0.9
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_item"),
+    [
+        ("宫保鸡丁不要了", "宫保鸡丁饭"),
+        ("不要宫保鸡丁了", "宫保鸡丁饭"),
+        ("不要鸡腿饭了", "鸡腿饭"),
+    ],
+)
+def test_router_existing_buyao_item_removal_still_works(message, expected_item):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "remove_item"
+    assert result.entities["item_name"] == expected_item
+    assert result.should_mutate_order is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "宫保鸡丁不要辣",
+        "宫保鸡丁不要放葱",
+        "不要辣的宫保鸡丁",
+        "不要放葱的鸡腿饭",
+        "鸡腿饭不要香菜",
+    ],
+)
+def test_router_buyao_modifier_phrases_do_not_remove_item(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent != "remove_item"
+
+
+@pytest.mark.parametrize("message", ["取消订单", "取消配送", "取消一下", "取消吧"])
+def test_router_cancel_without_specific_item_does_not_remove_item(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent != "remove_item"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_item"),
+    [
         ("宫保鸡丁来一份吧", "宫保鸡丁饭"),
         ("黑胶牛肉饭来一份", "黑椒牛肉饭"),
         ("黑角牛肉饭来一份", "黑椒牛肉饭"),

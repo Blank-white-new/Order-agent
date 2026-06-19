@@ -1,3 +1,5 @@
+import pytest
+
 from app.agents.orchestrator import OrchestratorAgent
 from app.state.session_state import SessionState
 
@@ -155,3 +157,56 @@ def test_replace_does_not_leave_stale_pending_action():
     assert state.submitted is False
     assert confirm_result["trace"]["selectedHandler"] == "confirm"
     assert "已清空" not in confirm_result["response"]
+
+
+def test_confirming_stage_explicit_item_removal_does_not_add_quantity():
+    orchestrator = OrchestratorAgent()
+    state = SessionState()
+
+    recommendation = orchestrator.handle_user_message("有啥推荐的", state)
+    assert recommendation["trace"]["fallbackUsed"] is False
+
+    selected = orchestrator.handle_user_message("第一个吧", state)
+    assert selected["trace"]["finalIntent"] == "select_recommendation"
+    assert selected["trace"]["selectedHandler"] == "select_recommendation"
+
+    added = orchestrator.handle_user_message("宫保鸡丁来一份吧", state)
+    assert added["trace"]["finalIntent"] == "order_food"
+    assert {item.name: item.quantity for item in state.current_order} == {"鸡腿饭": 1, "宫保鸡丁饭": 1}
+
+    orchestrator.handle_user_message("就这些", state)
+    orchestrator.handle_user_message("中大南校园", state)
+    orchestrator.handle_user_message("13810000000", state)
+    assert state.stage == "confirming"
+
+    result = orchestrator.handle_user_message("宫保鸡丁去掉吧", state)
+
+    assert result["trace"]["finalIntent"] == "remove_item"
+    assert result["trace"]["selectedHandler"] == "remove_item"
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert result["trace"]["fallbackUsed"] is False
+    assert {item.name: item.quantity for item in state.current_order} == {"鸡腿饭": 1}
+    assert "宫保鸡丁饭" not in [item.name for item in state.current_order]
+    assert state.stage == "confirming"
+
+
+@pytest.mark.parametrize(
+    ("initial_message", "remove_message", "removed_item"),
+    [
+        ("鸡腿饭", "鸡腿饭去掉吧", "鸡腿饭"),
+        ("宫保鸡丁来一份吧", "删除宫保鸡丁", "宫保鸡丁饭"),
+    ],
+)
+def test_explicit_item_removal_verbs_remove_existing_items(initial_message, remove_message, removed_item):
+    orchestrator = OrchestratorAgent()
+    state = SessionState()
+
+    orchestrator.handle_user_message(initial_message, state)
+    assert removed_item in [item.name for item in state.current_order]
+
+    result = orchestrator.handle_user_message(remove_message, state)
+
+    assert result["trace"]["finalIntent"] == "remove_item"
+    assert result["trace"]["selectedHandler"] == "remove_item"
+    assert result["trace"]["llmFallbackTriggered"] is False
+    assert removed_item not in [item.name for item in state.current_order]

@@ -62,6 +62,10 @@ ADDRESS_TOKENS = (
     "对面",
 )
 ADDRESS_PLACE_SUFFIXES = ("店", "饭店", "餐厅", "饭堂", "楼", "楼上", "楼下", "旁边", "附近", "门口", "对面")
+EXPLICIT_ITEM_REMOVAL_TOKENS = ("去掉", "删掉", "删除", "拿掉")
+CANCEL_ITEM_REMOVAL_TOKEN = "取消"
+CANCEL_NON_ITEM_TARGETS = ("订单", "配送", "外卖", "自取")
+NON_REMOVAL_BUYAO_PATTERN = r"不要(?:放|加)?(?:辣椒|辣|葱|香菜|番茄酱|酱|冰|太油|油|青菜|鸡蛋|蛋)"
 
 OPTION_TOKENS = [
     "不辣",
@@ -523,6 +527,9 @@ class SemanticRouterAgent:
             return None
         if any(token in text for token in ["改成", "换成", "不要了", "多少钱", "价格"]):
             return None
+        removal = self._interpret_explicit_item_removal(text, item)
+        if removal:
+            return removal
         return Interpretation(
             intent="order_food",
             confidence=0.93,
@@ -531,6 +538,59 @@ class SemanticRouterAgent:
             entities={"item_name": item.name, "quantity": self._extract_quantity(text), "unit": self._extract_unit(text)},
             preferences=self._extract_preferences(text),
         )
+
+    def _interpret_explicit_item_removal(self, text: str, item: object) -> Interpretation | None:
+        if not self._safe_item_name_spans(text, item):
+            return None
+        if any(token in text for token in EXPLICIT_ITEM_REMOVAL_TOKENS):
+            return Interpretation(
+                intent="remove_item",
+                confidence=0.94,
+                source="rule",
+                should_mutate_order=True,
+                entities={"item_name": item.name},
+            )
+        if CANCEL_ITEM_REMOVAL_TOKEN in text and not any(token in text for token in CANCEL_NON_ITEM_TARGETS):
+            return Interpretation(
+                intent="remove_item",
+                confidence=0.94,
+                source="rule",
+                should_mutate_order=True,
+                entities={"item_name": item.name},
+            )
+        if "不要" in text and not self._has_non_removal_buyao_near_item(text, item):
+            return Interpretation(
+                intent="remove_item",
+                confidence=0.94,
+                source="rule",
+                should_mutate_order=True,
+                entities={"item_name": item.name},
+            )
+        return None
+
+    def _safe_item_name_spans(self, text: str, item: object) -> list[tuple[int, int]]:
+        spans: list[tuple[int, int]] = []
+        names = self.menu_service.matching_names_for_item(getattr(item, "name", ""))
+        for name in names:
+            if not name:
+                continue
+            start = text.find(name)
+            while start >= 0:
+                end = start + len(name)
+                if not self._is_embedded_in_address_place(text, end):
+                    spans.append((start, end))
+                start = text.find(name, start + 1)
+        return sorted(spans, key=lambda span: (span[0], span[1] - span[0]))
+
+    def _has_non_removal_buyao_near_item(self, text: str, item: object) -> bool:
+        for start, end in self._safe_item_name_spans(text, item):
+            before = text[max(0, start - 12) : start]
+            after = text[end : min(len(text), end + 12)]
+            if re.search(NON_REMOVAL_BUYAO_PATTERN, after):
+                return True
+            if re.search(fr"{NON_REMOVAL_BUYAO_PATTERN}(?:的)?$", before):
+                return True
+        return False
 
     def _interpret_address_order_mix(self, text: str) -> Interpretation | None:
         if not self._looks_like_address_text(text) or not self._has_explicit_order_action(text):
@@ -703,7 +763,7 @@ class SemanticRouterAgent:
         category = self.menu_service.find_category_by_alias(text)
         if self._is_clear_order(text):
             return Interpretation(intent="clear_order", confidence=0.96, source="rule", should_mutate_order=True)
-        if item and (text.startswith("不要") or "不要了" in text):
+        if item and (text.startswith("不要") or "不要了" in text) and not self._has_non_removal_buyao_near_item(text, item):
             avoid = "牛肉" if "牛肉" in item.name else item.name
             return Interpretation(
                 intent="remove_item",
