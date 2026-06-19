@@ -71,12 +71,33 @@ def test_plain_address_in_delivery_stage_writes_official_address(orchestrator):
     assert "电话" in result["response"]
 
 
+def test_plain_address_with_existing_phone_returns_to_confirming(orchestrator):
+    state = SessionState(stage="collecting_address", phone="13812345678")
+    result = send(orchestrator, "中山大学南校园", state)
+
+    assert_trace_basics(result, agent="DeliveryAgent", handler="provide_delivery_address", intent="provide_delivery_address")
+    assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["stage"] == "confirming"
+    assert "确认订单" in result["response"]
+
+
 def test_confirm_pending_eta_candidate_writes_address_not_order(orchestrator):
     state = send(orchestrator, "中山大学南校园要送多久？")["raw_state"]
     result = send(orchestrator, "用这个地址", state)
 
     assert_trace_basics(result, agent="DeliveryAgent", handler="confirm_pending_address", intent="confirm_delivery_candidate")
     assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["submitted"] is False
+
+
+def test_confirm_pending_address_with_existing_phone_returns_to_confirming(orchestrator):
+    state = send(orchestrator, "中山大学南校园要送多久？")["raw_state"]
+    state.phone = "13812345678"
+    result = send(orchestrator, "用这个地址", state)
+
+    assert_trace_basics(result, agent="DeliveryAgent", handler="confirm_pending_address", intent="confirm_delivery_candidate")
+    assert result["state"]["official_delivery_address"] == "中山大学南校园"
+    assert result["state"]["stage"] == "confirming"
     assert result["state"]["submitted"] is False
 
 

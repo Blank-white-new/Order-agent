@@ -17,11 +17,11 @@ class ResponseAgent:
             "patch": {},
         }
 
-    def fallback(self) -> dict:
+    def fallback(self, message: str | None = None) -> dict:
         return {
             "agent": "FallbackAgent",
             "handler": "fallback",
-            "message": "这句我没太理解，可以换成点菜、看菜单、问配送费或问送达时间。",
+            "message": message or "这句我没太理解，可以换成点菜、看菜单、问配送费或问送达时间。",
             "patch": {},
         }
 

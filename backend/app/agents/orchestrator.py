@@ -13,9 +13,18 @@ from app.agents.response_agent import ResponseAgent
 from app.agents.semantic_router import SemanticRouterAgent
 from app.models.schemas import Interpretation, dump_model
 from app.services.delivery_service import DeliveryService
+from app.services.llm_client import LLMClientResult
 from app.services.llm_client import LLMClient
+from app.services.llm_fallback_prompt import SYSTEM_PROMPT, build_llm_fallback_prompt
+from app.services.llm_fallback_validation import (
+    build_directed_clarification,
+    convert_llm_to_interpretation,
+    has_explicit_order_action,
+    parse_llm_fallback_payload,
+)
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
+from app.services.reference_normalizer import normalize_recommendation_ordinal_reference
 from app.state.session_state import DeliveryAddressCandidate, OrderItem, SessionState, order_to_dicts
 
 
@@ -116,7 +125,7 @@ class OrchestratorAgent:
         before = state.clone()
         normalized = self.semantic_router.normalize(user_message)
         interpretation = self.semantic_router.interpret(user_message)
-        interpretation = self._merge_llm_interpretation(user_message, interpretation)
+        interpretation, llm_fallback_trace = self._merge_llm_interpretation(user_message, interpretation, state)
         interpretation = self._apply_contextual_intent(interpretation, normalized, state)
         interpretation = self._resolve_context_reference(interpretation, state)
         self._expire_stale_pending_state(interpretation, state)
@@ -190,15 +199,174 @@ class OrchestratorAgent:
             "pendingCandidateAfter": dump_model(state.pending_delivery_address_candidate),
             "response": response,
         }
+        trace.update(llm_fallback_trace)
         return {"response": response, "state": state.serializable(), "trace": trace, "raw_state": state}
 
-    def _merge_llm_interpretation(self, message: str, interpretation: Interpretation) -> Interpretation:
-        if interpretation.confidence >= 0.85 and interpretation.source in {"rule", "deterministic"}:
-            return interpretation
-        llm_result = self.llm_client.interpret(message)
-        if not llm_result:
-            return interpretation
-        return interpretation
+    def _merge_llm_interpretation(
+        self,
+        message: str,
+        interpretation: Interpretation,
+        state: SessionState,
+    ) -> tuple[Interpretation, dict[str, Any]]:
+        trace = self._new_llm_fallback_trace()
+        trace["llmFallbackEnabled"] = self._llm_is_enabled()
+        trace["llmFallbackConfigured"] = self._llm_is_configured()
+        trace["llmFallbackTimeoutSeconds"] = getattr(self.llm_client, "timeout_seconds", None)
+        trigger_reason = self._llm_fallback_trigger_reason(message, interpretation, state)
+        trace["llmFallbackReason"] = trigger_reason
+        if not trigger_reason:
+            return interpretation, trace
+        if not self._llm_can_call():
+            trace["llmFallbackDegraded"] = True
+            trace["llmFallbackDegradeReason"] = "disabled" if not trace["llmFallbackEnabled"] else "missing_config"
+            return interpretation, trace
+
+        prompt = build_llm_fallback_prompt(
+            message,
+            state,
+            self.menu_service,
+            top_n=getattr(self.llm_client, "top_candidates", 8),
+        )
+        trace["llmFallbackTriggered"] = True
+        raw_result = self._call_llm_client(message, prompt)
+        result = self._coerce_llm_result(raw_result)
+        trace["llmFallbackLatencyMs"] = result.latency_ms
+        trace["llmFallbackTimedOut"] = result.timed_out
+        trace["llmFallbackParseOk"] = result.parse_ok
+        if not result.ok:
+            trace["llmFallbackDegraded"] = True
+            trace["llmFallbackDegradeReason"] = result.status
+            return self._degraded_llm_interpretation(message, state, result.status), trace
+
+        parsed_result = parse_llm_fallback_payload(result.payload or {})
+        if parsed_result.parsed:
+            trace["llmFallbackIntent"] = parsed_result.parsed.intent
+            trace["llmFallbackConfidence"] = parsed_result.parsed.confidence
+            trace["llmFallbackActionCount"] = len(parsed_result.parsed.actions)
+        if not parsed_result.ok or parsed_result.parsed is None:
+            trace["llmFallbackDegraded"] = True
+            trace["llmFallbackDegradeReason"] = parsed_result.reason or "schema_error"
+            return self._degraded_llm_interpretation(message, state, parsed_result.reason), trace
+
+        converted = convert_llm_to_interpretation(
+            parsed_result.parsed,
+            original_message=message,
+            menu_service=self.menu_service,
+            state=state,
+            min_confidence=getattr(self.llm_client, "min_confidence", 0.65),
+        )
+        trace["llmFallbackValidationOk"] = converted.ok
+        if not converted.ok or converted.interpretation is None:
+            trace["llmFallbackDegraded"] = True
+            trace["llmFallbackDegradeReason"] = converted.reason or "business_validation_failed"
+            return self._degraded_llm_interpretation(message, state, converted.reason), trace
+
+        if converted.interpretation.intent == "fallback":
+            directed_message = converted.safe_reply or build_directed_clarification(message, state, converted.reason)
+            converted.interpretation = self._copy_interpretation(
+                converted.interpretation,
+                {"entities": {**converted.interpretation.entities, "directed_message": directed_message}},
+            )
+        return converted.interpretation, trace
+
+    def _new_llm_fallback_trace(self) -> dict[str, Any]:
+        return {
+            "llmFallbackEnabled": False,
+            "llmFallbackConfigured": False,
+            "llmFallbackTriggered": False,
+            "llmFallbackReason": None,
+            "llmFallbackLatencyMs": None,
+            "llmFallbackTimedOut": False,
+            "llmFallbackParseOk": False,
+            "llmFallbackValidationOk": False,
+            "llmFallbackIntent": None,
+            "llmFallbackConfidence": None,
+            "llmFallbackActionCount": 0,
+            "llmFallbackDegraded": False,
+            "llmFallbackDegradeReason": None,
+            "llmFallbackTimeoutSeconds": None,
+        }
+
+    def _llm_is_enabled(self) -> bool:
+        checker = getattr(self.llm_client, "is_enabled", None)
+        return bool(checker()) if callable(checker) else False
+
+    def _llm_is_configured(self) -> bool:
+        checker = getattr(self.llm_client, "is_configured", None)
+        return bool(checker()) if callable(checker) else False
+
+    def _llm_can_call(self) -> bool:
+        checker = getattr(self.llm_client, "can_call", None)
+        if callable(checker):
+            return bool(checker())
+        return self._llm_is_enabled() and self._llm_is_configured()
+
+    def _llm_fallback_trigger_reason(
+        self,
+        message: str,
+        interpretation: Interpretation,
+        state: SessionState,
+    ) -> str | None:
+        if interpretation.source in {"rule", "deterministic", "merged"} and interpretation.confidence >= 0.85:
+            return None
+        if state.pending_action and interpretation.intent in PENDING_ACTION_CONFIRM_INTENTS | PENDING_ACTION_CANCEL_INTENTS:
+            return None
+        if state.pending_delivery_address_candidate and interpretation.intent in ADDRESS_CANDIDATE_LIVE_INTENTS:
+            return None
+        compact = re.sub(r"[，,。！？!?；;、：:\"'“”‘’（）()【】\[\].…\s-]+", "", message)
+        if state.stage in {"collecting_address", "collecting_phone"} and interpretation.intent in {"fallback", "unknown"}:
+            return None
+        if state.stage == "collecting_address" and self._looks_like_address(compact):
+            return None
+        if state.pending_delivery_address_candidate and self._looks_like_address(compact):
+            return None
+        if (
+            interpretation.intent in {"fallback", "unknown"}
+            and self._looks_like_address(compact)
+            and not has_explicit_order_action(message)
+        ):
+            return None
+        min_confidence = getattr(self.llm_client, "min_confidence", 0.65)
+        if interpretation.intent in {"fallback", "unknown"}:
+            return interpretation.intent
+        if interpretation.confidence < min_confidence:
+            return "low_confidence"
+        return None
+
+    def _call_llm_client(self, message: str, prompt: str) -> Any:
+        try:
+            return self.llm_client.interpret(message, prompt=prompt, system_prompt=SYSTEM_PROMPT)
+        except TypeError:
+            return self.llm_client.interpret(message)
+
+    def _coerce_llm_result(self, raw_result: Any) -> LLMClientResult:
+        if isinstance(raw_result, LLMClientResult):
+            return raw_result
+        if isinstance(raw_result, dict):
+            return LLMClientResult(status="success", payload=raw_result, parse_ok=True)
+        if raw_result is None:
+            return LLMClientResult(status="empty_response")
+        status = getattr(raw_result, "status", None)
+        payload = getattr(raw_result, "payload", None)
+        return LLMClientResult(
+            status=status or ("success" if payload else "empty_response"),
+            payload=payload if isinstance(payload, dict) else None,
+            raw_text=getattr(raw_result, "raw_text", None),
+            error=getattr(raw_result, "error", None),
+            latency_ms=getattr(raw_result, "latency_ms", None),
+            timed_out=bool(getattr(raw_result, "timed_out", False)),
+            parse_ok=bool(getattr(raw_result, "parse_ok", payload is not None)),
+            http_status=getattr(raw_result, "http_status", None),
+        )
+
+    def _degraded_llm_interpretation(self, message: str, state: SessionState, reason: str | None) -> Interpretation:
+        return Interpretation(
+            intent="fallback",
+            confidence=0.5,
+            source="llm",
+            should_mutate_order=False,
+            entities={"directed_message": build_directed_clarification(message, state, reason)},
+        )
 
     def _apply_contextual_intent(self, interpretation: Interpretation, normalized: str, state: SessionState) -> Interpretation:
         compact = re.sub(r"[，,。！？!?\s]", "", normalized)
@@ -277,6 +445,22 @@ class OrchestratorAgent:
                 should_mutate_order=True,
                 entities={"address": compact},
             )
+        if state.stage == "collecting_address" and interpretation.intent in {"fallback", "unknown"}:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                should_mutate_order=False,
+                entities={"directed_message": "请告诉我配送地址。"},
+            )
+        if state.stage == "collecting_phone" and interpretation.intent in {"fallback", "unknown"}:
+            return Interpretation(
+                intent="fallback",
+                confidence=0.86,
+                source="deterministic",
+                should_mutate_order=False,
+                entities={"directed_message": "请提供联系电话。"},
+            )
         if state.pending_delivery_address_candidate and self._looks_like_address(compact):
             return Interpretation(
                 intent="replace_delivery_candidate",
@@ -351,14 +535,30 @@ class OrchestratorAgent:
                 entities={"index": resolved_index, "item_name": state.current_order[resolved_index].name},
                 preferences=interpretation.preferences,
             )
-        if state.last_recommendations and (index is not None or raw in {"就这个", "要这个", "这些都要"}):
-            resolved_index = 0 if index is None else index
+        if state.last_recommendations and index is not None:
+            if index >= len(state.last_recommendations):
+                return Interpretation(
+                    intent="fallback",
+                    confidence=0.86,
+                    source="merged",
+                    should_mutate_order=False,
+                    entities={"directed_message": "请在推荐列表中选择有效序号，比如第一个、第二个或第三个。"},
+                )
             return Interpretation(
                 intent="select_recommendation",
                 confidence=0.92,
                 source="merged",
                 should_mutate_order=True,
-                entities={"index": resolved_index},
+                entities={"index": index},
+                preferences=interpretation.preferences,
+            )
+        if state.last_recommendations and raw in {"就这个", "要这个", "这些都要"}:
+            return Interpretation(
+                intent="select_recommendation",
+                confidence=0.92,
+                source="merged",
+                should_mutate_order=True,
+                entities={"index": 0},
                 preferences=interpretation.preferences,
             )
         if state.current_order and index is not None:
@@ -396,6 +596,8 @@ class OrchestratorAgent:
                 "message": "好的，先不选这个。你可以继续点菜或看菜单。",
                 "patch": {"pending_action": None},
             }
+        if intent == "fallback":
+            return self.response_agent.fallback(interpretation.entities.get("directed_message"))
         if intent not in INTENT_HANDLER_MAP:
             return self.response_agent.fallback()
         mapping = INTENT_HANDLER_MAP[intent]
@@ -646,6 +848,9 @@ class OrchestratorAgent:
         return interpretation.copy(update=update)
 
     def _reference_to_index(self, reference: str) -> int | None:
+        normalized = normalize_recommendation_ordinal_reference(reference)
+        if normalized is not None:
+            return normalized
         if reference in {"第一个"}:
             return 0
         if reference == "第二个":
@@ -725,4 +930,35 @@ class OrchestratorAgent:
             return False
         if any(token in text for token in ["有啥", "喝", "菜单", "多少钱", "配送费", "多久", "确认", "不用"]):
             return False
-        return any(token in text for token in ["大学", "校区", "校园", "门", "路", "街", "号", "宿舍", "楼", "学校"])
+        return any(
+            token in text
+            for token in [
+                "大学",
+                "校区",
+                "校园",
+                "小区",
+                "宿舍",
+                "楼",
+                "楼上",
+                "楼下",
+                "栋",
+                "单元",
+                "室",
+                "号",
+                "路",
+                "街",
+                "巷",
+                "学院",
+                "公司",
+                "园区",
+                "地铁站",
+                "饭店",
+                "餐厅",
+                "饭堂",
+                "旁边",
+                "附近",
+                "门口",
+                "对面",
+                "学校",
+            ]
+        )

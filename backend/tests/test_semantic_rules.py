@@ -45,6 +45,14 @@ def test_detect_category_group_and_subjective_ranking():
     assert popular["is_ranking"] is True
     assert popular["sales_claim_requested"] is True
 
+    hot = detect_subjective_ranking_query("热门菜有啥", MenuService())
+    assert hot["is_ranking"] is True
+    assert hot["sales_claim_requested"] is False
+
+    signature = detect_subjective_ranking_query("招牌菜是啥", MenuService())
+    assert signature["is_ranking"] is True
+    assert signature["sales_claim_requested"] is False
+
 
 def test_extract_preferences_and_multiple_items():
     menu = MenuService()
