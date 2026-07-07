@@ -1,3 +1,5 @@
+import pytest
+
 from app.state.session_state import DeliveryAddressCandidate, OrderItem, SessionState
 from .conftest import assert_trace_basics, send
 
@@ -36,6 +38,31 @@ def test_pickup_order_confirm_does_not_need_address(orchestrator):
 
     assert_trace_basics(result, agent="ConfirmationAgent", handler="submit_order", intent="confirm")
     assert result["state"]["submitted"] is True
+
+
+@pytest.mark.parametrize("message", ["确认订单", "确认下单", "确认提交", "就这样确认"])
+def test_explicit_confirmation_phrases_submit_complete_order(orchestrator, message):
+    state = SessionState(
+        current_order=[OrderItem(item_id="cola", name="可乐", price=6, quantity=1, category="饮品")],
+        fulfillment_type="pickup",
+        stage="confirming",
+    )
+
+    result = send(orchestrator, message, state)
+
+    assert_trace_basics(result, agent="ConfirmationAgent", handler="submit_order", intent="confirm")
+    assert result["state"]["submitted"] is True
+
+
+@pytest.mark.parametrize("message", ["取消订单", "取消下单", "不下单了"])
+def test_explicit_cancellation_phrases_do_not_query_order_summary(orchestrator, message):
+    state = SessionState(current_order=[OrderItem(item_id="cola", name="可乐", price=6, quantity=1, category="饮品")])
+
+    result = send(orchestrator, message, state)
+
+    assert_trace_basics(result, agent="ResponseAgent", handler="cancel", intent="cancel")
+    assert result["state"]["submitted"] is False
+    assert result["state"]["pending_action"]["type"] == "confirm_clear_order"
 
 
 def test_pending_delivery_candidate_confirm_not_submit(orchestrator):

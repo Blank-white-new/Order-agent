@@ -155,6 +155,9 @@ def test_router_ordering_and_modification_matrix(message, intent, should_mutate)
         ("番茄鸡蛋面去掉吧", "番茄鸡蛋面"),
         ("牛肉饭去掉吧", "牛肉饭"),
         ("删掉宫保鸡丁", "宫保鸡丁饭"),
+        ("把宫保鸡丁删了", "宫保鸡丁饭"),
+        ("把宫保鸡丁删除", "宫保鸡丁饭"),
+        ("把宫保鸡丁移除", "宫保鸡丁饭"),
         ("删除宫保鸡丁", "宫保鸡丁饭"),
         ("拿掉宫保鸡丁", "宫保鸡丁饭"),
         ("取消宫保鸡丁", "宫保鸡丁饭"),
@@ -207,6 +210,33 @@ def test_router_cancel_without_specific_item_does_not_remove_item(message):
     result = SemanticRouterAgent().interpret(message)
 
     assert result.intent != "remove_item"
+
+
+@pytest.mark.parametrize("message", ["确认订单", "确认下单", "确认提交", "就这样确认"])
+def test_router_explicit_confirmation_phrases_are_not_order_summary(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "confirm"
+    assert result.intent != "ask_order_summary"
+    assert result.should_mutate_order is False
+
+
+@pytest.mark.parametrize("message", ["取消订单", "取消下单", "不下单了"])
+def test_router_explicit_cancellation_phrases_are_not_order_summary(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "cancel"
+    assert result.intent != "ask_order_summary"
+    assert result.should_mutate_order is False
+
+
+@pytest.mark.parametrize("message", ["查看订单", "看一下订单", "我的订单是什么", "当前订单", "订单里有什么"])
+def test_router_order_summary_phrases_remain_queries(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "ask_order_summary"
+    assert result.is_question is True
+    assert result.should_mutate_order is False
 
 
 @pytest.mark.parametrize(
@@ -273,6 +303,45 @@ def test_router_delivery_matrix(message, intent):
 
     assert result.intent == intent
     assert result.confidence >= 0.8
+
+
+@pytest.mark.parametrize(
+    ("message", "fulfillment_type"),
+    [
+        ("我要配送", "delivery"),
+        ("选择配送", "delivery"),
+        ("帮我配送", "delivery"),
+        ("送过来", "delivery"),
+        ("我要自取", "pickup"),
+        ("选择自取", "pickup"),
+        ("到店自取", "pickup"),
+        ("我自己取", "pickup"),
+    ],
+)
+def test_router_explicit_fulfillment_requests(message, fulfillment_type):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent == "provide_fulfillment_slot"
+    assert result.entities["fulfillment_type"] == fulfillment_type
+    assert result.should_mutate_order is True
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "配送费多少",
+        "多久送到",
+        "能送到中山大学吗",
+        "我问一下配送，不是现在要配送",
+        "配送范围是什么",
+        "外卖要多久",
+    ],
+)
+def test_router_delivery_questions_do_not_change_fulfillment(message):
+    result = SemanticRouterAgent().interpret(message)
+
+    assert result.intent != "provide_fulfillment_slot"
+    assert result.should_mutate_order is False
 
 
 @pytest.mark.parametrize(
