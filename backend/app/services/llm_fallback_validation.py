@@ -21,6 +21,24 @@ from app.voice.transcript_normalizer import normalize_ordering_voice_transcript
 
 EXPLICIT_CONFIRM_WORDS = ("确认", "下单", "提交订单", "就这样", "就这些", "可以下单")
 EXPLICIT_CANCEL_WORDS = ("取消", "算了", "不要了", "不点了", "先不要")
+EXPLICIT_DELIVERY_REQUESTS = {
+    "我要配送",
+    "选择配送",
+    "帮我配送",
+    "送过来",
+    "配送",
+    "外卖",
+    "改成配送",
+}
+EXPLICIT_PICKUP_REQUESTS = {
+    "我要自取",
+    "选择自取",
+    "到店自取",
+    "我自己取",
+    "自取",
+    "到店取",
+    "改成自取",
+}
 ORDER_ACTION_TOKENS = (
     "来一份",
     "来个",
@@ -139,6 +157,8 @@ def convert_llm_to_interpretation(
     if parsed.intent == "ask_recommendation" or action.type == "ask_recommendation":
         return _converted(parsed, Interpretation(intent="ask_recommendation", confidence=parsed.confidence, source="llm", is_question=True))
     if parsed.intent == "delivery" or action.type == "set_delivery":
+        if not _has_explicit_fulfillment_request(original_message, "delivery"):
+            return LLMFallbackValidationResult(ok=False, reason="fulfillment_requires_explicit_user_request", parsed=parsed)
         return _converted(
             parsed,
             Interpretation(
@@ -150,6 +170,8 @@ def convert_llm_to_interpretation(
             ),
         )
     if parsed.intent == "pickup" or action.type == "set_pickup":
+        if not _has_explicit_fulfillment_request(original_message, "pickup"):
+            return LLMFallbackValidationResult(ok=False, reason="fulfillment_requires_explicit_user_request", parsed=parsed)
         return _converted(
             parsed,
             Interpretation(
@@ -276,6 +298,12 @@ def _has_explicit_confirm(message: str) -> bool:
 
 def _has_explicit_cancel(message: str) -> bool:
     return any(word in message for word in EXPLICIT_CANCEL_WORDS)
+
+
+def _has_explicit_fulfillment_request(message: str, fulfillment_type: str) -> bool:
+    text = _compact(message)
+    allowed = EXPLICIT_DELIVERY_REQUESTS if fulfillment_type == "delivery" else EXPLICIT_PICKUP_REQUESTS
+    return text in allowed
 
 
 def _safe_candidate_reply(parsed: LLMFallbackInterpretation, menu_service: MenuService) -> str | None:

@@ -265,6 +265,134 @@ def test_llm_add_item_requires_order_evidence_globally():
     assert converted.reason == "llm_order_action_requires_target_item_evidence"
 
 
+@pytest.mark.parametrize(
+    ("payload", "initial_fulfillment"),
+    [
+        ({"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "pickup"),
+        ({"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "delivery"),
+    ],
+)
+def test_llm_fulfillment_actions_require_explicit_user_evidence(payload, initial_fulfillment):
+    parsed = parse_llm_fallback_payload(payload).parsed
+    assert parsed is not None
+
+    converted = convert_llm_to_interpretation(
+        parsed,
+        original_message="帮我处理一下",
+        menu_service=MenuService(),
+        state=SessionState(fulfillment_type=initial_fulfillment),
+        min_confidence=0.65,
+    )
+
+    assert converted.ok is False
+    assert converted.reason == "fulfillment_requires_explicit_user_request"
+
+
+@pytest.mark.parametrize(
+    ("payload", "initial_fulfillment"),
+    [
+        ({"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "pickup"),
+        ({"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "delivery"),
+    ],
+)
+def test_fake_llm_cannot_change_fulfillment_without_user_evidence(payload, initial_fulfillment):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=payload)
+    orchestrator.llm_client = fake
+
+    result = orchestrator.handle_user_message(
+        "帮我处理一下",
+        SessionState(fulfillment_type=initial_fulfillment, stage="ordering"),
+    )
+
+    assert len(fake.calls) == 1
+    assert result["trace"]["llmFallbackValidationOk"] is False
+    assert result["trace"]["llmFallbackDegradeReason"] == "fulfillment_requires_explicit_user_request"
+    assert result["trace"]["finalIntent"] == "fallback"
+    assert result["state"]["fulfillment_type"] == initial_fulfillment
+
+
+@pytest.mark.parametrize(
+    ("message", "payload", "expected_fulfillment"),
+    [
+        ("我要配送", {"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "delivery"),
+        ("选择配送", {"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "delivery"),
+        ("帮我配送", {"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "delivery"),
+        ("送过来", {"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]}, "delivery"),
+        ("我要自取", {"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "pickup"),
+        ("选择自取", {"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "pickup"),
+        ("到店自取", {"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "pickup"),
+        ("我自己取", {"intent": "pickup", "confidence": 0.9, "actions": [{"type": "set_pickup"}]}, "pickup"),
+    ],
+)
+def test_llm_fulfillment_validation_accepts_only_explicit_requests(message, payload, expected_fulfillment):
+    parsed = parse_llm_fallback_payload(payload).parsed
+    assert parsed is not None
+
+    converted = convert_llm_to_interpretation(
+        parsed,
+        original_message=message,
+        menu_service=MenuService(),
+        state=SessionState(),
+        min_confidence=0.65,
+    )
+
+    assert converted.ok is True
+    assert converted.interpretation is not None
+    assert converted.interpretation.entities["fulfillment_type"] == expected_fulfillment
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "配送费多少",
+        "多久送到",
+        "能送到中山大学吗",
+        "我问一下配送，不是现在要配送",
+        "配送范围是什么",
+        "外卖要多久",
+    ],
+)
+def test_delivery_questions_cannot_be_overridden_by_llm_fulfillment_action(message):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload={"intent": "delivery", "confidence": 0.9, "actions": [{"type": "set_delivery"}]})
+    orchestrator.llm_client = fake
+    state = SessionState(fulfillment_type="pickup", stage="ordering")
+
+    result = orchestrator.handle_user_message(message, state)
+
+    assert result["trace"]["finalIntent"] != "provide_fulfillment_slot"
+    assert result["state"]["fulfillment_type"] == "pickup"
+    if fake.calls:
+        assert result["trace"]["llmFallbackValidationOk"] is False
+        assert result["trace"]["llmFallbackDegradeReason"] == "fulfillment_requires_explicit_user_request"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_fulfillment"),
+    [
+        ("我要配送", "delivery"),
+        ("选择配送", "delivery"),
+        ("帮我配送", "delivery"),
+        ("送过来", "delivery"),
+        ("我要自取", "pickup"),
+        ("选择自取", "pickup"),
+        ("到店自取", "pickup"),
+        ("我自己取", "pickup"),
+    ],
+)
+def test_explicit_fulfillment_requests_use_rules_and_skip_llm(message, expected_fulfillment):
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(payload=_add_item_payload("鸡腿饭"))
+    orchestrator.llm_client = fake
+
+    result = orchestrator.handle_user_message(message, SessionState())
+
+    assert fake.calls == []
+    assert result["trace"]["finalIntent"] == "provide_fulfillment_slot"
+    assert result["state"]["fulfillment_type"] == expected_fulfillment
+
+
 def test_llm_add_item_rejects_wrong_target_despite_order_action_and_quantity():
     parsed = parse_llm_fallback_payload(_add_item_payload("鸡腿饭")).parsed
     assert parsed is not None

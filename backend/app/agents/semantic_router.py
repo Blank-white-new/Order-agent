@@ -18,8 +18,39 @@ QUESTION_MARKERS = (
     "哪里", "哪儿", "哪边", "哪个", "哪些", "多少", "多久", "几",
     "有没有", "能不能", "能送", "呢",
 )
-CONFIRM_WORDS = {"确认", "可以", "好的", "好", "对", "是的", "没错", "没问题", "就这样", "就这些", "先这样", "下单", "提交订单", "用这个地址", "就这个地址"}
-CANCEL_WORDS = {"不用", "不要了", "算了", "取消", "先不点了", "不点了", "先不买了"}
+CONFIRM_WORDS = {
+    "确认",
+    "确认订单",
+    "确认下单",
+    "确认提交",
+    "就这样确认",
+    "可以",
+    "好的",
+    "好",
+    "对",
+    "是的",
+    "没错",
+    "没问题",
+    "就这样",
+    "就这些",
+    "先这样",
+    "下单",
+    "提交订单",
+    "用这个地址",
+    "就这个地址",
+}
+CANCEL_WORDS = {
+    "不用",
+    "不要了",
+    "算了",
+    "取消",
+    "取消订单",
+    "取消下单",
+    "不下单了",
+    "先不点了",
+    "不点了",
+    "先不买了",
+}
 ORDER_ACTION_TOKENS = (
     "来一份",
     "来一个",
@@ -62,7 +93,7 @@ ADDRESS_TOKENS = (
     "对面",
 )
 ADDRESS_PLACE_SUFFIXES = ("店", "饭店", "餐厅", "饭堂", "楼", "楼上", "楼下", "旁边", "附近", "门口", "对面")
-EXPLICIT_ITEM_REMOVAL_TOKENS = ("去掉", "删掉", "删除", "拿掉")
+EXPLICIT_ITEM_REMOVAL_TOKENS = ("去掉", "删掉", "删了", "删除", "移除", "拿掉")
 CANCEL_ITEM_REMOVAL_TOKEN = "取消"
 CANCEL_NON_ITEM_TARGETS = ("订单", "配送", "外卖", "自取")
 NON_REMOVAL_BUYAO_PATTERN = r"不要(?:放|加)?(?:辣椒|辣|葱|香菜|番茄酱|酱|冰|太油|油|青菜|鸡蛋|蛋)"
@@ -829,7 +860,7 @@ class SemanticRouterAgent:
         return None
 
     def _interpret_fulfillment(self, text: str) -> Interpretation | None:
-        if text in {"配送", "外卖", "送过来", "改成配送"}:
+        if text in {"配送", "外卖", "送过来", "改成配送", "我要配送", "选择配送", "帮我配送"}:
             return Interpretation(
                 intent="provide_fulfillment_slot",
                 confidence=0.92,
@@ -837,7 +868,7 @@ class SemanticRouterAgent:
                 should_mutate_order=True,
                 entities={"fulfillment_type": "delivery"},
             )
-        if text in {"自取", "到店取", "我自己拿", "还是自取吧"}:
+        if text in {"自取", "到店取", "到店自取", "我自己拿", "我自己取", "还是自取吧", "我要自取", "选择自取"}:
             return Interpretation(
                 intent="provide_fulfillment_slot",
                 confidence=0.92,
@@ -972,7 +1003,15 @@ class SemanticRouterAgent:
         return text
 
     def _is_order_summary_question(self, text: str) -> bool:
-        return any(pattern in text for pattern in ["我点了什么", "点了什么", "订单", "我点啥", "现在多少钱", "总共多少钱", "帮我看下订单", "订单看一下"])
+        return text in {
+            "查看订单",
+            "看一下订单",
+            "我的订单是什么",
+            "当前订单",
+            "订单里有什么",
+            "帮我看下订单",
+            "订单看一下",
+        } or any(pattern in text for pattern in ["我点了什么", "点了什么", "我点啥", "现在多少钱", "总共多少钱"])
 
     def _is_allergen_question(self, text: str) -> bool:
         return "过敏" in text or "不能点" in text

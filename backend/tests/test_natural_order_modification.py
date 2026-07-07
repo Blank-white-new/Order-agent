@@ -195,6 +195,12 @@ def test_confirming_stage_explicit_item_removal_does_not_add_quantity():
     [
         ("鸡腿饭", "鸡腿饭去掉吧", "鸡腿饭"),
         ("宫保鸡丁来一份吧", "删除宫保鸡丁", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "把宫保鸡丁删了", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "把宫保鸡丁删除", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "把宫保鸡丁移除", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "宫保鸡丁拿掉", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "宫保鸡丁去掉吧", "宫保鸡丁饭"),
+        ("宫保鸡丁来一份吧", "不要宫保鸡丁了", "宫保鸡丁饭"),
     ],
 )
 def test_explicit_item_removal_verbs_remove_existing_items(initial_message, remove_message, removed_item):
