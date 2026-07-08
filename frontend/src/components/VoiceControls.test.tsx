@@ -655,7 +655,8 @@ describe("VoiceControls status sync", () => {
   test("final and agent_reply are surfaced without calling /api/chat", async () => {
     const onUserFinal = vi.fn();
     const onAgentReply = vi.fn();
-    const fetchMock = renderWithStatus(readyStatus, { onUserFinal, onAgentReply }).fetchMock;
+    const onOrderStateChange = vi.fn();
+    const fetchMock = renderWithStatus(readyStatus, { onUserFinal, onAgentReply, onOrderStateChange }).fetchMock;
 
     await screen.findByRole("button", { name: "开始说话" });
     fireEvent.click(screen.getByLabelText("语音输入"));
@@ -667,7 +668,11 @@ describe("VoiceControls status sync", () => {
       type: "agent_reply",
       utterance_id: "u1",
       text: "已加入一份黑椒牛肉饭",
-      state: {},
+      state: {
+        current_order: [
+          { item_id: "black_pepper_beef_rice", name: "黑椒牛肉饭", price: 30, quantity: 1, category: "饭类" },
+        ],
+      },
       trace: {},
     });
     socketInstances[0].emitJson({
@@ -680,9 +685,135 @@ describe("VoiceControls status sync", () => {
 
     expect(onUserFinal).toHaveBeenCalledWith("来一份黑椒牛肉饭");
     expect(onAgentReply).toHaveBeenCalledWith("已加入一份黑椒牛肉饭", {});
+    expect(onOrderStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentOrder: [expect.objectContaining({ name: "黑椒牛肉饭", quantity: 1 })],
+      }),
+    );
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/chat"), expect.anything());
     expect(voiceTtsQueueCalls(fetchMock)).toHaveLength(0);
     await waitFor(() => expect(screen.getByText(/已加入后端播报队列/)).toBeInTheDocument());
+  });
+
+  test("agent_reply without state does not clear the last voice order state", async () => {
+    const onOrderStateChange = vi.fn();
+    renderWithStatus(readyStatus, { onOrderStateChange });
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    socketInstances[0].emitJson({
+      type: "agent_reply",
+      utterance_id: "u1",
+      text: "已加入鸡腿饭",
+      state: { current_order: [{ name: "鸡腿饭", quantity: 1 }] },
+      trace: {},
+    });
+    socketInstances[0].emitJson({
+      type: "agent_reply",
+      utterance_id: "u2",
+      text: "请继续",
+      trace: {},
+    });
+
+    expect(onOrderStateChange).toHaveBeenCalledTimes(1);
+    expect(onOrderStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currentOrder: [expect.objectContaining({ name: "鸡腿饭", quantity: 1 })] }),
+    );
+  });
+
+  test("voice error events do not overwrite order state", async () => {
+    const onOrderStateChange = vi.fn();
+    renderWithStatus(readyStatus, { onOrderStateChange });
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    socketInstances[0].emitJson({ type: "error", code: "asr_error", message: "语音识别失败" });
+
+    expect(await screen.findByText("语音识别失败")).toBeInTheDocument();
+    expect(onOrderStateChange).not.toHaveBeenCalled();
+  });
+
+  test("consecutive agent_reply states use the latest order quantity", async () => {
+    const onOrderStateChange = vi.fn();
+    renderWithStatus(readyStatus, { onOrderStateChange });
+
+    await screen.findByRole("button", { name: "开始说话" });
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+
+    socketInstances[0].emitJson({
+      type: "agent_reply",
+      utterance_id: "u1",
+      text: "已加入鸡腿饭",
+      state: { current_order: [{ name: "鸡腿饭", quantity: 1 }] },
+      trace: {},
+    });
+    socketInstances[0].emitJson({
+      type: "agent_reply",
+      utterance_id: "u2",
+      text: "已改为两份",
+      state: { current_order: [{ name: "鸡腿饭", quantity: 2 }] },
+      trace: {},
+    });
+
+    expect(onOrderStateChange).toHaveBeenCalledTimes(2);
+    expect(onOrderStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currentOrder: [expect.objectContaining({ name: "鸡腿饭", quantity: 2 })] }),
+    );
+  });
+
+  test("text and voice replies update the same order summary", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/voice/status")) {
+        return Promise.resolve(okJson(readyStatus));
+      }
+      if (url.includes("/menu")) {
+        return Promise.resolve(okJson({ items: [], categories: [] }));
+      }
+      if (url.includes("/chat")) {
+        return Promise.resolve(
+          okJson({
+            session_id: "s1",
+            response: "文本已加入牛肉饭",
+            state: { current_order: [{ name: "牛肉饭", quantity: 1 }] },
+            trace: {},
+          }),
+        );
+      }
+      return Promise.resolve(okJson({}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ChatWindow />);
+
+    const textbox = screen.getByRole("textbox", { name: "输入点餐消息" });
+    fireEvent.change(textbox, { target: { value: "来一份牛肉饭" } });
+    fireEvent.submit(textbox.closest("form") as HTMLFormElement);
+
+    await screen.findByText("文本已加入牛肉饭");
+    expect(screen.getByRole("region", { name: "当前订单状态" })).toBeInTheDocument();
+    expect(screen.getByText("牛肉饭")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("语音输入"));
+    fireEvent.click(screen.getByRole("button", { name: "开始说话" }));
+    await waitFor(() => expect(socketInstances[0]?.sent).toHaveLength(1));
+    socketInstances[0].emitJson({
+      type: "agent_reply",
+      utterance_id: "voice-u1",
+      text: "语音已改为鸡腿饭",
+      state: { current_order: [{ name: "鸡腿饭", quantity: 1 }] },
+      trace: {},
+    });
+
+    expect(await screen.findByText("语音已改为鸡腿饭")).toBeInTheDocument();
+    expect(screen.getByText("鸡腿饭")).toBeInTheDocument();
+    expect(screen.queryByText("牛肉饭")).not.toBeInTheDocument();
   });
 
   test("malformed WebSocket JSON shows an error and leaves recording state safe", async () => {
@@ -1091,7 +1222,7 @@ describe("VoiceControls status sync", () => {
 
 function renderWithStatus(
   status: unknown,
-  handlers: { onUserFinal?: () => void; onAgentReply?: () => void } = {},
+  handlers: { onUserFinal?: () => void; onAgentReply?: () => void; onOrderStateChange?: () => void } = {},
 ) {
   const fetchMock = vi.fn().mockResolvedValue(okJson(status));
   vi.stubGlobal("fetch", fetchMock);
@@ -1100,6 +1231,7 @@ function renderWithStatus(
       sessionId="s1"
       onUserFinal={handlers.onUserFinal ?? vi.fn()}
       onAgentReply={handlers.onAgentReply ?? vi.fn()}
+      onOrderStateChange={handlers.onOrderStateChange ?? vi.fn()}
     />,
   );
   return { ...renderResult, fetchMock };

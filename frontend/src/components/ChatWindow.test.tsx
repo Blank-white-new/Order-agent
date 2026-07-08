@@ -110,8 +110,8 @@ describe("ChatWindow order UX", () => {
     fireEvent.submit(textbox.closest("form") as HTMLFormElement);
 
     expect(await screen.findByText("已加入黑椒牛肉饭。")).toBeInTheDocument();
-    expect(screen.getByText("当前文本对话订单状态")).toBeInTheDocument();
-    expect(screen.getByText("基于文字聊天最近返回的状态显示")).toBeInTheDocument();
+    expect(screen.getByText("当前订单状态")).toBeInTheDocument();
+    expect(screen.getByText("基于当前会话最近返回的状态显示")).toBeInTheDocument();
     expect(screen.getByText("黑椒牛肉饭")).toBeInTheDocument();
     expect(screen.getByText("饭类 · 2份")).toBeInTheDocument();
     expect(screen.getByText("小计：60 元")).toBeInTheDocument();

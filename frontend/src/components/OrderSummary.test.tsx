@@ -7,8 +7,8 @@ describe("OrderSummary", () => {
   test("shows a friendly empty state", () => {
     render(<OrderSummary state={normalizeOrderState({ current_order: [] })} />);
 
-    expect(screen.getByText("当前文本对话订单状态")).toBeInTheDocument();
-    expect(screen.getByText("基于文字聊天最近返回的状态显示")).toBeInTheDocument();
+    expect(screen.getByText("当前订单状态")).toBeInTheDocument();
+    expect(screen.getByText("基于当前会话最近返回的状态显示")).toBeInTheDocument();
     expect(screen.getByText("还没有添加菜品。")).toBeInTheDocument();
   });
 

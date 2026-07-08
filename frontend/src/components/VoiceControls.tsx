@@ -9,11 +9,13 @@ import {
   VoiceStatus,
   VoiceTtsStatus,
 } from "../api/voiceApi";
+import { normalizeOrderState, OrderStateView } from "../types/order";
 
 type VoiceControlsProps = {
   sessionId: string;
   onUserFinal: (text: string) => void;
   onAgentReply: (text: string, trace: Record<string, unknown>) => void;
+  onOrderStateChange?: (state: OrderStateView) => void;
   onTtsPreferenceChange?: (preference: { enabled: boolean; canSpeak: boolean }) => void;
 };
 
@@ -28,7 +30,13 @@ const VOICE_STATUS_REQUEST_ERROR = "无法获取后端语音状态。";
 const VOICE_STATUS_LOADING = "正在检查后端语音状态…";
 const VOICE_MESSAGE_PARSE_ERROR = "语音服务返回了无法解析的消息。";
 
-export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPreferenceChange }: VoiceControlsProps) {
+export function VoiceControls({
+  sessionId,
+  onUserFinal,
+  onAgentReply,
+  onOrderStateChange,
+  onTtsPreferenceChange,
+}: VoiceControlsProps) {
   const debugVoiceEnabled = import.meta.env.VITE_DEBUG_VOICE === "true";
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
   const [voiceInputPreference, setVoiceInputPreference] = useState(false);
@@ -386,6 +394,9 @@ export function VoiceControls({ sessionId, onUserFinal, onAgentReply, onTtsPrefe
         preview: previewText(event.text),
       });
       onAgentReply(event.text, event.trace);
+      if (isRecord(event.state)) {
+        onOrderStateChange?.(normalizeOrderState(event.state));
+      }
       return;
     }
     if (event.type === "tts_status") {
@@ -964,6 +975,10 @@ function floatTo16BitPcm(input: Float32Array): ArrayBuffer {
 
 function previewText(text: string) {
   return text.slice(0, 30);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parseVoiceServerEvent(data: unknown): VoiceServerEvent | null | undefined {
