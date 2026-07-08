@@ -25,7 +25,7 @@ type TtsPreference = {
 export function ChatWindow() {
   const [sessionId, setSessionId] = useState(() => getOrCreateSessionId());
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "agent", text: "你好，想看菜单、点餐，还是问配送？", tone: "system" },
+    { id: "welcome", role: "agent", text: "你好！可以说“推荐一下”，或直接告诉我想吃什么。", tone: "system" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -119,7 +119,7 @@ export function ChatWindow() {
         <header>
           <div>
             <h1>订餐助手</h1>
-            <p>语音与文字都可以点餐，选择菜品并确认配送信息</p>
+            <p>文字与语音共用订单状态；提交的是安全的 mock order</p>
           </div>
           <button type="button" className="secondary" onClick={onReset}>
             新订单

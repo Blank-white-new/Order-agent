@@ -684,9 +684,9 @@ export function VoiceControls({
         </button>
       </div>
       <div className="voice-status-line">
-        <span>后端语音：{backendLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
-        <span>ASR：{asrLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
-        <span>TTS：{ttsLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
+        <span>语音服务：{backendLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
+        <span>录音：{asrLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
+        <span>播报：{ttsLabel(voiceStatus, statusLoading, statusError, statusFormatInvalid)}</span>
         <span>当前：{statusText}</span>
       </div>
       {voiceHint ? <p className="voice-hint">{voiceHint}</p> : bargeInHint ? <p className="voice-hint">{bargeInHint}</p> : null}
@@ -694,7 +694,7 @@ export function VoiceControls({
       {partial ? <p className="partial">识别中：{partial}</p> : null}
       {voiceStatus ? (
         <details className="voice-diagnostics">
-          <summary>诊断详情</summary>
+          <summary>语音服务状态（调试）</summary>
           <dl>
             <dt>voiceEnabled</dt>
             <dd>{String(voiceStatus.voiceEnabled)}</dd>

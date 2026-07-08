@@ -78,7 +78,9 @@ export function OrderSummary({ state }: OrderSummaryProps) {
         </div>
       ) : null}
 
-      {state.submittedOrderId ? <p className="order-id">订单号：{state.submittedOrderId}</p> : null}
+      {state.submittedOrderId ? (
+        <p className="order-id">订单号（mock order）：{state.submittedOrderId}</p>
+      ) : null}
     </section>
   );
 }
@@ -108,12 +110,23 @@ function addressLabel(state: OrderStateView): string {
 
 function phoneLabel(state: OrderStateView): string {
   if (state.phone) {
-    return `已填写：${state.phone}`;
+    return `已填写：${maskPhone(state.phone)}`;
   }
   if (state.fulfillmentType === "pickup") {
     return "自取可不填写";
   }
   return "待填写";
+}
+
+function maskPhone(phone: string): string {
+  const compact = phone.replace(/[\s-]/g, "");
+  if (/^1[3-9]\d{9}$/.test(compact)) {
+    return `${compact.slice(0, 3)}****${compact.slice(-4)}`;
+  }
+  if (compact.length > 4) {
+    return `${"*".repeat(Math.min(4, compact.length - 4))}${compact.slice(-4)}`;
+  }
+  return "****";
 }
 
 function stageLabel(value: string | null): string {

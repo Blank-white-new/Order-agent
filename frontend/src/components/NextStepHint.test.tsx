@@ -53,4 +53,11 @@ describe("NextStepHint", () => {
 
     expect(screen.getByText("请提供联系电话。")).toBeInTheDocument();
   });
+
+  test("makes submitted demo orders explicit", () => {
+    render(<NextStepHint state={normalizeOrderState({ submitted: true })} />);
+
+    expect(screen.getByText(/Mock 订单已提交/)).toBeInTheDocument();
+    expect(screen.getByText(/点击“新订单”继续/)).toBeInTheDocument();
+  });
 });
