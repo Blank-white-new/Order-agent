@@ -10,6 +10,54 @@ class ContextRepairAgent:
     def handle(self, interpretation: Interpretation, state: SessionState) -> dict:
         clarification = interpretation.entities.get("clarification", "")
 
+        if clarification == "non_ordering_statement":
+            item_name = interpretation.entities.get("item_name", "这个菜")
+            return {
+                "agent": self.name,
+                "handler": "context_correction",
+                "message": f"你是想点一份{item_name}吗？如果是，可以说“来一份{item_name}”。",
+                "patch": {"pending_delivery_address_candidate": None, "stage": "ordering"},
+            }
+
+        if clarification in {
+            "reference_unresolved",
+            "ambiguous_reference_domain",
+            "ambiguous_order_reference",
+            "ambiguous_replace_reference",
+            "missing_replace_target",
+            "vague_order_with_question",
+            "unknown_item_option",
+            "multi_intent_too_many_items",
+            "recommendation_index_out_of_range",
+        }:
+            messages = {
+                "reference_unresolved": "这个指代我没定位清楚，请说具体是哪一道菜。",
+                "ambiguous_reference_domain": "这里的“第一个”可能指推荐，也可能指订单，请说具体是哪一项。",
+                "ambiguous_order_reference": "订单里有多个可能对象，请说具体是哪一道菜。",
+                "ambiguous_replace_reference": "要换哪一道菜我还没确认清楚，请说具体菜名。",
+                "missing_replace_target": "要换哪一道菜我还没确认清楚，请说具体菜名。",
+                "vague_order_with_question": "想点哪种面我还没确认清楚，请说具体菜名。",
+                "unknown_item_option": "这个菜名我没识别准，请说完整菜单菜名和口味要求。",
+                "multi_intent_too_many_items": "这句里有多个菜和地址电话信息，请说具体要改哪几项。",
+                "recommendation_index_out_of_range": "推荐列表里没有这个序号，请说第一个、第二个或具体菜名。",
+            }
+            return {
+                "agent": self.name,
+                "handler": "context_correction",
+                "message": messages[clarification],
+                "patch": {"pending_delivery_address_candidate": None, "stage": "ordering"},
+            }
+
+        if clarification == "ambiguous_recommendation_reference":
+            candidates = interpretation.entities.get("candidates", [])
+            suffix = "当前有：" + "、".join(candidates) + "。" if candidates else ""
+            return {
+                "agent": self.name,
+                "handler": "context_correction",
+                "message": "推荐里有多个可选项，请说第几个或具体菜名。" + suffix,
+                "patch": {"pending_delivery_address_candidate": None, "stage": "ordering"},
+            }
+
         if clarification == "ambiguous_dish_fragment":
             candidates = interpretation.entities.get("candidates", [])
             if len(candidates) >= 2:
