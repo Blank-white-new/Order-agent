@@ -102,6 +102,12 @@ npm run dev
 .\scripts\check_all.ps1 -Build
 ```
 
+运行完整 V3 对话基线（默认 `LLM_FALLBACK_MODE=disabled`，不调用真实 LLM）：
+
+```powershell
+python -B evaluation/run_dialogue_eval_v3.py --dataset evaluation/dialogues_v3.jsonl
+```
+
 8. 可选开启语音和调试：
 
 ```env
