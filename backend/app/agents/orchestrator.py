@@ -104,6 +104,25 @@ ADDRESS_CANDIDATE_LIVE_INTENTS = {
     "fallback",
 }
 
+NEW_ORDER_COMMANDS = {
+    "重新下单",
+    "再来一单",
+    "开始新订单",
+    "新订单",
+    "重新点一份",
+}
+SUBMITTED_CONFIRMATION_COMMANDS = {
+    "确认",
+    "确认订单",
+    "确认下单",
+    "确认提交",
+    "就这些",
+    "就这些可以下单了",
+    "可以下单了",
+    "下单",
+    "提交订单",
+}
+
 
 class OrchestratorAgent:
     def __init__(self) -> None:
@@ -124,6 +143,8 @@ class OrchestratorAgent:
         state = session_state or SessionState()
         before = state.clone()
         normalized = self.semantic_router.normalize(user_message)
+        if state.submitted or state.submitted_order_id:
+            return self._handle_submitted_lifecycle(user_message, normalized, state, before)
         interpretation = self.semantic_router.interpret(user_message)
         interpretation, llm_fallback_trace = self._merge_llm_interpretation(user_message, interpretation, state)
         interpretation = self._apply_contextual_intent(interpretation, normalized, state)
@@ -200,6 +221,74 @@ class OrchestratorAgent:
             "response": response,
         }
         trace.update(llm_fallback_trace)
+        return {"response": response, "state": state.serializable(), "trace": trace, "raw_state": state}
+
+    def _handle_submitted_lifecycle(
+        self,
+        user_message: str,
+        normalized: str,
+        state: SessionState,
+        before: SessionState,
+    ) -> dict[str, Any]:
+        command = normalized.rstrip("，,。！？!?")
+        order_id = state.submitted_order_id or "当前订单"
+
+        if command in NEW_ORDER_COMMANDS:
+            self._apply_patch(state, SessionState().serializable())
+            final_intent = "start_new_order"
+            selected_agent = "OrchestratorAgent"
+            selected_handler = "start_new_order"
+            response = "已开始新订单，旧订单不会被修改。请告诉我这次想点什么。"
+            mutation_allowed = True
+            rejected_reason = None
+            lifecycle_reason = "new_order_started"
+        elif command in SUBMITTED_CONFIRMATION_COMMANDS:
+            final_intent = "confirm"
+            selected_agent = "ConfirmationAgent"
+            selected_handler = "order_already_submitted"
+            response = f"订单已提交，订单号 {order_id}。如需重新下单，请说“重新下单”或“再来一单”。"
+            mutation_allowed = False
+            rejected_reason = "order_already_submitted"
+            lifecycle_reason = "order_already_submitted"
+        else:
+            final_intent = "submitted_order_locked"
+            selected_agent = "ResponseAgent"
+            selected_handler = "submitted_order_locked"
+            response = (
+                f"订单已提交，订单号 {order_id}，不能继续修改。"
+                "如需重新下单，请说“重新下单”或“再来一单”。"
+            )
+            mutation_allowed = False
+            rejected_reason = "submitted_order_locked"
+            lifecycle_reason = "new_order_required"
+
+        trace = {
+            "userMessage": user_message,
+            "normalizedMessage": normalized,
+            "finalIntent": final_intent,
+            "selectedAgent": selected_agent,
+            "selectedHandler": selected_handler,
+            "interpretationSource": "rule",
+            "fallbackUsed": False,
+            "stateMutationAllowed": mutation_allowed,
+            "stateMutationRejectedReason": rejected_reason,
+            "lifecycleReason": lifecycle_reason,
+            "rollbackApplied": False,
+            "rollbackReason": None,
+            "rolledBackFields": [],
+            "compositeChildren": None,
+            "conditionalDecision": None,
+            "currentStageBefore": before.stage,
+            "currentStageAfter": state.stage,
+            "orderBefore": order_to_dicts(before.current_order),
+            "orderAfter": order_to_dicts(state.current_order),
+            "officialAddressBefore": before.official_delivery_address,
+            "officialAddressAfter": state.official_delivery_address,
+            "pendingCandidateBefore": dump_model(before.pending_delivery_address_candidate),
+            "pendingCandidateAfter": dump_model(state.pending_delivery_address_candidate),
+            "response": response,
+        }
+        trace.update(self._new_llm_fallback_trace())
         return {"response": response, "state": state.serializable(), "trace": trace, "raw_state": state}
 
     def _merge_llm_interpretation(

@@ -51,7 +51,9 @@
 可选字段：
 
 - `items`：最终订单商品数组。每项至少写 `name`，可写 `quantity`（默认 1）和必须包含的 `options`。默认要求商品集合精确匹配；`exact_items:false` 可只断言子集。
-- `stage`、`fulfillment_type`、`official_delivery_address`、`phone`、`submitted`：对应最终 `SessionState` 字段。
+- `stage`、`fulfillment_type`、`official_delivery_address`、`phone`、`submitted`、`submitted_order_id`：对应最终 `SessionState` 字段。
+- `submitted_order_id_changed`：计分轮中当前订单号是否发生变化，用于验证重复确认幂等。
+- `lifecycle_reason`：最后一个计分轮 trace 的生命周期原因，例如 `new_order_required`、`order_already_submitted` 或 `new_order_started`。
 - `final_intent`：最后一个计分轮允许的 intent 字符串，或允许值数组。
 
 runner 还会无条件检查 confirmation bypass：若状态从未提交变为已提交，而该轮 `finalIntent` 不是 `confirm`，样本失败并计入汇总。
