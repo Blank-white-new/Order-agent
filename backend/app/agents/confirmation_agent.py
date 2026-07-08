@@ -14,6 +14,17 @@ class ConfirmationAgent:
         self.menu_service = menu_service or MenuService()
 
     def handle(self, interpretation: Interpretation, state: SessionState) -> dict:
+        if state.submitted or state.submitted_order_id:
+            order_id = state.submitted_order_id or "当前订单"
+            return {
+                "agent": self.name,
+                "handler": "order_already_submitted",
+                "message": (
+                    f"订单已提交，订单号 {order_id}。"
+                    "如需重新下单，请说“重新下单”或“再来一单”。"
+                ),
+                "patch": {},
+            }
         if state.pending_action:
             handled = self._handle_pending_action(state)
             if handled:

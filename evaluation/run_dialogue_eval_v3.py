@@ -245,12 +245,23 @@ async def evaluate_sample(
         "official_delivery_address": final_state.get("official_delivery_address"),
         "phone": final_state.get("phone"),
         "submitted": bool(final_state.get("submitted")),
+        "submitted_order_id": final_state.get("submitted_order_id"),
+        "submitted_order_id_changed": any(
+            turn["state_before"].get("submitted_order_id")
+            != turn["state_after"].get("submitted_order_id")
+            for turn in checked_turns
+        ),
         "should_mutate_order": any(turn["order_mutated"] for turn in checked_turns),
         "clarified": any(turn["clarified"] for turn in checked_turns),
         "rejected": any(turn["rejected"] for turn in checked_turns),
         "fallback_count": sum(int(turn["fallback"]) for turn in checked_turns),
         "confirmation_bypass_count": confirmation_bypass_count,
         "final_intent": checked_turns[-1]["intent"] if checked_turns else turns[-1]["intent"],
+        "lifecycle_reason": (
+            checked_turns[-1]["trace"].get("lifecycleReason")
+            if checked_turns
+            else turns[-1]["trace"].get("lifecycleReason")
+        ),
     }
     reasons = _compare_expected(sample["expected"], actual, checked_turns)
     return {
@@ -357,7 +368,16 @@ def _compare_expected(
         expected_items = expected["items"]
         if not _items_match(expected_items, actual["items"], exact=expected.get("exact_items", True)):
             reasons.append(f"订单预期={expected_items}，实际={actual['items']}")
-    for field in ("stage", "fulfillment_type", "official_delivery_address", "phone", "submitted"):
+    for field in (
+        "stage",
+        "fulfillment_type",
+        "official_delivery_address",
+        "phone",
+        "submitted",
+        "submitted_order_id",
+        "submitted_order_id_changed",
+        "lifecycle_reason",
+    ):
         if field in expected and actual.get(field) != expected[field]:
             reasons.append(f"{field} 预期={expected[field]!r}，实际={actual.get(field)!r}")
     if "final_intent" in expected:
