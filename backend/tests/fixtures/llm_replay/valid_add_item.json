@@ -1,0 +1,17 @@
+{
+  "intent": "add_item",
+  "confidence": 0.92,
+  "normalized_text": "黑椒牛肉饭来一份",
+  "actions": [
+    {
+      "type": "add_item",
+      "item_name": "黑椒牛肉饭",
+      "quantity": 1,
+      "options": {},
+      "target": null
+    }
+  ],
+  "needs_clarification": false,
+  "clarification_question": null,
+  "user_facing_reply": null
+}

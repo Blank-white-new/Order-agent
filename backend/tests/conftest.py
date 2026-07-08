@@ -14,6 +14,8 @@ _LLM_CONNECTION_ENV_VARS = (
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
+    "LLM_FALLBACK_REPLAY_FILE",
+    "LLM_FALLBACK_SHADOW_SOURCE",
 )
 _OFFLINE_ENV_FILE = str(
     Path(tempfile.gettempdir()) / f"agent-order-pytest-offline-{os.getpid()}-{uuid.uuid4().hex}.env"
@@ -22,8 +24,10 @@ _OFFLINE_ENV_FILE = str(
 
 def _force_offline_llm_environment() -> None:
     """Keep normal pytest collection and execution isolated from live LLM config."""
+    os.environ["LLM_FALLBACK_MODE"] = "disabled"
     os.environ["LLM_FALLBACK_ENABLED"] = "false"
     os.environ["LLM_FALLBACK_SPECULATIVE_ENABLED"] = "false"
+    os.environ["ALLOW_LIVE_LLM"] = "false"
     os.environ["BACKEND_ENV_FILE"] = _OFFLINE_ENV_FILE
     for name in _LLM_CONNECTION_ENV_VARS:
         os.environ.pop(name, None)
@@ -39,8 +43,10 @@ from app.state.session_state import SessionState
 
 @pytest.fixture(autouse=True)
 def force_offline_llm_for_tests(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "disabled")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "false")
     monkeypatch.setenv("LLM_FALLBACK_SPECULATIVE_ENABLED", "false")
+    monkeypatch.setenv("ALLOW_LIVE_LLM", "false")
     monkeypatch.setenv("BACKEND_ENV_FILE", _OFFLINE_ENV_FILE)
     for name in _LLM_CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)

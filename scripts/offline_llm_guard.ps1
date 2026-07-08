@@ -1,7 +1,9 @@
 function Enable-OfflineLlmChecks {
   $variableNames = @(
+    "LLM_FALLBACK_MODE",
     "LLM_FALLBACK_ENABLED",
     "LLM_FALLBACK_SPECULATIVE_ENABLED",
+    "ALLOW_LIVE_LLM",
     "LLM_FALLBACK_API_KEY",
     "LLM_FALLBACK_BASE_URL",
     "LLM_FALLBACK_MODEL",
@@ -9,6 +11,8 @@ function Enable-OfflineLlmChecks {
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
+    "LLM_FALLBACK_REPLAY_FILE",
+    "LLM_FALLBACK_SHADOW_SOURCE",
     "BACKEND_ENV_FILE"
   )
   $snapshot = @{}
@@ -16,8 +20,10 @@ function Enable-OfflineLlmChecks {
     $snapshot[$name] = [Environment]::GetEnvironmentVariable($name, [EnvironmentVariableTarget]::Process)
   }
 
+  [Environment]::SetEnvironmentVariable("LLM_FALLBACK_MODE", "disabled", [EnvironmentVariableTarget]::Process)
   [Environment]::SetEnvironmentVariable("LLM_FALLBACK_ENABLED", "false", [EnvironmentVariableTarget]::Process)
   [Environment]::SetEnvironmentVariable("LLM_FALLBACK_SPECULATIVE_ENABLED", "false", [EnvironmentVariableTarget]::Process)
+  [Environment]::SetEnvironmentVariable("ALLOW_LIVE_LLM", "false", [EnvironmentVariableTarget]::Process)
   foreach ($name in @(
     "LLM_FALLBACK_API_KEY",
     "LLM_FALLBACK_BASE_URL",
@@ -25,7 +31,9 @@ function Enable-OfflineLlmChecks {
     "LLM_FALLBACK_PROVIDER",
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
-    "DEEPSEEK_MODEL"
+    "DEEPSEEK_MODEL",
+    "LLM_FALLBACK_REPLAY_FILE",
+    "LLM_FALLBACK_SHADOW_SOURCE"
   )) {
     [Environment]::SetEnvironmentVariable($name, $null, [EnvironmentVariableTarget]::Process)
   }

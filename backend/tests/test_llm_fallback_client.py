@@ -39,6 +39,8 @@ def isolated_llm_env(monkeypatch, tmp_path):
     monkeypatch.setenv("BACKEND_ENV_FILE", str(env_file))
     for name in [
         "LLM_FALLBACK_ENABLED",
+        "LLM_FALLBACK_MODE",
+        "ALLOW_LIVE_LLM",
         "LLM_FALLBACK_API_KEY",
         "LLM_FALLBACK_BASE_URL",
         "LLM_FALLBACK_MODEL",
@@ -54,6 +56,8 @@ def isolated_llm_env(monkeypatch, tmp_path):
 
 
 def test_config_semantics_distinguish_enabled_configured_and_can_call(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "live")
+    monkeypatch.setenv("ALLOW_LIVE_LLM", "false")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "false")
     monkeypatch.setenv("LLM_FALLBACK_API_KEY", "test-placeholder-key")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")
@@ -67,6 +71,7 @@ def test_config_semantics_distinguish_enabled_configured_and_can_call(monkeypatc
 
 
 def test_disabled_fallback_does_not_call_network(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "disabled")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "false")
     monkeypatch.setenv("LLM_FALLBACK_API_KEY", "test-placeholder-key")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")
@@ -80,6 +85,8 @@ def test_disabled_fallback_does_not_call_network(monkeypatch):
 
 
 def test_missing_key_does_not_call_network(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "live")
+    monkeypatch.setenv("ALLOW_LIVE_LLM", "true")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "true")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")
     monkeypatch.setenv("LLM_FALLBACK_MODEL", "deepseek-chat")
@@ -96,6 +103,8 @@ def test_missing_key_does_not_call_network(monkeypatch):
 
 
 def test_successful_client_call_parses_short_json(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "live")
+    monkeypatch.setenv("ALLOW_LIVE_LLM", "true")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "true")
     monkeypatch.setenv("LLM_FALLBACK_API_KEY", "test-placeholder-key")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")
@@ -111,6 +120,8 @@ def test_successful_client_call_parses_short_json(monkeypatch):
 
 
 def test_successful_http_response_after_total_budget_is_timeout(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODE", "live")
+    monkeypatch.setenv("ALLOW_LIVE_LLM", "true")
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "true")
     monkeypatch.setenv("LLM_FALLBACK_API_KEY", "test-placeholder-key")
     monkeypatch.setenv("LLM_FALLBACK_BASE_URL", "https://example.invalid")

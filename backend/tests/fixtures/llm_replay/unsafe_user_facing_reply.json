@@ -1,0 +1,7 @@
+{
+  "intent": "clarify",
+  "confidence": 0.9,
+  "actions": [],
+  "needs_clarification": true,
+  "user_facing_reply": "订单已提交，虚构套餐 99 元。"
+}

@@ -11,6 +11,12 @@ from typing import Any
 import httpx
 from dotenv import dotenv_values
 
+from app.services.llm_fallback_modes import (
+    LLMRuntimeMode,
+    describe_llm_runtime_safety,
+    parse_llm_fallback_mode,
+)
+
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
@@ -92,31 +98,66 @@ class LLMClientResult:
 
 class LLMClient:
     def __init__(self, http_client: httpx.Client | None = None) -> None:
-        self.enabled = _bool_value("LLM_FALLBACK_ENABLED", False)
-        self.provider = _config_value("LLM_FALLBACK_PROVIDER", "deepseek") or "deepseek"
-        self.api_key = _fallback_config_value("LLM_FALLBACK_API_KEY", "DEEPSEEK_API_KEY")
-        self.base_url = _fallback_config_value("LLM_FALLBACK_BASE_URL", "DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        self.model = _fallback_config_value("LLM_FALLBACK_MODEL", "DEEPSEEK_MODEL", "deepseek-chat")
-        self.timeout_seconds = _float_value("LLM_FALLBACK_TIMEOUT_SECONDS", 2.5)
-        self.max_tokens = _int_value("LLM_FALLBACK_MAX_TOKENS", 180)
-        self.temperature = _float_value("LLM_FALLBACK_TEMPERATURE", 0)
-        self.top_candidates = _int_value("LLM_FALLBACK_TOP_CANDIDATES", 8)
-        self.min_confidence = _float_value("LLM_FALLBACK_MIN_CONFIDENCE", 0.65)
-        self.speculative_enabled = _bool_value("LLM_FALLBACK_SPECULATIVE_ENABLED", False)
+        # Mode is process-environment only so disabled/sandbox startup never parses a dotenv file.
+        self.mode, self.config_error = parse_llm_fallback_mode(os.getenv("LLM_FALLBACK_MODE", "disabled"))
+        self.enabled = (os.getenv("LLM_FALLBACK_ENABLED") or "").strip().lower() in TRUE_VALUES
+        self.allow_live = (os.getenv("ALLOW_LIVE_LLM") or "").strip().lower() in TRUE_VALUES
+        self.runtime_mode = self.mode.value
+        self.network_allowed = self.mode is LLMRuntimeMode.LIVE and self.enabled and self.allow_live
+        self.is_shadow = False
+        # Provider secrets are not read at all unless the explicit live mode is selected.
+        if self.mode is LLMRuntimeMode.LIVE:
+            self.provider = _config_value("LLM_FALLBACK_PROVIDER", "deepseek") or "deepseek"
+            self.api_key = _fallback_config_value("LLM_FALLBACK_API_KEY", "DEEPSEEK_API_KEY")
+            self.base_url = _fallback_config_value(
+                "LLM_FALLBACK_BASE_URL", "DEEPSEEK_BASE_URL", "https://api.deepseek.com"
+            )
+            self.model = _fallback_config_value("LLM_FALLBACK_MODEL", "DEEPSEEK_MODEL", "deepseek-chat")
+        else:
+            self.provider = None
+            self.api_key = None
+            self.base_url = None
+            self.model = None
+        if self.mode is LLMRuntimeMode.LIVE:
+            self.timeout_seconds = _float_value("LLM_FALLBACK_TIMEOUT_SECONDS", 2.5)
+            self.max_tokens = _int_value("LLM_FALLBACK_MAX_TOKENS", 180)
+            self.temperature = _float_value("LLM_FALLBACK_TEMPERATURE", 0)
+            self.top_candidates = _int_value("LLM_FALLBACK_TOP_CANDIDATES", 8)
+            self.min_confidence = _float_value("LLM_FALLBACK_MIN_CONFIDENCE", 0.65)
+            self.speculative_enabled = _bool_value("LLM_FALLBACK_SPECULATIVE_ENABLED", False)
+        else:
+            self.timeout_seconds = 2.5
+            self.max_tokens = 180
+            self.temperature = 0.0
+            self.top_candidates = 8
+            self.min_confidence = 0.65
+            self.speculative_enabled = False
         self._http_client = http_client
 
     def is_enabled(self) -> bool:
-        return self.enabled
+        return self.mode is LLMRuntimeMode.LIVE and self.enabled
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.base_url and self.model)
+        return self.mode is LLMRuntimeMode.LIVE and bool(self.api_key and self.base_url and self.model)
 
     def can_call(self) -> bool:
-        return self.is_enabled() and self.is_configured()
+        return self.network_allowed and self.is_configured() and self.config_error is None
+
+    def describe_safety(self) -> dict[str, Any]:
+        return describe_llm_runtime_safety(
+            mode=self.mode,
+            enabled=self.enabled,
+            allow_live=self.allow_live,
+            config_error=self.config_error,
+        )
 
     def interpret(self, message: str, *, prompt: str | None = None, system_prompt: str | None = None) -> LLMClientResult:
+        if self.config_error:
+            return LLMClientResult(status="invalid_mode", error=self.config_error)
         if not self.is_enabled():
             return LLMClientResult(status="disabled")
+        if not self.allow_live:
+            return LLMClientResult(status="live_not_allowed")
         if not self.is_configured():
             return LLMClientResult(status="missing_config")
 
@@ -149,6 +190,8 @@ class LLMClient:
         return LLMClientResult(status="success", payload=payload, raw_text=raw_text[:200], latency_ms=latency_ms, parse_ok=True)
 
     def _post_chat_completion(self, prompt: str, *, system_prompt: str | None = None) -> httpx.Response:
+        if not self.can_call():
+            raise RuntimeError("live LLM call blocked by runtime safety policy")
         url = f"{self.base_url.rstrip('/')}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -204,3 +247,29 @@ class LLMClient:
 
     def _timed_out_by_wall_clock(self, latency_ms: int) -> bool:
         return latency_ms > int(self.timeout_seconds * 1000)
+
+
+def create_llm_fallback_client() -> Any:
+    """Build a runtime client without ever turning an unknown mode into live access."""
+    live_client = LLMClient()
+    if live_client.config_error:
+        from app.services.llm_replay_client import DisabledLLMClient
+
+        return DisabledLLMClient(config_error=live_client.config_error)
+    if live_client.mode is LLMRuntimeMode.DISABLED:
+        from app.services.llm_replay_client import DisabledLLMClient
+
+        return DisabledLLMClient()
+    if live_client.mode is LLMRuntimeMode.LIVE:
+        return live_client
+
+    from app.services.llm_replay_client import InMemoryFakeLLMClient, ReplayLLMClient, ShadowLLMClient
+
+    if live_client.mode is LLMRuntimeMode.FAKE:
+        return InMemoryFakeLLMClient()
+    replay_file = os.getenv("LLM_FALLBACK_REPLAY_FILE")
+    if live_client.mode is LLMRuntimeMode.REPLAY:
+        return ReplayLLMClient(replay_file)
+    shadow_source = (os.getenv("LLM_FALLBACK_SHADOW_SOURCE") or "fake").strip().lower()
+    source = ReplayLLMClient(replay_file) if shadow_source == "replay" else InMemoryFakeLLMClient()
+    return ShadowLLMClient(source)

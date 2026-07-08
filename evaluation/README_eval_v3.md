@@ -6,11 +6,11 @@ V3 是一个可版本化的离线对话回归基线。它通过现有 `TextEntry
 
 runner 在导入应用模块之前执行三层护栏：
 
-1. 强制设置 `LLM_FALLBACK_ENABLED=false` 和 `LLM_FALLBACK_SPECULATIVE_ENABLED=false`。
+1. 强制设置 `LLM_FALLBACK_MODE=disabled`、`LLM_FALLBACK_ENABLED=false`、`ALLOW_LIVE_LLM=false` 和 `LLM_FALLBACK_SPECULATIVE_ENABLED=false`。
 2. 从当前进程清除 LLM provider 的 key、base URL、model 和 provider 配置，并把 `BACKEND_ENV_FILE` 指向不存在的临时路径，因此不会读取项目 `.env`。
 3. 用 `OfflineOnlyLLMClient` 替换 Orchestrator 的 client；即使配置意外回流，网络解释调用也会直接报错并被记录为样本失败。
 
-本版本没有 live LLM 参数，也不会调用 ASR/TTS。不要把真实凭据写进命令、数据集或 JSON 报告。
+runner 只开放 disabled/fake/replay/shadow，没有 live 参数，也不会调用 ASR/TTS。fake/replay/shadow 都是本地来源。不要把真实凭据写进命令、数据集或 JSON 报告。
 
 ## 运行
 
@@ -25,6 +25,15 @@ python -B evaluation/run_dialogue_eval_v3.py --dataset evaluation/dialogues_v3.j
 ```powershell
 python -B evaluation/run_dialogue_eval_v3.py --dataset evaluation/dialogues_v3.jsonl --max-dialogues 5
 ```
+
+运行本地 shadow 或 replay：
+
+```powershell
+python -B evaluation/run_dialogue_eval_v3.py --max-dialogues 5 --llm-mode shadow
+python -B evaluation/run_dialogue_eval_v3.py --max-dialogues 5 --llm-mode replay --llm-replay-file backend/tests/fixtures/llm_replay/valid_add_item.json
+```
+
+shadow 不应用候选，业务 pass/fail 仍依据真实规则状态；报告附加 LLM trigger、candidate、validation accept/reject 和 would-mutate 计数。
 
 按分类或预期结果筛选：
 

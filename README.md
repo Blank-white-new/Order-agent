@@ -208,14 +208,16 @@ DEEPSEEK_API_KEY=your_deepseek_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-pro
 
+LLM_FALLBACK_MODE=disabled
 LLM_FALLBACK_ENABLED=false
+ALLOW_LIVE_LLM=false
 LLM_FALLBACK_PROVIDER=deepseek
 LLM_FALLBACK_BASE_URL=https://api.deepseek.com
 LLM_FALLBACK_MODEL=deepseek-chat
 LLM_FALLBACK_API_KEY=
 ```
 
-`LLM_FALLBACK_ENABLED=false` 是默认值。需要本地开启时，填写 `LLM_FALLBACK_API_KEY` 或兼容后备 `DEEPSEEK_API_KEY`，再设置 `LLM_FALLBACK_ENABLED=true`。没有真实 API Key 时，核心规则路由和测试仍可运行。更多后端、前端、ASR、TTS 变量见 `.env.example`。如果需要让后端读取其他 env 文件，可以设置 `BACKEND_ENV_FILE`。
+`LLM_FALLBACK_MODE=disabled` 是默认值。pytest、`check_all.ps1` 和 V3 eval 都强制离线；本阶段请使用 fake/replay/shadow 做安全验证，不要在普通开发流程开启 live。模式、回放 fixture 和 shadow eval 用法见 [LLM fallback sandbox](docs/llm-sandbox.md)。更多后端、前端、ASR、TTS 变量见 `.env.example`。
 
 ## 启动后端
 

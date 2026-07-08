@@ -25,6 +25,8 @@ LLM_CONNECTION_ENV_VARS = (
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
+    "LLM_FALLBACK_REPLAY_FILE",
+    "LLM_FALLBACK_SHADOW_SOURCE",
 )
 VALID_CATEGORIES = {
     "normal_order",
@@ -65,8 +67,10 @@ class DatasetValidationError(ValueError):
 
 def force_offline_environment() -> Path:
     """Disable live LLM configuration before importing application modules."""
+    os.environ["LLM_FALLBACK_MODE"] = "disabled"
     os.environ["LLM_FALLBACK_ENABLED"] = "false"
     os.environ["LLM_FALLBACK_SPECULATIVE_ENABLED"] = "false"
+    os.environ["ALLOW_LIVE_LLM"] = "false"
     for name in LLM_CONNECTION_ENV_VARS:
         os.environ.pop(name, None)
     offline_env_file = Path(tempfile.gettempdir()) / (
@@ -83,6 +87,11 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from app.agents.orchestrator import OrchestratorAgent  # noqa: E402
 from app.services import llm_client as llm_module  # noqa: E402
+from app.services.llm_replay_client import (  # noqa: E402
+    InMemoryFakeLLMClient,
+    ReplayLLMClient,
+    ShadowLLMClient,
+)
 from app.services.text_entry_service import TextEntryService  # noqa: E402
 from app.state.session_store import InMemorySessionStore  # noqa: E402
 
@@ -93,6 +102,9 @@ class OfflineOnlyLLMClient:
     timeout_seconds = 0.0
     top_candidates = 8
     speculative_enabled = False
+    runtime_mode = "disabled"
+    is_shadow = False
+    network_allowed = False
 
     def is_enabled(self) -> bool:
         return False
@@ -107,11 +119,23 @@ class OfflineOnlyLLMClient:
         raise RuntimeError("V3 evaluation forbids live LLM calls")
 
 
-def create_text_entry_service() -> TextEntryService:
+def create_text_entry_service(
+    llm_mode: str = "disabled", replay_file: str | Path | None = None
+) -> TextEntryService:
     force_offline_environment()
     llm_module._env_file_values.cache_clear()
     orchestrator = OrchestratorAgent()
-    orchestrator.llm_client = OfflineOnlyLLMClient()
+    if llm_mode == "disabled":
+        orchestrator.llm_client = OfflineOnlyLLMClient()
+    elif llm_mode == "fake":
+        orchestrator.llm_client = InMemoryFakeLLMClient()
+    elif llm_mode == "replay":
+        orchestrator.llm_client = ReplayLLMClient(replay_file)
+    elif llm_mode == "shadow":
+        source = ReplayLLMClient(replay_file) if replay_file else InMemoryFakeLLMClient()
+        orchestrator.llm_client = ShadowLLMClient(source)
+    else:
+        raise ValueError(f"unsupported offline LLM mode: {llm_mode}")
     return TextEntryService(store=InMemorySessionStore(), orchestrator=orchestrator)
 
 
@@ -430,6 +454,12 @@ def build_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         status = "passed" if result["passed"] else "failed"
         by_category[result["category"]][status] += 1
         by_result_type[result["expected_result_type"]][status] += 1
+    traces = [
+        turn.get("trace", {})
+        for result in results
+        for turn in result.get("turns", [])
+        if turn.get("evaluate", True)
+    ]
     return {
         "total": total,
         "passed": passed,
@@ -442,6 +472,11 @@ def build_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "false_mutation_count": sum(result["false_mutation_count"] for result in results),
         "confirmation_bypass_count": sum(result["confirmation_bypass_count"] for result in results),
         "fallback_count": sum(result["fallback_count"] for result in results),
+        "llm_trigger_count": sum(int(bool(trace.get("llmFallbackTriggered"))) for trace in traces),
+        "llm_shadow_candidate_count": sum(int(bool(trace.get("llmFallbackShadowCandidate"))) for trace in traces),
+        "llm_validation_accept_count": sum(int(bool(trace.get("llmFallbackValidationAccepted"))) for trace in traces),
+        "llm_validation_reject_count": sum(int(bool(trace.get("llmFallbackValidationRejected"))) for trace in traces),
+        "llm_would_mutate_count": sum(int(bool(trace.get("llmFallbackWouldMutateOrder"))) for trace in traces),
     }
 
 
@@ -454,6 +489,11 @@ def print_report(results: list[dict[str, Any]], summary: dict[str, Any]) -> None
     print(f"false mutation count: {summary['false_mutation_count']}")
     print(f"confirmation bypass count: {summary['confirmation_bypass_count']}")
     print(f"fallback count: {summary['fallback_count']}")
+    print(f"llm trigger count: {summary['llm_trigger_count']}")
+    print(f"llm shadow candidate count: {summary['llm_shadow_candidate_count']}")
+    print(f"llm validation accept count: {summary['llm_validation_accept_count']}")
+    print(f"llm validation reject count: {summary['llm_validation_reject_count']}")
+    print(f"llm would mutate count: {summary['llm_would_mutate_count']}")
     _print_group("按 category", summary["by_category"])
     _print_group("按 expected_result_type", summary["by_expected_result_type"])
 
@@ -498,6 +538,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fail-on-regression", action="store_true", help="存在失败样本时返回退出码 1")
     parser.add_argument("--json-report", help="可选 JSON 报告输出路径")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--llm-mode",
+        choices=("disabled", "fake", "replay", "shadow"),
+        default="disabled",
+        help="离线 LLM sandbox 模式；不提供 live",
+    )
+    parser.add_argument("--llm-replay-file", help="replay 或 replay-backed shadow 使用的安全 JSON fixture")
     return parser
 
 
@@ -505,6 +552,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.max_dialogues is not None and args.max_dialogues < 1:
         print("错误: --max-dialogues 必须大于 0", file=sys.stderr)
+        return 2
+    if args.llm_mode == "replay" and not args.llm_replay_file:
+        print("错误: replay 模式必须提供 --llm-replay-file", file=sys.stderr)
         return 2
     force_offline_environment()
     llm_module._env_file_values.cache_clear()
@@ -522,7 +572,8 @@ def main(argv: list[str] | None = None) -> int:
     if not selected:
         print("没有符合筛选条件的样本", file=sys.stderr)
         return 2
-    results = asyncio.run(evaluate_samples(selected, verbose=args.verbose))
+    service_factory = lambda: create_text_entry_service(args.llm_mode, args.llm_replay_file)
+    results = asyncio.run(evaluate_samples(selected, verbose=args.verbose, service_factory=service_factory))
     summary = build_summary(results)
     print_report(results, summary)
     if args.json_report:

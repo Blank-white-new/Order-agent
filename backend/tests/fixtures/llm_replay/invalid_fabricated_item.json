@@ -1,0 +1,14 @@
+{
+  "intent": "add_item",
+  "confidence": 0.99,
+  "actions": [
+    {
+      "type": "add_item",
+      "item_name": "虚构套餐",
+      "quantity": 1,
+      "options": {},
+      "target": null
+    }
+  ],
+  "needs_clarification": false
+}
