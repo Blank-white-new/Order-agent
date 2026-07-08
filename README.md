@@ -264,6 +264,8 @@ pytest -q
 
 测试覆盖语义路由、菜单 agent、配送 agent、订单 agent、上下文修复、确认提交和 fallback/smalltalk。
 
+普通 pytest、`check_backend.ps1` 和 `check_all.ps1` 会强制使用离线 LLM 配置，不读取项目 `.env` 中的 provider 凭据；真实 LLM 只应在专门的 sandbox/shadow 流程中显式启用。
+
 ## 一键质量验证
 
 提交前建议从项目根目录运行：

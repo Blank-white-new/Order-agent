@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -106,3 +108,67 @@ def test_gitignore_covers_env_variants_and_keeps_example_trackable():
 
     assert ".env.*" in patterns
     assert patterns.index("!.env.example") > patterns.index(".env.*")
+
+
+def test_check_scripts_enable_shared_offline_llm_guard():
+    guard = (PROJECT_ROOT / "scripts" / "offline_llm_guard.ps1").read_text(encoding="utf-8")
+    for script_name in ["check_all.ps1", "check_backend.ps1"]:
+        script = (PROJECT_ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+        assert 'offline_llm_guard.ps1' in script
+        assert "Enable-OfflineLlmChecks" in script
+        assert "Restore-LlmCheckEnvironment" in script
+
+    assert 'SetEnvironmentVariable("LLM_FALLBACK_ENABLED", "false"' in guard
+    assert 'SetEnvironmentVariable("BACKEND_ENV_FILE", $offlineEnvFile' in guard
+    assert '"LLM_FALLBACK_API_KEY"' in guard
+    assert '"DEEPSEEK_API_KEY"' in guard
+    assert "live provider configuration is isolated" in guard
+
+
+def test_conftest_overrides_live_like_parent_environment_before_app_import():
+    probe = r'''
+import os
+from tests import conftest  # noqa: F401
+from app.services.llm_client import LLMClient
+
+class NetworkBlocker:
+    def __init__(self):
+        self.calls = 0
+    def post(self, *_args, **_kwargs):
+        self.calls += 1
+        raise AssertionError("network must not be called")
+
+assert os.environ["LLM_FALLBACK_ENABLED"] == "false"
+assert "LLM_FALLBACK_API_KEY" not in os.environ
+assert "DEEPSEEK_API_KEY" not in os.environ
+assert not os.path.exists(os.environ["BACKEND_ENV_FILE"])
+blocker = NetworkBlocker()
+client = LLMClient(http_client=blocker)
+assert client.is_enabled() is False
+assert client.is_configured() is False
+assert client.can_call() is False
+assert client.interpret("offline probe").status == "disabled"
+assert blocker.calls == 0
+'''
+    env = os.environ.copy()
+    env.update(
+        {
+            "LLM_FALLBACK_ENABLED": "true",
+            "LLM_FALLBACK_API_KEY": "fake-but-present",
+            "LLM_FALLBACK_BASE_URL": "https://example.invalid",
+            "LLM_FALLBACK_MODEL": "fake-model",
+            "DEEPSEEK_API_KEY": "fake-legacy-key",
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", probe],
+        cwd=PROJECT_ROOT / "backend",
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=15,
+    )
+
+    assert result.returncode == 0, result.stderr

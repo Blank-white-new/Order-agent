@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from app.agents.orchestrator import OrchestratorAgent
@@ -42,6 +44,28 @@ class FakeLLMClient:
         if self.result is not None:
             return self.result
         return LLMClientResult(status="success", payload=self.payload or {}, parse_ok=True, latency_ms=3)
+
+
+def test_injected_fake_llm_remains_available_while_process_live_llm_is_disabled():
+    assert os.environ["LLM_FALLBACK_ENABLED"] == "false"
+    orchestrator = OrchestratorAgent()
+    fake = FakeLLMClient(
+        payload={
+            "intent": "clarify",
+            "confidence": 0.9,
+            "actions": [],
+            "needs_clarification": True,
+            "clarification_question": "你是想点菜还是看菜单？",
+        }
+    )
+    orchestrator.llm_client = fake
+
+    result = orchestrator.handle_user_message("帮我处理一下", SessionState())
+
+    assert len(fake.calls) == 1
+    assert result["trace"]["llmFallbackTriggered"] is True
+    assert result["trace"]["interpretationSource"] == "llm"
+    assert result["state"]["current_order"] == []
 
 
 def test_high_confidence_rule_skips_llm():
