@@ -1,22 +1,55 @@
 # Multi-Agent Ordering System
 
+一个规则优先、Orchestrator 统一裁决的中文多 Agent 订餐演示系统。它覆盖多轮点餐、推荐、订单修改、配送/自取与提交确认，并提供 React 前端、可选语音演示、安全 LLM fallback sandbox 和可重复的 V3 对话评估。
+
+> 默认运行不调用真实 LLM。菜单、价格与配送费来自服务层；订单提交前必须确认，所有状态修改都经过 Orchestrator。
+
+## 项目亮点
+
+- 规则优先的中文语义路由，多轮上下文和问句防误修改。
+- 文本与语音共用订单状态；支持推荐、换菜、数量修改、配送、自取和确认。
+- ASR、文本归一化、TTS 与 barge-in 可用于本机演示。
+- LLM fallback 提供 disabled/fake/replay/shadow 安全模式，live 默认不可用。
+- V3 对话集当前基线 57/57，持续检查误修改与确认绕过。
+- 后端 pytest、前端 Vitest/TypeScript/build 可通过一个脚本完成。
+
+## 功能矩阵
+
+| 能力 | 当前状态 | 说明 |
+|---|---|---|
+| 文本点餐 | 已支持 | 多轮加菜、改数量、删除和换菜 |
+| 推荐 | 已支持 | 基于菜单、偏好和预算生成候选 |
+| 配送/自取 | 已支持 | 地址、电话和 mock 配送费均由服务层处理 |
+| 订单确认 | 已支持 | 提交前确认；submitted 后锁定旧订单 |
+| 语音输入 | 演示支持 | 本机 ASR、normalizer 和 barge-in |
+| TTS | 本机演示支持 | server-side pyttsx3 受运行机器音频环境限制 |
+| LLM fallback | sandbox 支持 | 默认 disabled，不直接提交或绕过 validation |
+| V3 eval | 已支持 | 当前 57/57 离线基线 |
+
+架构、录屏流程和专项说明：
+
+- [系统架构](docs/architecture.md)
+- [30–60 秒演示脚本](docs/demo-guide.md)
+- [LLM fallback sandbox](docs/llm-sandbox.md)
+- [语音演示与排障](docs/voice-troubleshooting.md)
+
 ## 快速开始（Windows PowerShell）
 
 1. 克隆项目并进入目录：
 
 ```powershell
-git clone <your-repo-url>
-cd agent-order-ver2
+git clone https://github.com/Blank-white-new/Order-agent.git
+cd Order-agent
 ```
 
-2. 配置后端环境变量：
+2. 可选：复制本机配置。纯文本 demo、测试和 V3 eval 不需要真实 LLM key：
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-`.env` 只放本机配置和真实密钥，不要提交。LLM fallback 默认关闭；没有 DeepSeek API Key 时，确定性规则路由、订餐主流程和测试仍可运行。
+`.env` 只放本机配置，绝不要提交。公开 demo 请保持 `LLM_FALLBACK_MODE=disabled`；文本订餐主流程和测试不需要 API key。
 
 3. 安装后端依赖：
 
@@ -34,18 +67,18 @@ cd ..\frontend
 npm install
 ```
 
-5. 启动后端（一个 PowerShell 窗口）：
+5. 启动后端（一个 PowerShell 窗口，从仓库根目录执行）：
 
 ```powershell
-cd backend
+cd .\backend
 .\.venv\Scripts\Activate.ps1
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-6. 启动前端（另一个 PowerShell 窗口）：
+6. 启动前端（另一个 PowerShell 窗口，从仓库根目录执行）：
 
 ```powershell
-cd frontend
+cd .\frontend
 npm run dev
 ```
 
@@ -63,11 +96,16 @@ $env:VITE_BACKEND_PROXY_TARGET="http://localhost:8000"
 npm run dev
 ```
 
-7. 运行一键检查：
+7. 在仓库根目录运行一键检查（脚本强制离线，不调用真实 LLM）：
 
 ```powershell
-cd ..
 .\scripts\check_all.ps1 -Build
+```
+
+运行完整 V3 对话基线（默认 `LLM_FALLBACK_MODE=disabled`，不调用真实 LLM）：
+
+```powershell
+python -B evaluation/run_dialogue_eval_v3.py --dataset evaluation/dialogues_v3.jsonl
 ```
 
 8. 可选开启语音和调试：
@@ -85,6 +123,9 @@ TTS_PLAYBACK_TARGET=server
 ```powershell
 $env:VITE_DEBUG_VOICE="true"
 ```
+
+<details>
+<summary>历史 Auto TTS 链路诊断参考（默认折叠）</summary>
 
 ## Auto TTS 真实链路复测 v12
 
@@ -162,7 +203,9 @@ auto job success：
 是否实际听到 agent_reply 播报：
 ```
 
-一个多 agent 协同订餐系统原型。用户通过聊天完成看菜单、推荐、点餐、配送咨询、地址确认和订单确认；所有状态修改都由 Orchestrator 统一裁决。
+</details>
+
+用户通过聊天完成看菜单、推荐、点餐、配送咨询、地址确认和订单确认；所有状态修改都由 Orchestrator 统一裁决。
 
 ## 多 Agent 架构
 
@@ -170,7 +213,7 @@ auto job success：
 
 1. 规范化输入
 2. 调用 `SemanticRouterAgent`
-3. 在低置信场景预留 DeepSeek LLM 解释入口
+3. 在低置信场景可进入默认离线的 LLM fallback sandbox
 4. 按全局语义优先级选择子 agent
 5. 接收子 agent 的 `actionResult` 与 `proposedStatePatch`
 6. 校验状态修改不变量
@@ -266,7 +309,7 @@ pytest -q
 
 测试覆盖语义路由、菜单 agent、配送 agent、订单 agent、上下文修复、确认提交和 fallback/smalltalk。
 
-普通 pytest、`check_backend.ps1` 和 `check_all.ps1` 会强制使用离线 LLM 配置，不读取项目 `.env` 中的 provider 凭据；真实 LLM 只应在专门的 sandbox/shadow 流程中显式启用。
+普通 pytest、`check_backend.ps1` 和 `check_all.ps1` 会强制使用离线 LLM 配置，不读取项目 `.env` 中的 provider 凭据。fake/replay/shadow 都不发起真实 provider 请求；live 需要另行安全评审。
 
 ## 一键质量验证
 
@@ -298,7 +341,7 @@ pytest -q
 
 ## DeepSeek / LLM fallback 配置
 
-`DEEPSEEK_MODEL` 仍用于兼容旧 DeepSeek 配置。LLM fallback 使用独立的 `LLM_FALLBACK_*` 配置，默认 `LLM_FALLBACK_ENABLED=false`。
+`DEEPSEEK_MODEL` 仍用于兼容旧 DeepSeek 配置。LLM fallback 使用独立的 `LLM_FALLBACK_*` 配置，默认 `LLM_FALLBACK_MODE=disabled`。
 
 fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时尝试；确定性高置信规则命中不会调用 LLM。LLM 只做低置信兜底理解和候选动作抽取，不直接修改订单、不直接提交订单、不绕过 `ConfirmationAgent`。菜单项、价格和配送费仍必须来自服务层。
 
@@ -315,7 +358,7 @@ fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时
 - 当前订单、地址、pending candidate 的前后变化
 - 最终回复
 
-前端开发模式会在消息下方展示可展开 trace。
+前端只在消息下方提供默认折叠的“调试信息”，普通演示不会直接展开 trace。
 
 ## 推荐演示脚本
 
@@ -329,8 +372,8 @@ fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时
 再来一份
 这个少辣
 配送
-中山大学深圳校区
-13800138000
+中山大学南校园
+13800000000
 确认
 ```
 
@@ -338,8 +381,8 @@ fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时
 
 - 订单中有黑椒牛肉饭，数量为 2。
 - `少辣` 进入该菜品的 `options`。
-- 配送地址记录为中山大学深圳校区。
-- 电话记录为 `13800138000`。
+- 配送地址记录为演示地址中山大学南校园。
+- 电话仅使用示例号码 `13800000000`，前端显示为 `138****0000`。
 - 最终确认后提交成功，状态进入 `submitted`。
 
 ### 演示 2：自然修改
@@ -353,8 +396,8 @@ fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时
 加一瓶可乐
 不要可乐了
 配送
-中山大学深圳校区
-13800138000
+中山大学南校园
+13800000000
 确认
 ```
 

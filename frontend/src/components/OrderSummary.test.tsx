@@ -45,7 +45,25 @@ describe("OrderSummary", () => {
     expect(screen.getByText("52 元")).toBeInTheDocument();
     expect(screen.getByText("配送")).toBeInTheDocument();
     expect(screen.getByText("已填写：中山大学南校园")).toBeInTheDocument();
-    expect(screen.getByText("已填写：13812345678")).toBeInTheDocument();
+    expect(screen.getByText("已填写：138****5678")).toBeInTheDocument();
+    expect(screen.queryByText("已填写：13812345678")).not.toBeInTheDocument();
+  });
+
+  test("labels submitted orders as mock orders without exposing a full phone", () => {
+    render(
+      <OrderSummary
+        state={normalizeOrderState({
+          current_order: [{ name: "牛肉饭", price: 28, quantity: 1 }],
+          phone: "13800000000",
+          submitted: true,
+          submitted_order_id: "MOCK-ORDER-001",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("已填写：138****0000")).toBeInTheDocument();
+    expect(screen.getByText("订单号（mock order）：MOCK-ORDER-001")).toBeInTheDocument();
+    expect(screen.queryByText("13800000000")).not.toBeInTheDocument();
   });
 
   test("does not crash when item price is missing or invalid", () => {
