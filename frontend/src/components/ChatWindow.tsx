@@ -136,6 +136,7 @@ export function ChatWindow() {
           sessionId={sessionId}
           onUserFinal={appendVoiceUserMessage}
           onAgentReply={appendVoiceAgentReply}
+          onOrderStateChange={setOrderState}
           onTtsPreferenceChange={setTtsPreference}
         />
         <form onSubmit={onSubmit} className="composer">

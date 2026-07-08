@@ -19,8 +19,8 @@ export function OrderSummary({ state }: OrderSummaryProps) {
     <section className="panel order-summary" aria-labelledby="order-summary-title">
       <div className="panel-heading">
         <div>
-          <h2 id="order-summary-title">当前文本对话订单状态</h2>
-          <p>基于文字聊天最近返回的状态显示</p>
+          <h2 id="order-summary-title">当前订单状态</h2>
+          <p>基于当前会话最近返回的状态显示</p>
         </div>
         {state.submitted ? <span className="status-pill success">已提交</span> : <span className="status-pill">进行中</span>}
       </div>

@@ -57,7 +57,7 @@ export type VoiceServerEvent =
   | { type: "status"; status: string; muted?: boolean; utterance_id?: string }
   | { type: "partial"; text: string }
   | { type: "final"; utterance_id: string; text: string }
-  | { type: "agent_reply"; utterance_id: string; text: string; state: Record<string, unknown>; trace: Record<string, unknown> }
+  | { type: "agent_reply"; utterance_id: string; text: string; state?: unknown; trace: Record<string, unknown> }
   | {
       type: "tts_status";
       utterance_id: string;
