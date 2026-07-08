@@ -277,7 +277,7 @@ def test_router_mixed_address_and_order_uses_only_evidenced_order_fragment(messa
     children = result.entities["children"]
     assert children[0]["intent"] == "order_food"
     assert children[0]["entities"]["item_name"] == expected_item
-    assert children[1]["intent"] == "replace_delivery_candidate"
+    assert children[1]["intent"] == "provide_delivery_address"
     assert children[1]["entities"]["address"] == "中山大学"
 
 

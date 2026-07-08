@@ -224,7 +224,7 @@ def test_recommendation_ordinal_out_of_range_clarifies_without_llm():
 
     assert fake.calls == []
     assert result["trace"]["llmFallbackTriggered"] is False
-    assert result["trace"]["finalIntent"] == "fallback"
+    assert result["trace"]["finalIntent"] == "context_correction"
     assert result["state"]["current_order"] == []
     assert "推荐列表" in result["response"]
 
@@ -636,8 +636,8 @@ def test_mixed_address_and_order_only_adds_evidenced_target_item(message, expect
     assert result["trace"]["llmFallbackTriggered"] is False
     assert result["trace"]["finalIntent"] == "composite_intent"
     assert [item["name"] for item in result["state"]["current_order"]] == [expected_item]
-    assert result["state"]["pending_delivery_address_candidate"]["normalized"] == "中山大学"
-    assert result["state"]["official_delivery_address"] is None
+    assert result["state"]["official_delivery_address"] == "中山大学"
+    assert result["state"]["pending_delivery_address_candidate"] is None
 
 
 def test_just_these_uses_confirmation_flow_and_collects_address_before_llm():

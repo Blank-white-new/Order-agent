@@ -10,6 +10,13 @@ from app.agents.menu_agent import MenuAgent
 from app.agents.order_agent import OrderAgent
 from app.agents.recommendation_agent import RecommendationAgent
 from app.agents.response_agent import ResponseAgent
+from app.agents.semantic_evidence import (
+    detect_reference_domain,
+    has_option_change_evidence,
+    has_quantity_update_evidence,
+    has_remove_action_evidence,
+    has_replace_action_evidence,
+)
 from app.agents.semantic_router import SemanticRouterAgent
 from app.models.schemas import Interpretation, dump_model
 from app.services.delivery_service import DeliveryService
@@ -74,6 +81,8 @@ INTENT_HANDLER_MAP: dict[str, dict[str, str]] = {
     "confirm": {"agent": "ConfirmationAgent", "handler": "confirm"},
     "cancel": {"agent": "ResponseAgent", "handler": "cancel"},
     "smalltalk": {"agent": "ResponseAgent", "handler": "smalltalk"},
+    "reject_request": {"agent": "ResponseAgent", "handler": "reject_request"},
+    "hold_order": {"agent": "ResponseAgent", "handler": "hold_order"},
     "fallback": {"agent": "FallbackAgent", "handler": "fallback"},
 }
 
@@ -92,6 +101,8 @@ NO_MUTATION_INTENTS = {
     "ask_delivery_fee",
     "ask_deliverability",
     "smalltalk",
+    "reject_request",
+    "hold_order",
 }
 
 PENDING_ACTION_CANCEL_INTENTS = {"cancel", "cancel_ambiguous_selection"}
@@ -210,6 +221,9 @@ class OrchestratorAgent:
             "rolledBackFields": rolled_back_fields,
             "compositeChildren": composite_children,
             "conditionalDecision": conditional_decision,
+            "semanticEvidenceReason": interpretation.entities.get("semantic_evidence_reason")
+            or interpretation.entities.get("clarification"),
+            "referenceDomain": interpretation.entities.get("reference_domain"),
             "currentStageBefore": before.stage,
             "currentStageAfter": state.stage,
             "orderBefore": order_to_dicts(before.current_order),
@@ -508,8 +522,26 @@ class OrchestratorAgent:
                     preferences=interpretation.preferences,
                 )
 
+        if compact in {"先别提交我再看看", "先别下单我再看看", "先别提交", "先别下单"}:
+            return Interpretation(
+                intent="hold_order",
+                confidence=0.9,
+                source="rule",
+                should_mutate_order=False,
+                entities={"semantic_evidence_reason": "negative_submission_statement"},
+            )
+
+        if interpretation.intent == "ask_recommendation_by_preference" and has_replace_action_evidence(compact):
+            return self._context_clarification("missing_replace_target")
+
+        if interpretation.intent == "replace_item":
+            return self._resolve_replace_intent(interpretation, compact, state)
+
         if interpretation.intent == "order_food" and state.current_order:
             item_name = interpretation.entities.get("item_name")
+            relative_quantity = self._relative_quantity_update_interpretation(interpretation, compact, state)
+            if relative_quantity:
+                return relative_quantity
             if item_name and any(item.name == item_name for item in state.current_order) and self._has_option_change(compact):
                 return self._copy_interpretation(
                     interpretation,
@@ -568,31 +600,176 @@ class OrchestratorAgent:
             )
         return interpretation
 
+    def _context_clarification(self, reason: str, **entities: Any) -> Interpretation:
+        return Interpretation(
+            intent="context_correction",
+            confidence=0.86,
+            source="merged",
+            should_mutate_order=False,
+            entities={"clarification": reason, "semantic_evidence_reason": reason, **entities},
+        )
+
+    def _relative_quantity_update_interpretation(
+        self,
+        interpretation: Interpretation,
+        compact: str,
+        state: SessionState,
+    ) -> Interpretation | None:
+        if "少一" not in compact and "减一" not in compact:
+            return None
+        item_name = interpretation.entities.get("item_name")
+        if not item_name:
+            return None
+        for item in state.current_order:
+            if item.name == item_name:
+                new_quantity = max(item.quantity - 1, 0)
+                if new_quantity <= 0:
+                    return Interpretation(
+                        intent="remove_item",
+                        confidence=0.9,
+                        source="merged",
+                        should_mutate_order=True,
+                        entities={"item_name": item_name},
+                    )
+                return Interpretation(
+                    intent="update_item_quantity",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={"item_name": item_name, "quantity": new_quantity},
+                )
+        return None
+
+    def _resolve_replace_intent(
+        self,
+        interpretation: Interpretation,
+        compact: str,
+        state: SessionState,
+    ) -> Interpretation:
+        if not state.current_order:
+            return self._context_clarification("missing_replace_target")
+        if interpretation.entities.get("old_item_name"):
+            return interpretation
+        new_name = interpretation.entities.get("new_item_name")
+        if not new_name:
+            return self._context_clarification("missing_replace_target")
+        index = self._unique_recent_order_index(state) if any(token in compact for token in ["刚才", "刚加", "这个", "那个", "这份", "那份"]) else None
+        if index is None and len(state.current_order) == 1:
+            index = 0
+        if index is None:
+            return self._context_clarification("ambiguous_replace_reference", new_item_name=new_name)
+        return self._copy_interpretation(
+            interpretation,
+            {
+                "confidence": 0.92,
+                "source": "merged",
+                "entities": {**interpretation.entities, "old_item_name": state.current_order[index].name, "index": index},
+            },
+        )
+
     def _resolve_context_reference(self, interpretation: Interpretation, state: SessionState) -> Interpretation:
         if interpretation.intent != "context_reference_resolution":
             return interpretation
         raw = interpretation.entities.get("raw", "")
         ref = interpretation.entities.get("reference", "")
+        index = self._reference_to_index(ref)
+        domain = detect_reference_domain(raw, bool(state.last_recommendations), bool(state.current_order))
 
         unique_item, all_matches = self._resolve_dish_fragment(raw)
-        if unique_item:
+        if unique_item and domain in {"none", "recommendation"}:
             return Interpretation(
                 intent="order_food",
                 confidence=0.9,
                 source="merged",
                 should_mutate_order=True,
-                entities={"item_name": unique_item.name, "quantity": 1},
+                entities={"item_name": unique_item.name, "quantity": 1, "reference_domain": domain},
                 preferences=interpretation.preferences,
             )
         if all_matches and len(all_matches) > 1:
             names = [item["name"] for item in all_matches]
+            return self._context_clarification("ambiguous_dish_fragment", candidates=names, raw=raw, reference_domain=domain)
+
+        if domain == "ambiguous":
+            return self._context_clarification("ambiguous_reference_domain", reference_domain=domain)
+
+        if domain == "recommendation":
+            if not state.last_recommendations:
+                return self._context_clarification("reference_unresolved", reference_domain=domain)
+            if index is None:
+                if len(state.last_recommendations) == 1 and any(token in raw for token in ["来", "要", "就"]):
+                    index = 0
+                else:
+                    return self._context_clarification(
+                        "ambiguous_recommendation_reference",
+                        candidates=[rec["name"] for rec in state.last_recommendations[:3]],
+                        reference_domain=domain,
+                    )
+            if index >= len(state.last_recommendations):
+                return self._context_clarification("recommendation_index_out_of_range", reference_domain=domain)
             return Interpretation(
-                intent="context_correction",
-                confidence=0.85,
+                intent="select_recommendation",
+                confidence=0.92,
                 source="merged",
-                should_mutate_order=False,
-                entities={"candidates": names, "clarification": "ambiguous_dish_fragment"},
+                should_mutate_order=True,
+                entities={"index": index, "reference_domain": domain},
+                preferences=interpretation.preferences,
             )
+
+        if domain == "order":
+            if not state.current_order:
+                return self._context_clarification("reference_unresolved", reference_domain=domain)
+            resolved_index = index
+            if resolved_index is None and any(token in raw for token in ["刚才", "刚加"]):
+                resolved_index = self._unique_recent_order_index(state)
+            if resolved_index is None and len(state.current_order) == 1 and any(token in raw for token in ["这个", "那个", "这份", "那份"]):
+                resolved_index = 0
+            if resolved_index is None or resolved_index >= len(state.current_order):
+                return self._context_clarification("ambiguous_order_reference", reference_domain=domain)
+            item_name = state.current_order[resolved_index].name
+            if has_remove_action_evidence(raw):
+                return Interpretation(
+                    intent="remove_item",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={"index": resolved_index, "item_name": item_name, "reference_domain": domain},
+                )
+            if has_quantity_update_evidence(raw):
+                return Interpretation(
+                    intent="update_item_quantity",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={
+                        "index": resolved_index,
+                        "item_name": item_name,
+                        "quantity": self.semantic_router._extract_quantity(raw),
+                        "reference_domain": domain,
+                    },
+                )
+            if has_option_change_evidence(raw) or self._has_option_change(raw):
+                return Interpretation(
+                    intent="update_item_option",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={"index": resolved_index, "item_name": item_name, "reference_domain": domain},
+                    preferences=interpretation.preferences,
+                )
+            if has_replace_action_evidence(raw):
+                mentioned_items = self.menu_service.find_items_in_text(raw)
+                new_item = mentioned_items[-1] if len(mentioned_items) >= 2 else self.menu_service.find_item_by_name(raw)
+                if not new_item:
+                    return self._context_clarification("missing_replace_target", reference_domain=domain)
+                return Interpretation(
+                    intent="replace_item",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={"old_item_name": item_name, "new_item_name": new_item.name, "reference_domain": domain},
+                    preferences=interpretation.preferences,
+                )
+            return self._context_clarification("reference_unresolved", reference_domain=domain)
 
         if raw in {"就那个", "要那个", "来那个"}:
             rec_names = None
@@ -602,43 +779,20 @@ class OrchestratorAgent:
                 items = self.menu_service.get_available_items_by_category(state.viewed_category)
                 rec_names = [item.name for item in items[:4]]
             if rec_names:
-                return Interpretation(
-                    intent="context_correction",
-                    confidence=0.85,
-                    source="merged",
-                    should_mutate_order=False,
-                    entities={
-                        "candidates": rec_names,
-                        "clarification": "ambiguous_no_dish_fragment",
-                    },
-                )
+                return self._context_clarification("ambiguous_no_dish_fragment", candidates=rec_names)
 
-        index = self._reference_to_index(ref)
         if state.current_order and self._has_option_change(raw) and ref in {"这个", "那个", "刚才那个"}:
-            resolved_index = self._recent_order_index(state)
+            if len(state.current_order) > 1 and ref in {"这个", "那个"}:
+                return self._context_clarification("ambiguous_order_reference", reference_domain="order")
+            resolved_index = self._unique_recent_order_index(state)
+            if resolved_index is None:
+                return self._context_clarification("ambiguous_order_reference", reference_domain="order")
             return Interpretation(
                 intent="update_item_option",
                 confidence=0.9,
                 source="merged",
                 should_mutate_order=True,
                 entities={"index": resolved_index, "item_name": state.current_order[resolved_index].name},
-                preferences=interpretation.preferences,
-            )
-        if state.last_recommendations and index is not None:
-            if index >= len(state.last_recommendations):
-                return Interpretation(
-                    intent="fallback",
-                    confidence=0.86,
-                    source="merged",
-                    should_mutate_order=False,
-                    entities={"directed_message": "请在推荐列表中选择有效序号，比如第一个、第二个或第三个。"},
-                )
-            return Interpretation(
-                intent="select_recommendation",
-                confidence=0.92,
-                source="merged",
-                should_mutate_order=True,
-                entities={"index": index},
                 preferences=interpretation.preferences,
             )
         if state.last_recommendations and raw in {"就这个", "要这个", "这些都要"}:
@@ -650,31 +804,7 @@ class OrchestratorAgent:
                 entities={"index": 0},
                 preferences=interpretation.preferences,
             )
-        if state.current_order and index is not None:
-            if "不要了" in raw:
-                return Interpretation(
-                    intent="remove_item",
-                    confidence=0.9,
-                    source="merged",
-                    should_mutate_order=True,
-                    entities={"index": index, "item_name": state.current_order[index].name if index < len(state.current_order) else ""},
-                )
-            if any(token in raw for token in ["不辣", "不要辣", "大份", "小份"]):
-                return Interpretation(
-                    intent="update_item_option",
-                    confidence=0.9,
-                    source="merged",
-                    should_mutate_order=True,
-                    entities={"index": index, "item_name": state.current_order[index].name if index < len(state.current_order) else ""},
-                    preferences=interpretation.preferences,
-                )
-        return Interpretation(
-            intent="context_correction",
-            confidence=0.75,
-            source="merged",
-            should_mutate_order=False,
-            entities={"clarification": "reference_unresolved"},
-        )
+        return self._context_clarification("reference_unresolved", reference_domain=domain)
 
     def _dispatch(self, interpretation: Interpretation, state: SessionState) -> dict:
         intent = interpretation.intent
@@ -708,6 +838,20 @@ class OrchestratorAgent:
             return self._handle_conditional_order(interpretation)
         if agent == "OrchestratorAgent" and intent == "composite_intent":
             return self._handle_composite(interpretation, state)
+        if intent == "reject_request":
+            return {
+                "agent": "ResponseAgent",
+                "handler": "reject_request",
+                "message": interpretation.entities.get("directed_message", "这个操作不允许。"),
+                "patch": {},
+            }
+        if intent == "hold_order":
+            return {
+                "agent": "ResponseAgent",
+                "handler": "hold_order",
+                "message": "好的，先不提交，订单会继续保留。",
+                "patch": {},
+            }
         if intent == "smalltalk":
             return self.response_agent.smalltalk()
         if intent == "cancel":
@@ -940,14 +1084,14 @@ class OrchestratorAgent:
         normalized = normalize_recommendation_ordinal_reference(reference)
         if normalized is not None:
             return normalized
-        if reference in {"第一个"}:
+        if match := re.search(r"第(\d+)[个份项]", reference):
+            return int(match.group(1)) - 1
+        if reference in {"第一个", "第1个", "第一份", "第1份", "第一项", "第1项", "推荐的第一个", "推荐的第1个", "刚推荐的第一个", "刚推荐的第1个", "订单里第一个", "订单里第1个", "已点的第一个", "已点的第1个"}:
             return 0
-        if reference == "第二个":
+        if reference in {"第二个", "第2个", "第二份", "第2份", "第二项", "第2项"}:
             return 1
-        if reference == "第三个":
+        if reference in {"第三个", "第3个", "第三份", "第3份", "第三项", "第3项"}:
             return 2
-        if reference == "刚才那个":
-            return 0
         return None
 
     def _recent_order_index(self, state: SessionState) -> int:
@@ -956,6 +1100,17 @@ class OrchestratorAgent:
                 if state.current_order[index].name == state.last_mentioned_item:
                     return index
         return len(state.current_order) - 1
+
+    def _unique_recent_order_index(self, state: SessionState) -> int | None:
+        if not state.current_order:
+            return None
+        if state.last_mentioned_item:
+            matches = [index for index, item in enumerate(state.current_order) if item.name == state.last_mentioned_item]
+            if len(matches) == 1:
+                return matches[0]
+        if len(state.current_order) == 1:
+            return 0
+        return None
 
     def _has_option_change(self, text: str) -> bool:
         return any(
@@ -987,7 +1142,11 @@ class OrchestratorAgent:
         - all_matches is the list of all matching item dicts (may be empty)
         """
         import re
-        fragment = re.sub(r"(这个|那个|这些|那些|第一个|第二个|第三个|刚才那个)", "", raw_text).strip()
+        fragment = re.sub(
+            r"(推荐的第一个|推荐的第1个|刚推荐的第一个|刚推荐的第1个|订单里第一个|订单里第1个|已点的第一个|已点的第1个|这个|那个|这份|那份|这些|那些|第一个|第1个|第二个|第2个|第三个|第3个|第一份|第1份|第二份|第2份|第三份|第3份|第一项|第1项|第二项|第2项|第三项|第3项|刚才那个|刚才的|刚加的)",
+            "",
+            raw_text,
+        ).strip()
         if len(fragment) < 2:
             return None, []
         matches: list[dict] = []
@@ -1006,7 +1165,11 @@ class OrchestratorAgent:
         """Try to uniquely match text (which may contain a dish fragment + reference token)
         against the candidate list. Returns the candidate name if unique, else None."""
         import re
-        fragment = re.sub(r"(这个|那个|这些|那些|第一个|第二个|第三个|刚才那个)", "", text).strip()
+        fragment = re.sub(
+            r"(推荐的第一个|推荐的第1个|刚推荐的第一个|刚推荐的第1个|订单里第一个|订单里第1个|已点的第一个|已点的第1个|这个|那个|这份|那份|这些|那些|第一个|第1个|第二个|第2个|第三个|第3个|第一份|第1份|第二份|第2份|第三份|第3份|第一项|第1项|第二项|第2项|第三项|第3项|刚才那个|刚才的|刚加的)",
+            "",
+            text,
+        ).strip()
         if len(fragment) < 2:
             return None
         matches = [c["name"] for c in candidates if fragment in c["name"]]

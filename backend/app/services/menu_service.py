@@ -5,6 +5,7 @@ from app.models.schemas import MenuItem, dump_model
 
 SAFE_ITEM_MATCH_ALIASES = {
     "black_pepper_beef_rice": ["黑胶牛肉饭", "黑角牛肉饭"],
+    "chicken_leg_rice": ["机腿饭"],
     "kung_pao_chicken_rice": ["宫保鸡丁"],
 }
 

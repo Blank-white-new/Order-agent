@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import re
 
+from app.agents.semantic_evidence import (
+    has_add_action_evidence,
+    has_remove_action_evidence,
+    has_replace_action_evidence,
+    is_non_ordering_statement,
+)
 from app.agents.semantic_rules import (
     detect_category_group_query,
     detect_composite_intent,
@@ -33,6 +39,7 @@ CONFIRM_WORDS = {
     "没问题",
     "就这样",
     "就这些",
+    "就这些可以下单了",
     "先这样",
     "下单",
     "提交订单",
@@ -46,6 +53,7 @@ CANCEL_WORDS = {
     "取消",
     "取消订单",
     "取消下单",
+    "取消刚才待确认的操作",
     "不下单了",
     "先不点了",
     "不点了",
@@ -63,6 +71,8 @@ ORDER_ACTION_TOKENS = (
     "要",
     "想要",
     "我要",
+    "给我来",
+    "帮我加",
 )
 ADDRESS_TOKENS = (
     "大学",
@@ -175,6 +185,10 @@ class SemanticRouterAgent:
         if self._is_context_correction(compact):
             return Interpretation(intent="context_correction", confidence=0.98, source="rule", should_mutate_order=False)
 
+        unsafe = self._interpret_unsafe_request(compact)
+        if unsafe:
+            return unsafe
+
         conditional = detect_conditional_order(compact, self.menu_service)
         if conditional:
             return Interpretation(
@@ -216,6 +230,10 @@ class SemanticRouterAgent:
         if compact in CANCEL_WORDS:
             return Interpretation(intent="cancel", confidence=0.9, source="rule", should_mutate_order=False)
 
+        address_phone = self._interpret_address_phone_mix(compact)
+        if address_phone:
+            return address_phone
+
         if phone := self._extract_phone(compact):
             return Interpretation(
                 intent="provide_phone",
@@ -225,13 +243,25 @@ class SemanticRouterAgent:
                 entities={"phone": phone},
             )
 
+        vague_order_question = self._interpret_vague_order_with_question(compact)
+        if vague_order_question:
+            return vague_order_question
+
         delivery = self._interpret_delivery(compact)
         if delivery:
             return delivery
 
+        non_ordering = self._interpret_non_ordering_statement(compact)
+        if non_ordering:
+            return non_ordering
+
         menu_info = self._interpret_menu_information(compact)
         if menu_info:
             return menu_info
+
+        unknown_option = self._interpret_unknown_item_option(compact)
+        if unknown_option:
+            return unknown_option
 
         recommendation = self._interpret_recommendation(compact)
         if recommendation:
@@ -241,12 +271,24 @@ class SemanticRouterAgent:
         if address_order:
             return address_order
 
+        direct_address = self._interpret_direct_address(compact)
+        if direct_address:
+            return direct_address
+
         if self._looks_like_address_text(compact) and not self._has_explicit_order_action(compact):
             return Interpretation(intent="fallback", confidence=0.2, source="deterministic", is_question=False)
 
         repeat = self._interpret_repeat_last_item(compact)
         if repeat:
             return repeat
+
+        mixed_add_remove = self._interpret_mixed_add_remove(compact)
+        if mixed_add_remove:
+            return mixed_add_remove
+
+        item_fulfillment = self._interpret_item_fulfillment_mix(compact)
+        if item_fulfillment:
+            return item_fulfillment
 
         category_order = self._interpret_category_order(compact)
         if category_order:
@@ -280,6 +322,200 @@ class SemanticRouterAgent:
     def _compact(self, text: str) -> str:
         return re.sub(r"[，,。！？!?；;、\s]", "", text)
 
+    def _interpret_unsafe_request(self, text: str) -> Interpretation | None:
+        message = None
+        if "菜单外" in text and any(token in text for token in ["加进订单", "加入订单", "加到订单"]):
+            message = "不能把菜单外商品加入订单。"
+        elif "不用确认" in text and any(token in text for token in ["直接提交", "直接下单", "提交"]):
+            message = "不能跳过确认直接提交订单。"
+        elif "价格" in text and any(token in text for token in ["改成", "设成", "假装"]):
+            message = "不能修改菜单价格，价格必须以菜单为准。"
+        elif "配送费" in text and any(token in text for token in ["改成", "设成", "假装", "零元", "0元"]):
+            message = "不能修改配送费，配送费必须以服务层计算为准。"
+        elif "其他用户" in text and any(token in text for token in ["订单", "清空", "修改", "删除"]):
+            message = "不能操作其他用户的订单。"
+        if not message:
+            return None
+        return Interpretation(
+            intent="reject_request",
+            confidence=0.96,
+            source="rule",
+            should_mutate_order=False,
+            entities={"directed_message": message, "semantic_evidence_reason": "unsafe_request_rejected"},
+        )
+
+    def _interpret_non_ordering_statement(self, text: str) -> Interpretation | None:
+        item = self.menu_service.find_item_by_name(text)
+        if not item or not is_non_ordering_statement(text):
+            return None
+        return Interpretation(
+            intent="context_correction",
+            confidence=0.9,
+            source="rule",
+            should_mutate_order=False,
+            entities={
+                "item_name": item.name,
+                "clarification": "non_ordering_statement",
+                "semantic_evidence_reason": "non_ordering_statement",
+            },
+        )
+
+    def _interpret_unknown_item_option(self, text: str) -> Interpretation | None:
+        if self.menu_service.find_item_by_name(text):
+            return None
+        option_markers = ("不要香菜", "不香菜", "不要葱", "不葱", "不要辣", "不辣", "少辣")
+        likely_dish_markers = ("鸡丁", "宫爆", "宫保", "饭", "面")
+        if any(option in text for option in option_markers) and any(marker in text for marker in likely_dish_markers):
+            return Interpretation(
+                intent="context_correction",
+                confidence=0.86,
+                source="rule",
+                should_mutate_order=False,
+                entities={
+                    "clarification": "unknown_item_option",
+                    "semantic_evidence_reason": "unknown_item_option",
+                },
+            )
+        return None
+
+    def _interpret_vague_order_with_question(self, text: str) -> Interpretation | None:
+        if not has_add_action_evidence(text) or not (self._looks_like_question(text) or "问一下" in text or "配送费" in text):
+            return None
+        if self.menu_service.find_item_by_name(text):
+            return None
+        if self.menu_service.find_category_by_alias(text):
+            return Interpretation(
+                intent="context_correction",
+                confidence=0.88,
+                source="rule",
+                should_mutate_order=False,
+                entities={
+                    "clarification": "vague_order_with_question",
+                    "semantic_evidence_reason": "vague_order_with_question",
+                },
+            )
+        return None
+
+    def _interpret_address_phone_mix(self, text: str) -> Interpretation | None:
+        phone = self._extract_phone(text)
+        if not phone:
+            return None
+        address_text = re.sub(r"1[3-9]\d{9}", "", text)
+        address = self._extract_address_after_marker(address_text) or self._extract_address(
+            address_text,
+            [
+                "我要配送到",
+                "配送到",
+                "外卖到",
+                "陪送到",
+                "送到",
+                "地址是",
+                "地址改成",
+                "电话是",
+                "电话",
+                "手机号是",
+                "手机号",
+                "手机",
+            ],
+        )
+        has_address = bool(address and self._looks_like_address_text(address))
+        items = self._items_with_order_evidence(text)
+        children: list[dict] = []
+        if len(items) == 1:
+            item, _position = items[0]
+            children.append(
+                {
+                    "intent": "order_food",
+                    "confidence": 0.93,
+                    "source": "rule",
+                    "is_question": False,
+                    "should_mutate_order": True,
+                    "entities": {"item_name": item.name, "quantity": self._extract_quantity(text), "unit": self._extract_unit(text)},
+                    "preferences": self._extract_preferences(text),
+                    "target": item.name,
+                    "raw": item.name,
+                }
+            )
+        elif len(items) > 1:
+            return Interpretation(
+                intent="context_correction",
+                confidence=0.88,
+                source="rule",
+                should_mutate_order=False,
+                entities={
+                    "clarification": "multi_intent_too_many_items",
+                    "semantic_evidence_reason": "multi_intent_too_many_items",
+                },
+            )
+        if has_address:
+            children.append(
+                {
+                    "intent": "provide_delivery_address",
+                    "confidence": 0.92,
+                    "source": "rule",
+                    "is_question": False,
+                    "should_mutate_order": True,
+                    "entities": {"address": address},
+                    "preferences": {},
+                    "target": address,
+                    "raw": address,
+                }
+            )
+        if has_address or children:
+            children.append(
+                {
+                    "intent": "provide_phone",
+                    "confidence": 0.95,
+                    "source": "deterministic",
+                    "is_question": False,
+                    "should_mutate_order": True,
+                    "entities": {"phone": phone},
+                    "preferences": {},
+                    "target": None,
+                    "raw": "phone",
+                }
+            )
+            return Interpretation(
+                intent="composite_intent",
+                confidence=0.94,
+                source="rule",
+                should_mutate_order=any(child["should_mutate_order"] for child in children),
+                entities={"children": children, "semantic_evidence_reason": "address_phone_multi_intent"},
+            )
+        return None
+
+    def _extract_address_after_marker(self, text: str) -> str | None:
+        markers = ["我要配送到", "配送到", "外卖到", "陪送到", "送到", "地址改成", "地址是"]
+        positions = [(text.rfind(marker), marker) for marker in markers if marker in text]
+        if not positions:
+            return None
+        position, marker = max(positions, key=lambda pair: pair[0])
+        address = text[position + len(marker) :]
+        for token in ["电话是", "手机号是", "电话", "手机号", "手机"]:
+            if token in address:
+                address = address[: address.find(token)]
+        address = address.strip()
+        return address if address and self._looks_like_address_text(address) else None
+
+    def _interpret_direct_address(self, text: str) -> Interpretation | None:
+        if self._looks_like_question(text) or self._extract_phone(text):
+            return None
+        if self.menu_service.find_item_by_name(text) and self._has_explicit_order_action(text):
+            return None
+        markers = ("我要配送到", "配送到", "外卖到", "陪送到", "送到", "地址是", "地址改成")
+        if not any(marker in text for marker in markers):
+            return None
+        address = self._extract_address(text, list(markers) + ["配送", "外卖"])
+        if not address or not self._looks_like_address_text(address):
+            return None
+        return Interpretation(
+            intent="provide_delivery_address",
+            confidence=0.9,
+            source="rule",
+            should_mutate_order=True,
+            entities={"address": address, "semantic_evidence_reason": "direct_delivery_address"},
+        )
+
     def _interpret_delivery(self, text: str) -> Interpretation | None:
         if "配送费" in text or "外卖费" in text or self._looks_like_delivery_fee_question(text):
             address = self._extract_address(text, ["送到", "外卖到", "到", "配送费", "外卖费", "多少钱", "多少"])
@@ -291,8 +527,8 @@ class SemanticRouterAgent:
                 should_mutate_order=False,
                 entities={"address": address} if address else {},
             )
-        if any(token in text for token in ["送多久", "要多久", "配送要多久", "外卖多久", "多久能送到", "多久到"]):
-            address = self._extract_address(text, ["送到", "外卖到", "到", "要送多久", "送多久", "配送要多久", "外卖多久", "多久能送到", "多久到", "要多久"])
+        if any(token in text for token in ["送多久", "要多久", "配送要多久", "外卖多久", "多久能送到", "多久送到", "多久到"]):
+            address = self._extract_address(text, ["送到", "外卖到", "到", "要送多久", "送多久", "配送要多久", "外卖多久", "多久能送到", "多久送到", "多久到", "要多久"])
             return Interpretation(
                 intent="ask_delivery_eta",
                 confidence=0.96,
@@ -499,6 +735,8 @@ class SemanticRouterAgent:
         category = self.menu_service.find_category_by_alias(text)
         if not category:
             return None
+        if len(self.menu_service.find_items_in_text(text)) >= 2:
+            return None
         if any(token in text for token in ["各来", "都来", "每样", "每种", "都要"]) and not self._looks_like_question(text) and "推荐" not in text:
             return Interpretation(
                 intent="order_category_items",
@@ -535,8 +773,111 @@ class SemanticRouterAgent:
             )
         return None
 
+    def _interpret_mixed_add_remove(self, text: str) -> Interpretation | None:
+        if not has_add_action_evidence(text) or not has_remove_action_evidence(text):
+            return None
+        items = self.menu_service.find_items_in_text(text)
+        if len(items) < 2:
+            return None
+        children: list[dict] = []
+        for index, item in enumerate(items):
+            start = text.find(item.name)
+            next_start = text.find(items[index + 1].name) if index + 1 < len(items) else len(text)
+            segment = text[start:next_start] if start >= 0 else text
+            if has_remove_action_evidence(segment) and not self._has_non_removal_buyao_near_item(segment, item):
+                children.append(
+                    {
+                        "intent": "remove_item",
+                        "confidence": 0.92,
+                        "source": "rule",
+                        "is_question": False,
+                        "should_mutate_order": True,
+                        "entities": {"item_name": item.name},
+                        "preferences": {},
+                        "target": item.name,
+                        "raw": segment,
+                    }
+                )
+            elif has_add_action_evidence(segment):
+                children.append(
+                    {
+                        "intent": "order_food",
+                        "confidence": 0.93,
+                        "source": "rule",
+                        "is_question": False,
+                        "should_mutate_order": True,
+                        "entities": {
+                            "item_name": item.name,
+                            "quantity": self._extract_quantity(segment),
+                            "unit": self._extract_unit(segment),
+                        },
+                        "preferences": self._extract_preferences(segment),
+                        "target": item.name,
+                        "raw": segment,
+                    }
+                )
+        intents = {child["intent"] for child in children}
+        if len(children) >= 2 and {"order_food", "remove_item"} <= intents:
+            return Interpretation(
+                intent="composite_intent",
+                confidence=0.92,
+                source="rule",
+                should_mutate_order=True,
+                entities={"children": children, "semantic_evidence_reason": "mixed_add_remove"},
+            )
+        return None
+
+    def _interpret_item_fulfillment_mix(self, text: str) -> Interpretation | None:
+        if self._looks_like_question(text):
+            return None
+        fulfillment_type = None
+        if any(token in text for token in ["改成自取", "还是自取", "到店自取", "自取"]):
+            fulfillment_type = "pickup"
+        elif any(token in text for token in ["改成配送", "我要配送", "选择配送"]):
+            fulfillment_type = "delivery"
+        if not fulfillment_type:
+            return None
+        if has_replace_action_evidence(text) and "自取" not in text and "配送" not in text:
+            return None
+        item = self.menu_service.find_item_by_name(text)
+        if not item:
+            return None
+        children = [
+            {
+                "intent": "order_food",
+                "confidence": 0.9,
+                "source": "rule",
+                "is_question": False,
+                "should_mutate_order": True,
+                "entities": {"item_name": item.name, "quantity": self._extract_quantity(text), "unit": self._extract_unit(text)},
+                "preferences": self._extract_preferences(text),
+                "target": item.name,
+                "raw": item.name,
+            },
+            {
+                "intent": "provide_fulfillment_slot",
+                "confidence": 0.9,
+                "source": "rule",
+                "is_question": False,
+                "should_mutate_order": True,
+                "entities": {"fulfillment_type": fulfillment_type},
+                "preferences": {},
+                "target": fulfillment_type,
+                "raw": fulfillment_type,
+            },
+        ]
+        return Interpretation(
+            intent="composite_intent",
+            confidence=0.9,
+            source="rule",
+            should_mutate_order=True,
+            entities={"children": children, "semantic_evidence_reason": "item_fulfillment_multi_intent"},
+        )
+
     def _interpret_multiple_order(self, text: str) -> Interpretation | None:
         if "换成" in text or "换" in text:
+            return None
+        if has_remove_action_evidence(text):
             return None
         items = self.menu_service.find_items_in_text(text)
         if len(items) < 2:
@@ -628,6 +969,8 @@ class SemanticRouterAgent:
             return None
         items = self._items_with_order_evidence(text)
         if not items:
+            if self._extract_address_after_marker(text):
+                return None
             return Interpretation(
                 intent="fallback",
                 confidence=0.86,
@@ -664,7 +1007,7 @@ class SemanticRouterAgent:
         if address:
             children.append(
                 {
-                    "intent": "replace_delivery_candidate",
+                    "intent": "provide_delivery_address",
                     "confidence": 0.88,
                     "source": "rule",
                     "is_question": False,
@@ -868,7 +1211,7 @@ class SemanticRouterAgent:
                 should_mutate_order=True,
                 entities={"fulfillment_type": "delivery"},
             )
-        if text in {"自取", "到店取", "到店自取", "我自己拿", "我自己取", "还是自取吧", "我要自取", "选择自取"}:
+        if text in {"自取", "到店取", "到店自取", "我自己拿", "我自己取", "还是自取吧", "还是改成自取吧", "我要自取", "选择自取", "改成自取"}:
             return Interpretation(
                 intent="provide_fulfillment_slot",
                 confidence=0.92,
@@ -915,9 +1258,42 @@ class SemanticRouterAgent:
             return False
         if normalize_recommendation_ordinal_reference(text) is not None:
             return True
-        if text in {"第一个", "第二个", "第三个", "就这个", "要这个", "就那个", "要那个", "来那个"}:
+        if text in {"第一个", "第1个", "第二个", "第2个", "第三个", "第3个", "第一份", "第1份", "第二份", "第2份", "第三份", "第3份", "第一项", "第1项", "第二项", "第2项", "第三项", "第3项", "就这个", "要这个", "就那个", "要那个", "来那个"}:
             return True
-        reference_tokens = ["这个", "那个", "第一个", "第二个", "第三个", "刚才那个", "这些", "那些"]
+        reference_tokens = [
+            "这个",
+            "那个",
+            "这份",
+            "那份",
+            "第一个",
+            "第1个",
+            "第二个",
+            "第2个",
+            "第三个",
+            "第3个",
+            "第一份",
+            "第1份",
+            "第二份",
+            "第2份",
+            "第三份",
+            "第3份",
+            "第一项",
+            "第1项",
+            "第二项",
+            "第2项",
+            "第三项",
+            "第3项",
+            "刚才那个",
+            "刚才的",
+            "刚加的",
+            "推荐的那个",
+            "推荐的第一个",
+            "刚推荐的第一个",
+            "订单里第一个",
+            "已点的第一个",
+            "这些",
+            "那些",
+        ]
         if text in {"就这个", "要这个"}:
             return False
         has_reference = any(token in text for token in reference_tokens)
@@ -939,12 +1315,17 @@ class SemanticRouterAgent:
                 "加蛋",
                 "加青菜",
                 "改成",
+                "换成",
                 "不要了",
+                "删掉",
+                "删了",
                 "都要",
                 "能送到",
                 "能送",
                 "大份",
                 "小份",
+                "来一份",
+                "来一个",
             ]
         )
         if has_action:
@@ -957,7 +1338,11 @@ class SemanticRouterAgent:
     def _has_dish_name_fragment(self, text: str) -> bool:
         """Check if removing reference tokens leaves a fragment matching a menu item."""
         import re
-        fragment = re.sub(r"(这个|那个|这些|那些|第一个|第二个|第三个|刚才那个)", "", text).strip()
+        fragment = re.sub(
+            r"(推荐的第一个|推荐的第1个|刚推荐的第一个|刚推荐的第1个|订单里第一个|订单里第1个|已点的第一个|已点的第1个|这个|那个|这份|那份|这些|那些|第一个|第1个|第二个|第2个|第三个|第3个|第一份|第1份|第二份|第2份|第三份|第3份|第一项|第1项|第二项|第2项|第三项|第3项|刚才那个|刚才的|刚加的)",
+            "",
+            text,
+        ).strip()
         if len(fragment) < 2:
             return False
         for item_dict in self.menu_service.all_items_as_dicts():
@@ -986,10 +1371,15 @@ class SemanticRouterAgent:
                 "加蛋",
                 "加青菜",
                 "改成",
+                "换成",
                 "不要了",
+                "删掉",
+                "删了",
                 "都要",
                 "大份",
                 "小份",
+                "来一份",
+                "来一个",
             ]
         )
 
@@ -997,7 +1387,43 @@ class SemanticRouterAgent:
         index = normalize_recommendation_ordinal_reference(text)
         if index is not None:
             return f"第{index + 1}个"
-        for token in ["第一个", "第二个", "第三个", "刚才那个", "这些", "那些", "这个", "那个"]:
+        for token in [
+            "推荐的第一个",
+            "推荐的第1个",
+            "刚推荐的第一个",
+            "刚推荐的第1个",
+            "订单里第一个",
+            "订单里第1个",
+            "已点的第一个",
+            "已点的第1个",
+            "第一份",
+            "第1份",
+            "第二份",
+            "第2份",
+            "第三份",
+            "第3份",
+            "第一项",
+            "第1项",
+            "第二项",
+            "第2项",
+            "第三项",
+            "第3项",
+            "第一个",
+            "第1个",
+            "第二个",
+            "第2个",
+            "第三个",
+            "第3个",
+            "刚才那个",
+            "刚才的",
+            "刚加的",
+            "这份",
+            "那份",
+            "这些",
+            "那些",
+            "这个",
+            "那个",
+        ]:
             if token in text:
                 return token
         return text
@@ -1006,12 +1432,14 @@ class SemanticRouterAgent:
         return text in {
             "查看订单",
             "看一下订单",
+            "先给我看一下订单别下单",
+            "给我看一下订单别下单",
             "我的订单是什么",
             "当前订单",
             "订单里有什么",
             "帮我看下订单",
             "订单看一下",
-        } or any(pattern in text for pattern in ["我点了什么", "点了什么", "我点啥", "现在多少钱", "总共多少钱"])
+        } or any(pattern in text for pattern in ["我点了什么", "点了什么", "我点啥", "现在多少钱", "总共多少钱", "看下总价", "看一下总价"])
 
     def _is_allergen_question(self, text: str) -> bool:
         return "过敏" in text or "不能点" in text
@@ -1026,11 +1454,12 @@ class SemanticRouterAgent:
         return any(token in text for token in ["多少钱", "多少", "价格", "最便宜", "元以内"])
 
     def _is_option_question(self, text: str) -> bool:
-        return self._looks_like_question(text) and any(token in text for token in OPTION_TOKENS + ["口味", "可以", "能"])
+        return self._looks_like_question(text) and any(token in text for token in OPTION_TOKENS + ["口味", "可以", "能", "辣吗"])
 
     def _is_availability_question(self, text: str) -> bool:
         return (
             "有没有" in text
+            or "有优惠" in text
             or text.endswith("有吗")
             or text.endswith("还有吗")
             or "卖完了吗" in text
@@ -1175,18 +1604,25 @@ class SemanticRouterAgent:
         return None
 
     def _extract_quantity(self, text: str) -> int:
-        match = re.search(r"(\d+)(份|个|瓶|杯)?", text)
+        match = re.search(r"(?:改成|改为|变成)(\d+|[一二两俩三四五六七八九十]+)(份|分|个|瓶|杯|碗)?", text)
+        if match:
+            token = match.group(1)
+            return int(token) if token.isdigit() else CHINESE_NUMBERS.get(token, 1)
+        match = re.search(r"(\d+)(份|分|个|瓶|杯|碗)?", text)
         if match:
             return int(match.group(1))
-        for token, value in CHINESE_NUMBERS.items():
+        match = re.search(r"([一二两俩三四五六七八九十]+)(份|分|个|瓶|杯|碗)", text)
+        if match:
+            return CHINESE_NUMBERS.get(match.group(1), 1)
+        for token, value in sorted(CHINESE_NUMBERS.items(), key=lambda item: len(item[0]), reverse=True):
             if token in text:
                 return value
         return 1
 
     def _extract_unit(self, text: str) -> str | None:
-        for unit in ["份", "个", "瓶", "杯"]:
+        for unit in ["份", "分", "个", "瓶", "杯", "碗"]:
             if unit in text:
-                return unit
+                return "份" if unit == "分" else unit
         return None
 
     def _extract_phone(self, text: str) -> str | None:
@@ -1194,8 +1630,10 @@ class SemanticRouterAgent:
         return match.group(0) if match else None
 
     def _extract_address(self, text: str, noise_tokens: list[str]) -> str | None:
-        address = text
+        address = re.sub(r"1[3-9]\d{9}", "", text)
         for token in sorted(noise_tokens, key=len, reverse=True):
+            address = address.replace(token, "")
+        for token in ["电话是", "手机号是", "电话", "手机号", "手机", "再来一份", "再来一瓶", "再来一个", "再来", "来一份", "来一瓶", "来一个"]:
             address = address.replace(token, "")
         address = address.strip()
         if address in {"", "这个地址", "外卖", "配送", "地址", "这里"}:
