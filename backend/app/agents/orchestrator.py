@@ -20,9 +20,8 @@ from app.agents.semantic_evidence import (
 from app.agents.semantic_router import SemanticRouterAgent
 from app.models.schemas import Interpretation, dump_model
 from app.services.delivery_service import DeliveryService
-from app.services.llm_client import LLMClientResult
-from app.services.llm_client import LLMClient
-from app.services.llm_fallback_prompt import SYSTEM_PROMPT, build_llm_fallback_prompt
+from app.services.llm_client import LLMClientResult, create_llm_fallback_client
+from app.services.llm_fallback_prompt import SYSTEM_PROMPT, build_llm_fallback_prompt, sanitize_user_text
 from app.services.llm_fallback_validation import (
     build_directed_clarification,
     convert_llm_to_interpretation,
@@ -141,7 +140,7 @@ class OrchestratorAgent:
         self.delivery_service = DeliveryService()
         self.order_service = OrderService()
         self.semantic_router = SemanticRouterAgent(self.menu_service)
-        self.llm_client = LLMClient()
+        self.llm_client = create_llm_fallback_client()
         self.menu_agent = MenuAgent(self.menu_service, self.order_service)
         self.recommendation_agent = RecommendationAgent(self.menu_service)
         self.order_agent = OrderAgent(self.menu_service, self.order_service)
@@ -235,6 +234,8 @@ class OrchestratorAgent:
             "response": response,
         }
         trace.update(llm_fallback_trace)
+        if trace.get("llmFallbackShadow"):
+            trace = self._sanitize_shadow_trace(trace)
         return {"response": response, "state": state.serializable(), "trace": trace, "raw_state": state}
 
     def _handle_submitted_lifecycle(
@@ -312,6 +313,10 @@ class OrchestratorAgent:
         state: SessionState,
     ) -> tuple[Interpretation, dict[str, Any]]:
         trace = self._new_llm_fallback_trace()
+        shadow = bool(getattr(self.llm_client, "is_shadow", False))
+        trace["llmFallbackMode"] = str(getattr(self.llm_client, "runtime_mode", "disabled"))
+        trace["llmFallbackShadow"] = shadow
+        trace["llmFallbackSandboxSource"] = getattr(self.llm_client, "sandbox_source", None)
         trace["llmFallbackEnabled"] = self._llm_is_enabled()
         trace["llmFallbackConfigured"] = self._llm_is_configured()
         trace["llmFallbackTimeoutSeconds"] = getattr(self.llm_client, "timeout_seconds", None)
@@ -321,7 +326,10 @@ class OrchestratorAgent:
             return interpretation, trace
         if not self._llm_can_call():
             trace["llmFallbackDegraded"] = True
-            trace["llmFallbackDegradeReason"] = "disabled" if not trace["llmFallbackEnabled"] else "missing_config"
+            trace["llmFallbackDegradeReason"] = (
+                getattr(self.llm_client, "config_error", None)
+                or ("disabled" if not trace["llmFallbackEnabled"] else "missing_config")
+            )
             return interpretation, trace
 
         prompt = build_llm_fallback_prompt(
@@ -339,16 +347,26 @@ class OrchestratorAgent:
         if not result.ok:
             trace["llmFallbackDegraded"] = True
             trace["llmFallbackDegradeReason"] = result.status
+            if shadow:
+                trace["llmFallbackValidationRejected"] = True
+                trace["llmFallbackValidationRejectReason"] = result.status
+                return interpretation, trace
             return self._degraded_llm_interpretation(message, state, result.status), trace
 
         parsed_result = parse_llm_fallback_payload(result.payload or {})
         if parsed_result.parsed:
+            trace["llmFallbackShadowCandidate"] = shadow
             trace["llmFallbackIntent"] = parsed_result.parsed.intent
             trace["llmFallbackConfidence"] = parsed_result.parsed.confidence
             trace["llmFallbackActionCount"] = len(parsed_result.parsed.actions)
+            trace["llmFallbackActionTypes"] = [action.type for action in parsed_result.parsed.actions]
         if not parsed_result.ok or parsed_result.parsed is None:
             trace["llmFallbackDegraded"] = True
             trace["llmFallbackDegradeReason"] = parsed_result.reason or "schema_error"
+            trace["llmFallbackValidationRejected"] = True
+            trace["llmFallbackValidationRejectReason"] = parsed_result.reason or "schema_error"
+            if shadow:
+                return interpretation, trace
             return self._degraded_llm_interpretation(message, state, parsed_result.reason), trace
 
         converted = convert_llm_to_interpretation(
@@ -359,10 +377,20 @@ class OrchestratorAgent:
             min_confidence=getattr(self.llm_client, "min_confidence", 0.65),
         )
         trace["llmFallbackValidationOk"] = converted.ok
+        trace["llmFallbackValidationAccepted"] = converted.ok
+        trace["llmFallbackValidationRejected"] = not converted.ok
+        trace["llmFallbackValidationRejectReason"] = None if converted.ok else converted.reason
         if not converted.ok or converted.interpretation is None:
             trace["llmFallbackDegraded"] = True
             trace["llmFallbackDegradeReason"] = converted.reason or "business_validation_failed"
+            if shadow:
+                return interpretation, trace
             return self._degraded_llm_interpretation(message, state, converted.reason), trace
+
+        trace["llmFallbackWouldMutateOrder"] = bool(converted.interpretation.should_mutate_order)
+        if shadow:
+            # Shadow observes a validated candidate but deliberately keeps the rules-first interpretation.
+            return interpretation, trace
 
         if converted.interpretation.intent == "fallback":
             directed_message = converted.safe_reply or build_directed_clarification(message, state, converted.reason)
@@ -375,6 +403,10 @@ class OrchestratorAgent:
     def _new_llm_fallback_trace(self) -> dict[str, Any]:
         return {
             "llmFallbackEnabled": False,
+            "llmFallbackMode": "disabled",
+            "llmFallbackShadow": False,
+            "llmFallbackSandboxSource": None,
+            "llmFallbackShadowCandidate": False,
             "llmFallbackConfigured": False,
             "llmFallbackTriggered": False,
             "llmFallbackReason": None,
@@ -382,13 +414,39 @@ class OrchestratorAgent:
             "llmFallbackTimedOut": False,
             "llmFallbackParseOk": False,
             "llmFallbackValidationOk": False,
+            "llmFallbackValidationAccepted": False,
+            "llmFallbackValidationRejected": False,
+            "llmFallbackValidationRejectReason": None,
+            "llmFallbackWouldMutateOrder": False,
             "llmFallbackIntent": None,
             "llmFallbackConfidence": None,
             "llmFallbackActionCount": 0,
+            "llmFallbackActionTypes": [],
             "llmFallbackDegraded": False,
             "llmFallbackDegradeReason": None,
             "llmFallbackTimeoutSeconds": None,
         }
+
+    def _sanitize_shadow_trace(self, trace: dict[str, Any]) -> dict[str, Any]:
+        address_keys = {
+            "officialAddressBefore",
+            "officialAddressAfter",
+            "pendingCandidateBefore",
+            "pendingCandidateAfter",
+        }
+
+        def sanitize(value: Any, key: str | None = None) -> Any:
+            if key in address_keys and value:
+                return "[address hidden]"
+            if isinstance(value, str):
+                return sanitize_user_text(value, limit=80)
+            if isinstance(value, list):
+                return [sanitize(item) for item in value]
+            if isinstance(value, dict):
+                return {child_key: sanitize(item, child_key) for child_key, item in value.items()}
+            return value
+
+        return sanitize(trace)
 
     def _llm_is_enabled(self) -> bool:
         checker = getattr(self.llm_client, "is_enabled", None)

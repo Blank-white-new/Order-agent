@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -49,6 +51,8 @@ def test_runner_forces_offline_even_if_parent_environment_is_live(monkeypatch):
     service = eval_v3.create_text_entry_service()
 
     assert os.environ["LLM_FALLBACK_ENABLED"] == "false"
+    assert os.environ["LLM_FALLBACK_MODE"] == "disabled"
+    assert os.environ["ALLOW_LIVE_LLM"] == "false"
     assert os.environ["LLM_FALLBACK_SPECULATIVE_ENABLED"] == "false"
     assert "LLM_FALLBACK_API_KEY" not in os.environ
     assert "DEEPSEEK_API_KEY" not in os.environ
@@ -63,6 +67,51 @@ def test_runner_can_execute_max_dialogues_one(capsys):
     output = capsys.readouterr().out
     assert exit_code == 0
     assert "总数: 1" in output
+    assert "llm trigger count:" in output
+    assert "llm shadow candidate count:" in output
+
+
+def test_runner_shadow_mode_is_offline_and_reports_shadow_stats(capsys):
+    exit_code = eval_v3.main(
+        ["--dataset", str(DATASET), "--max-dialogues", "1", "--llm-mode", "shadow"]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "llm shadow candidate count:" in output
+    service = eval_v3.create_text_entry_service("shadow")
+    assert service.orchestrator.llm_client.runtime_mode == "shadow"
+    assert service.orchestrator.llm_client.network_allowed is False
+
+
+def test_runner_replay_mode_uses_local_fixture_only(capsys):
+    replay = PROJECT_ROOT / "backend" / "tests" / "fixtures" / "llm_replay" / "valid_add_item.json"
+
+    exit_code = eval_v3.main(
+        [
+            "--dataset",
+            str(DATASET),
+            "--max-dialogues",
+            "1",
+            "--llm-mode",
+            "replay",
+            "--llm-replay-file",
+            str(replay),
+        ]
+    )
+
+    assert exit_code == 0
+    assert "llm validation accept count:" in capsys.readouterr().out
+    service = eval_v3.create_text_entry_service("replay", replay)
+    assert service.orchestrator.llm_client.runtime_mode == "replay"
+    assert service.orchestrator.llm_client.network_allowed is False
+
+
+def test_runner_rejects_live_mode_before_execution():
+    parser = eval_v3.build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--llm-mode", "live"])
 
 
 def test_failed_sample_does_not_stop_following_samples():
