@@ -32,6 +32,7 @@
 - [30–60 秒演示脚本](docs/demo-guide.md)
 - [本机演示验收记录](docs/demo-acceptance.md)
 - [演示素材录制 checklist](docs/demo-capture-checklist.md)
+- [菜单配置](docs/menu-config.md)
 - [LLM fallback sandbox](docs/llm-sandbox.md)
 - [语音演示与排障](docs/voice-troubleshooting.md)
 
@@ -746,7 +747,7 @@ TTS_ENGINE_RECREATE_PER_TASK=true
 
 ## 扩展菜单
 
-在 `backend/app/services/menu_service.py` 的 mock 菜单中添加 `MenuItem`，字段包括 `id`、`name`、`category`、`price`、`tags`、`spicy_level`、`available`、`options`、`aliases`、`description`。
+菜单数据在 `backend/app/data/menu.json` 中维护，也可以通过 `MENU_CONFIG_PATH` 指定外部 JSON 配置。字段说明、校验规则和常见错误见 [菜单配置](docs/menu-config.md)。
 
 新增菜品后建议补充：
 
