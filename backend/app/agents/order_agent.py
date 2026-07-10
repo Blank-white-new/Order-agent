@@ -61,6 +61,7 @@ class OrderAgent:
         if not item:
             return {"agent": self.name, "handler": "order_food", "message": "菜单里暂时没找到这个菜。", "patch": {}}
         options = self._supported_options(item.name, interpretation.preferences.get("options", []))
+        modifiers = self._modifiers_from_preferences(interpretation.preferences)
         quantity = interpretation.entities.get("quantity", 1)
         order_state, is_restart = self._order_state_for_restart(state)
         order = self.order_service.add_item(
@@ -69,14 +70,18 @@ class OrderAgent:
             quantity=quantity,
             options=options,
             unit=interpretation.entities.get("unit"),
+            notes=modifiers.get("note"),
+            spicy_level=modifiers.get("spicy_level"),
+            exclusions=modifiers.get("exclusions"),
             source="order_food",
         )
         patch = {"current_order": order, "stage": "ordering", "last_mentioned_item": item.name}
         self._clear_stale_pending_in_patch(state, patch)
+        detail_text = self._item_detail_text(options, modifiers)
         if is_restart:
-            message = f"已重新开始点餐，帮你加入{item.name}{self._option_text(options)}。"
+            message = f"已重新开始点餐，帮你加入{item.name}{detail_text}。"
         else:
-            message = f"已加入{item.name}{self._option_text(options)}。"
+            message = f"已加入{item.name}{detail_text}。"
         return {
             "agent": self.name,
             "handler": "order_food",
@@ -92,16 +97,20 @@ class OrderAgent:
             if not item:
                 continue
             options = self._supported_options(item.name, spec.get("options", []))
+            modifiers = self._modifiers_from_spec(spec)
             specs.append(
                 {
                     "item": item,
                     "quantity": spec.get("quantity", 1),
                     "options": options,
                     "unit": spec.get("unit"),
+                    "notes": modifiers.get("note"),
+                    "spicy_level": modifiers.get("spicy_level"),
+                    "exclusions": modifiers.get("exclusions"),
                     "source": "order_multiple_items",
                 }
             )
-            names.append(f"{item.name}{self._option_text(options)}")
+            names.append(f"{item.name}{self._item_detail_text(options, modifiers)}")
         if not specs:
             return {"agent": self.name, "handler": "order_multiple_items", "message": "菜单里暂时没找到这些菜。", "patch": {}}
         order_state, is_restart = self._order_state_for_restart(state)
@@ -190,14 +199,25 @@ class OrderAgent:
         selected = state.last_recommendations[index]
         item = self.menu_service.find_item_by_name(selected["name"])
         options = self._supported_options(item.name, interpretation.preferences.get("options", []))
+        modifiers = self._modifiers_from_preferences(interpretation.preferences)
         order_state, is_restart = self._order_state_for_restart(state)
-        order = self.order_service.add_item(order_state, item, quantity=1, options=options, source="select_recommendation")
+        order = self.order_service.add_item(
+            order_state,
+            item,
+            quantity=1,
+            options=options,
+            notes=modifiers.get("note"),
+            spicy_level=modifiers.get("spicy_level"),
+            exclusions=modifiers.get("exclusions"),
+            source="select_recommendation",
+        )
         patch = {"current_order": order, "stage": "ordering", "last_mentioned_item": item.name}
         self._clear_stale_pending_in_patch(state, patch)
+        detail_text = self._item_detail_text(options, modifiers)
         if is_restart:
-            message = f"已重新开始点餐，帮你加入{item.name}{self._option_text(options)}。"
+            message = f"已重新开始点餐，帮你加入{item.name}{detail_text}。"
         else:
-            message = f"已加入{item.name}{self._option_text(options)}。"
+            message = f"已加入{item.name}{detail_text}。"
         return {
             "agent": self.name,
             "handler": "select_recommendation",
@@ -246,6 +266,7 @@ class OrderAgent:
 
     def _update_item_option(self, interpretation: Interpretation, state: SessionState) -> dict:
         options = interpretation.preferences.get("options", [])
+        modifiers = self._modifiers_from_preferences(interpretation.preferences)
         item_name = interpretation.entities.get("item_name") or (state.current_order[-1].name if state.current_order else "")
         index = interpretation.entities.get("index")
         if not state.current_order:
@@ -268,13 +289,29 @@ class OrderAgent:
         order = state.current_order
         if supported:
             order, updated = self.order_service.update_options(state, item_name, supported, index=index)
-        note_text = "、".join(unsupported)
+        modifier_updated = False
+        if self._has_modifier_change(modifiers):
+            modifier_state = state.clone()
+            modifier_state.current_order = order
+            order, modifier_updated = self.order_service.update_item_modifiers(
+                modifier_state,
+                item_name,
+                spicy_level=modifiers.get("spicy_level"),
+                clear_spicy=bool(modifiers.get("clear_spicy")),
+                exclusions=modifiers.get("exclusions", []),
+                remove_exclusions=modifiers.get("remove_exclusions", []),
+                note=modifiers.get("note"),
+                replace_note=bool(modifiers.get("replace_note")),
+                clear_notes=bool(modifiers.get("clear_notes")),
+                index=index,
+            )
+        note_text = "、".join(self._unsupported_modifier_options(unsupported, modifiers))
         notes_updated = False
         if note_text:
             notes_state = state.clone()
             notes_state.current_order = order
             order, notes_updated = self.order_service.update_notes(notes_state, item_name, note_text, index=index)
-        if not updated and not notes_updated:
+        if not updated and not modifier_updated and not notes_updated:
             message = "没找到要修改的菜，我需要你再说具体一点。"
             patch = {}
         elif updated and notes_updated:
@@ -282,6 +319,9 @@ class OrderAgent:
             patch = {"current_order": order, "last_mentioned_item": item_name}
         elif notes_updated:
             message = f"好的，已备注：{note_text}。"
+            patch = {"current_order": order, "last_mentioned_item": item_name}
+        elif modifier_updated and not updated:
+            message = f"已更新{item_name}的定制。"
             patch = {"current_order": order, "last_mentioned_item": item_name}
         else:
             message = f"已把{item_name}改为{self._option_text(supported).strip('（）。')}。"
@@ -407,7 +447,19 @@ class OrderAgent:
         available = self.menu_service.get_item_options(item_name)
         for option in options:
             normalized = self._normalize_option(option)
-            if normalized in available or normalized in {"清淡", "不要太油", "小份", "多放点汤", "分开放", "打包好一点"}:
+            if normalized in available or normalized in {
+                "不辣",
+                "微辣",
+                "少辣",
+                "中辣",
+                "特辣",
+                "清淡",
+                "不要太油",
+                "小份",
+                "多放点汤",
+                "分开放",
+                "打包好一点",
+            }:
                 supported.append(normalized)
         return list(dict.fromkeys(supported))
 
@@ -425,6 +477,57 @@ class OrderAgent:
 
     def _option_text(self, options: list[str]) -> str:
         return f"（{','.join(options)}）" if options else ""
+
+    def _item_detail_text(self, options: list[str], modifiers: dict) -> str:
+        parts = []
+        if options:
+            parts.extend(options)
+        if spicy_level := modifiers.get("spicy_level"):
+            if spicy_level not in parts:
+                parts.append(str(spicy_level))
+        exclusions = modifiers.get("exclusions", [])
+        parts.extend(f"不要{value}" for value in exclusions)
+        if note := modifiers.get("note"):
+            parts.append(f"备注：{note}")
+        return f"（{'，'.join(parts)}）" if parts else ""
+
+    def _modifiers_from_spec(self, spec: dict) -> dict:
+        preferences = {
+            "spicy_level": spec.get("spicy_level"),
+            "exclusions": spec.get("exclusions", []),
+            "note": spec.get("note"),
+        }
+        return self._modifiers_from_preferences(preferences)
+
+    def _modifiers_from_preferences(self, preferences: dict) -> dict:
+        return {
+            "spicy_level": preferences.get("spicy_level"),
+            "clear_spicy": bool(preferences.get("clear_spicy")),
+            "exclusions": list(preferences.get("exclusions", [])),
+            "remove_exclusions": list(preferences.get("remove_exclusions", [])),
+            "note": preferences.get("note"),
+            "replace_note": bool(preferences.get("replace_note")),
+            "clear_notes": bool(preferences.get("clear_notes")),
+        }
+
+    def _has_modifier_change(self, modifiers: dict) -> bool:
+        return any(
+            [
+                modifiers.get("spicy_level"),
+                modifiers.get("clear_spicy"),
+                modifiers.get("exclusions"),
+                modifiers.get("remove_exclusions"),
+                modifiers.get("note"),
+                modifiers.get("replace_note"),
+                modifiers.get("clear_notes"),
+            ]
+        )
+
+    def _unsupported_modifier_options(self, options: list[str], modifiers: dict) -> list[str]:
+        handled = set()
+        if spicy_level := modifiers.get("spicy_level"):
+            handled.add(spicy_level)
+        return [option for option in options if option not in handled]
 
     def _target_order_index(self, state: SessionState) -> int:
         if state.last_mentioned_item:

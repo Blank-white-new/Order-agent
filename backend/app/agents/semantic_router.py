@@ -106,7 +106,7 @@ ADDRESS_PLACE_SUFFIXES = ("店", "饭店", "餐厅", "饭堂", "楼", "楼上", 
 EXPLICIT_ITEM_REMOVAL_TOKENS = ("去掉", "删掉", "删了", "删除", "移除", "拿掉")
 CANCEL_ITEM_REMOVAL_TOKEN = "取消"
 CANCEL_NON_ITEM_TARGETS = ("订单", "配送", "外卖", "自取")
-NON_REMOVAL_BUYAO_PATTERN = r"不要(?:放|加)?(?:辣椒|辣|葱|香菜|番茄酱|酱|冰|太油|油|青菜|鸡蛋|蛋)"
+NON_REMOVAL_BUYAO_PATTERN = r"不要(?:放|加)?(?:辣椒|辣|葱|香菜|蒜|花生|洋葱|番茄酱|酱|冰|太油|油|青菜|鸡蛋|蛋)"
 
 OPTION_TOKENS = [
     "不辣",
@@ -114,11 +114,17 @@ OPTION_TOKENS = [
     "少辣",
     "微辣",
     "中辣",
+    "特辣",
     "加辣",
     "不要香菜",
     "不香菜",
     "不要葱",
     "不葱",
+    "不要蒜",
+    "不蒜",
+    "不要辣椒",
+    "不要花生",
+    "不要洋葱",
     "不要太油",
     "清淡点",
     "大份",
@@ -134,7 +140,25 @@ OPTION_TOKENS = [
     "打包好一点",
     "冰",
 ]
-
+SPICY_LEVELS = ("不辣", "微辣", "少辣", "中辣", "特辣")
+EXCLUSION_TOKENS = ("香菜", "葱", "蒜", "辣椒", "花生", "洋葱", "姜", "芝麻", "醋", "酱", "鸡蛋")
+NOTE_PHRASES = (
+    "米饭多一点",
+    "米饭多点",
+    "饭多一点",
+    "饭多点",
+    "汤分开放",
+    "少放盐",
+    "少盐",
+    "送到门口",
+    "打包严实一点",
+    "打包严实点",
+    "打包好一点",
+    "多放点汤",
+    "分开放",
+    "加冰",
+)
+CLEAR_NOTE_TOKENS = ("备注去掉", "备注删掉", "备注删除", "备注清空", "不用备注", "不要备注")
 CHINESE_NUMBERS = {
     "零": 0,
     "一": 1,
@@ -177,6 +201,9 @@ class SemanticRouterAgent:
 
     def normalize(self, message: str) -> str:
         return re.sub(r"\s+", "", message.strip())
+
+    def extract_item_modifiers(self, message: str) -> dict[str, object]:
+        return self._extract_item_modifiers(self._compact(self.normalize(message)))
 
     def interpret(self, message: str) -> Interpretation:
         text = self.normalize(message)
@@ -1104,6 +1131,8 @@ class SemanticRouterAgent:
         if "换成" not in text and "换" not in text:
             return None
         items = self.menu_service.find_items_in_text(text)
+        if len(items) <= 1 and self._extract_item_modifiers(text):
+            return None
         if len(items) >= 2:
             return Interpretation(
                 intent="replace_item",
@@ -1135,6 +1164,7 @@ class SemanticRouterAgent:
     def _interpret_modification(self, text: str) -> Interpretation | None:
         item = self.menu_service.find_item_by_name(text)
         category = self.menu_service.find_category_by_alias(text)
+        modifiers = self._extract_item_modifiers(text)
         if self._is_clear_order(text):
             return Interpretation(intent="clear_order", confidence=0.96, source="rule", should_mutate_order=True)
         if item and (text.startswith("不要") or "不要了" in text) and not self._has_non_removal_buyao_near_item(text, item):
@@ -1163,6 +1193,8 @@ class SemanticRouterAgent:
                 "不辣",
                 "少辣",
                 "微辣",
+                "中辣",
+                "特辣",
                 "大份",
                 "小份",
                 "加蛋",
@@ -1171,6 +1203,11 @@ class SemanticRouterAgent:
                 "不香菜",
                 "不要葱",
                 "不葱",
+                "不要蒜",
+                "不要辣椒",
+                "不要花生",
+                "不要洋葱",
+                "备注",
                 "去冰",
                 "少冰",
             ]
@@ -1192,7 +1229,16 @@ class SemanticRouterAgent:
                 entities={"item_name": item.name},
                 preferences=self._extract_preferences(text),
             )
-        if text.startswith("不要") and any(token in text for token in ["辣", "香菜", "葱", "太油"]):
+        if item and modifiers:
+            return Interpretation(
+                intent="update_item_option",
+                confidence=0.9,
+                source="rule",
+                should_mutate_order=True,
+                entities={"item_name": item.name},
+                preferences=self._extract_preferences(text),
+            )
+        if text.startswith("不要") and any(token in text for token in ["辣", "香菜", "葱", "蒜", "辣椒", "花生", "太油"]):
             return Interpretation(
                 intent="ask_recommendation_by_preference",
                 confidence=0.86,
@@ -1519,15 +1565,110 @@ class SemanticRouterAgent:
         address_tokens = ["到", "送到", "学校", "大学", "校区", "校园", "东门", "北门", "宿舍", "楼下"]
         return "多少钱" in text and any(token in text for token in address_tokens) and not self.menu_service.find_item_by_name(text)
 
-    def _extract_preferences(self, text: str) -> dict[str, list[str] | int]:
+    def _extract_item_modifiers(self, text: str) -> dict[str, object]:
+        modifiers: dict[str, object] = {}
+        spicy_level = self._extract_spicy_level(text)
+        if spicy_level:
+            modifiers["spicy_level"] = spicy_level
+        if self._clears_spicy_level(text):
+            modifiers["clear_spicy"] = True
+
+        exclusions = self._extract_exclusions(text)
+        if exclusions:
+            modifiers["exclusions"] = exclusions
+        remove_exclusions = self._extract_removed_exclusions(text)
+        if remove_exclusions:
+            modifiers["remove_exclusions"] = remove_exclusions
+
+        if self._clears_note(text):
+            modifiers["clear_notes"] = True
+        else:
+            note = self._extract_note_text(text)
+            if note:
+                modifiers["note"] = note
+                if any(token in text for token in ["备注改成", "备注改为", "备注换成", "备注写成"]):
+                    modifiers["replace_note"] = True
+            elif "备注" in text:
+                modifiers["note_request"] = True
+        return modifiers
+
+    def _extract_spicy_level(self, text: str) -> str | None:
+        if self._clears_spicy_level(text):
+            return None
+        if "不要辣" in text:
+            return "不辣"
+        for level in ("特辣", "中辣", "微辣", "少辣", "不辣"):
+            if level in text:
+                return level
+        if "加辣" in text:
+            return "特辣"
+        return None
+
+    def _clears_spicy_level(self, text: str) -> bool:
+        return any(f"不用{level}" in text or f"{level}不用" in text or f"不要{level}" in text for level in SPICY_LEVELS)
+
+    def _extract_exclusions(self, text: str) -> list[str]:
+        matches: list[tuple[int, str]] = []
+        for token in EXCLUSION_TOKENS:
+            positions = [
+                text.find(pattern)
+                for pattern in [f"不要{token}", f"别放{token}", f"不放{token}", f"去掉{token}"]
+                if text.find(pattern) >= 0
+            ]
+            if positions:
+                matches.append((min(positions), token))
+        return list(dict.fromkeys(token for _position, token in sorted(matches)))
+
+    def _extract_removed_exclusions(self, text: str) -> list[str]:
+        matches: list[tuple[int, str]] = []
+        for token in EXCLUSION_TOKENS:
+            positions = [
+                text.find(pattern)
+                for pattern in [f"{token}可以放", f"可以放{token}", f"{token}不用去掉", f"不用去掉{token}"]
+                if text.find(pattern) >= 0
+            ]
+            if positions:
+                matches.append((min(positions), token))
+        return list(dict.fromkeys(token for _position, token in sorted(matches)))
+
+    def _clears_note(self, text: str) -> bool:
+        return any(token in text for token in CLEAR_NOTE_TOKENS)
+
+    def _extract_note_text(self, text: str) -> str | None:
+        for marker in ["备注一下", "备注改成", "备注改为", "备注换成", "备注写成", "备注是", "备注"]:
+            if marker not in text:
+                continue
+            note = text.split(marker, 1)[1].strip()
+            note = self._strip_note_noise(note)
+            return note or None
+        for phrase in NOTE_PHRASES:
+            if phrase in text:
+                return phrase
+        return None
+
+    def _strip_note_noise(self, text: str) -> str:
+        note = text.strip("，,。！？!?；;、：:+")
+        for level in SPICY_LEVELS + ("不要辣", "加辣"):
+            note = note.replace(level, "")
+        for token in EXCLUSION_TOKENS:
+            for prefix in ("不要", "别放", "不放", "去掉"):
+                note = note.replace(f"{prefix}{token}", "")
+        return note.strip("，,。！？!?；;、：:+")
+
+    def _extract_preferences(self, text: str) -> dict[str, object]:
         options: list[str] = []
         avoid: list[str] = []
-        if "不辣" in text or "不要辣" in text:
-            options.append("不辣")
-        if "少辣" in text:
-            options.append("少辣")
-        if "微辣" in text:
-            options.append("微辣")
+        if not self._clears_spicy_level(text):
+            if "不辣" in text or "不要辣" in text:
+                options.append("不辣")
+            if "少辣" in text:
+                options.append("少辣")
+            if "微辣" in text:
+                options.append("微辣")
+            if "中辣" in text:
+                options.append("中辣")
+            if "特辣" in text or "加辣" in text:
+                options.append("特辣")
         if "大份" in text:
             options.append("大份")
         if "小份" in text or "不要太撑" in text:
@@ -1542,6 +1683,18 @@ class SemanticRouterAgent:
         if "不要葱" in text or "不葱" in text:
             options.append("不要葱")
             avoid.append("葱")
+        if "不要蒜" in text or "不蒜" in text:
+            options.append("不要蒜")
+            avoid.append("蒜")
+        if "不要辣椒" in text:
+            options.append("不要辣椒")
+            avoid.append("辣椒")
+        if "不要花生" in text:
+            options.append("不要花生")
+            avoid.append("花生")
+        if "不要洋葱" in text:
+            options.append("不要洋葱")
+            avoid.append("洋葱")
         if "去冰" in text:
             options.append("去冰")
         if "少冰" in text:
@@ -1554,13 +1707,14 @@ class SemanticRouterAgent:
             options.append("不要太油")
         if "不吃牛肉" in text or ("不要牛肉" in text and "牛肉饭" not in text):
             avoid.append("牛肉")
-        result: dict[str, list[str] | int] = {}
+        result: dict[str, object] = {}
         if options:
             result["options"] = list(dict.fromkeys(options))
         if avoid:
             result["avoid"] = list(dict.fromkeys(avoid))
         if budget := self._extract_budget(text):
             result["budget"] = budget
+        result.update(self._extract_item_modifiers(text))
         return result
 
     def _extract_item_specs(self, text: str, items: list) -> list[dict]:
@@ -1569,12 +1723,16 @@ class SemanticRouterAgent:
             start = text.find(item.name)
             next_start = text.find(items[index + 1].name) if index + 1 < len(items) else len(text)
             segment = text[start:next_start] if start >= 0 else text
+            preferences = self._extract_preferences(segment)
             specs.append(
                 {
                     "item_name": item.name,
                     "quantity": self._extract_quantity(segment),
                     "unit": self._extract_unit(segment),
-                    "options": self._extract_preferences(segment).get("options", []),
+                    "options": preferences.get("options", []),
+                    "spicy_level": preferences.get("spicy_level"),
+                    "exclusions": preferences.get("exclusions", []),
+                    "note": preferences.get("note"),
                 }
             )
         return specs

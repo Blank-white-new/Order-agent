@@ -13,6 +13,8 @@ class OrderItem(BaseModel):
     price: int
     quantity: int = 1
     options: list[str] = Field(default_factory=list)
+    spicy_level: str | None = None
+    exclusions: list[str] = Field(default_factory=list)
     notes: str | None = None
     category: str | None = None
     unit: str | None = None

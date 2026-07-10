@@ -29,6 +29,7 @@ export function OrderSummary({ state }: OrderSummaryProps) {
         <ul className="order-lines" aria-label="已点菜品">
           {state.currentOrder.map((item, index) => {
             const subtotal = orderLineSubtotal(item);
+            const note = visibleNote(item);
             return (
               <li key={`${item.key}-${index}`} className="order-line">
                 <div className="order-line-main">
@@ -38,7 +39,9 @@ export function OrderSummary({ state }: OrderSummaryProps) {
                     {item.unit ?? "份"}
                   </span>
                   {item.options.length > 0 ? <small>口味：{item.options.join("、")}</small> : null}
-                  {item.notes ? <small>备注：{item.notes}</small> : null}
+                  {item.spicyLevel ? <small>辣度：{item.spicyLevel}</small> : null}
+                  {item.exclusions.length > 0 ? <small>忌口：{item.exclusions.map((value) => `不要${value}`).join("、")}</small> : null}
+                  {note ? <small>备注：{note}</small> : null}
                 </div>
                 <div className="order-line-price">
                   <span>单价：{formatPrice(item.price)}</span>
@@ -116,6 +119,18 @@ function phoneLabel(state: OrderStateView): string {
     return "自取可不填写";
   }
   return "待填写";
+}
+
+function visibleNote(item: { exclusions: string[]; notes: string | null }): string | null {
+  if (!item.notes) {
+    return null;
+  }
+  const duplicateNotes = new Set(item.exclusions.map((value) => `不要${value}`));
+  const visibleParts = item.notes
+    .split("；")
+    .map((part) => part.trim())
+    .filter((part) => part && !duplicateNotes.has(part));
+  return visibleParts.length > 0 ? visibleParts.join("；") : null;
 }
 
 function maskPhone(phone: string): string {

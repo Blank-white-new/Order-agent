@@ -595,6 +595,10 @@ class OrchestratorAgent:
         if interpretation.intent == "replace_item":
             return self._resolve_replace_intent(interpretation, compact, state)
 
+        modifier_update = self._contextual_item_modifier_interpretation(interpretation, compact, state)
+        if modifier_update:
+            return modifier_update
+
         if interpretation.intent == "order_food" and state.current_order:
             item_name = interpretation.entities.get("item_name")
             relative_quantity = self._relative_quantity_update_interpretation(interpretation, compact, state)
@@ -935,6 +939,62 @@ class OrchestratorAgent:
             }
         return self.response_agent.fallback()
 
+    def _contextual_item_modifier_interpretation(
+        self,
+        interpretation: Interpretation,
+        compact: str,
+        state: SessionState,
+    ) -> Interpretation | None:
+        if self.semantic_router._looks_like_question(compact):
+            return None
+        if interpretation.intent == "context_reference_resolution":
+            return None
+        modifiers = self.semantic_router.extract_item_modifiers(compact)
+        if not modifiers:
+            return None
+        mentioned_items = self.menu_service.find_items_in_text(compact)
+        if modifiers.get("note_request") and len(modifiers) == 1:
+            if mentioned_items:
+                return self._context_clarification("missing_item_note_content", item_name=mentioned_items[-1].name)
+            if not state.current_order:
+                return None
+            if len(state.current_order) > 1:
+                return self._context_clarification("ambiguous_item_modifier_reference")
+            return self._context_clarification("missing_item_note_content", item_name=state.current_order[0].name)
+        if mentioned_items:
+            item_name = mentioned_items[-1].name
+            order_indexes = [index for index, item in enumerate(state.current_order) if item.name == item_name]
+            if len(order_indexes) == 1:
+                return Interpretation(
+                    intent="update_item_option",
+                    confidence=0.9,
+                    source="merged",
+                    should_mutate_order=True,
+                    entities={"item_name": item_name, "index": order_indexes[0]},
+                    preferences={**interpretation.preferences, **modifiers},
+                )
+            if len(order_indexes) > 1:
+                return self._context_clarification("ambiguous_item_modifier_reference", item_name=item_name)
+            if interpretation.intent == "update_item_option" or (
+                interpretation.intent in {"fallback", "ask_recommendation_by_preference"}
+                and any(token in compact for token in ["改成", "改为", "备注改成", "备注改为", "可以放", "不用"])
+            ):
+                return self._context_clarification("item_modifier_target_not_found", item_name=item_name)
+            return None
+
+        if not state.current_order:
+            return None
+        if len(state.current_order) > 1:
+            return self._context_clarification("ambiguous_item_modifier_reference")
+        return Interpretation(
+            intent="update_item_option",
+            confidence=0.9,
+            source="merged",
+            should_mutate_order=True,
+            entities={"item_name": state.current_order[0].name, "index": 0},
+            preferences={**interpretation.preferences, **modifiers},
+        )
+
     def _handle_composite(self, interpretation: Interpretation, state: SessionState) -> dict:
         child_summaries: list[dict[str, Any]] = []
         messages: list[str] = []
@@ -1178,12 +1238,24 @@ class OrchestratorAgent:
                 "不辣",
                 "少辣",
                 "微辣",
+                "中辣",
+                "特辣",
                 "大份",
                 "小份",
                 "不要香菜",
                 "不香菜",
                 "不要葱",
                 "不葱",
+                "不要蒜",
+                "不要辣椒",
+                "不要花生",
+                "不要洋葱",
+                "香菜可以放",
+                "备注",
+                "米饭多一点",
+                "汤分开放",
+                "少放盐",
+                "打包严实",
                 "去冰",
                 "少冰",
                 "加蛋",

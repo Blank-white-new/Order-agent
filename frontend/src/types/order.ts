@@ -4,6 +4,8 @@ export type OrderItemView = {
   price: number | null;
   quantity: number;
   options: string[];
+  spicyLevel: string | null;
+  exclusions: string[];
   notes: string | null;
   category: string | null;
   unit: string | null;
@@ -96,6 +98,8 @@ function normalizeOrderItem(raw: unknown, index: number): OrderItemView {
     price: finiteNumber(item.price),
     quantity: positiveQuantity(item.quantity),
     options: stringList(item.options),
+    spicyLevel: optionalString(item.spicy_level),
+    exclusions: stringList(item.exclusions),
     notes: optionalString(item.notes),
     category: optionalString(item.category),
     unit: optionalString(item.unit),
