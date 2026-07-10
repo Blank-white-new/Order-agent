@@ -3,6 +3,7 @@
 一个规则优先、Orchestrator 统一裁决的中文多 Agent 订餐演示系统。它覆盖多轮点餐、推荐、订单修改、配送/自取与提交确认，并提供 React 前端、可选语音演示、安全 LLM fallback sandbox 和可重复的 V3 对话评估。
 
 > 默认运行不调用真实 LLM。菜单、价格与配送费来自服务层；订单提交前必须确认，所有状态修改都经过 Orchestrator。
+> 本项目适合公开 demo、教学和本机验收，不是生产商用订餐系统；没有真实支付、库存或商家后台。
 
 ## 项目亮点
 
@@ -21,6 +22,8 @@
 | 推荐 | 已支持 | 基于菜单、偏好和预算生成候选 |
 | 配送/自取 | 已支持 | 地址、电话和 mock 配送费均由服务层处理 |
 | 订单确认 | 已支持 | 提交前确认；submitted 后锁定旧订单 |
+| 菜品定制 | 已支持 | 支持辣度、忌口和备注展示 |
+| 菜单配置化 | 已支持 | 菜单从校验后的 JSON 配置加载 |
 | 语音输入 | 演示支持 | 本机 ASR、normalizer 和 barge-in |
 | TTS | 本机演示支持 | server-side pyttsx3 受运行机器音频环境限制 |
 | LLM fallback | sandbox 支持 | 默认 disabled，不直接提交或绕过 validation |
@@ -33,6 +36,7 @@
 - [本机演示验收记录](docs/demo-acceptance.md)
 - [演示素材录制 checklist](docs/demo-capture-checklist.md)
 - [菜单配置](docs/menu-config.md)
+- [公开演示 readiness checklist](docs/public-demo-readiness.md)
 - [LLM fallback sandbox](docs/llm-sandbox.md)
 - [语音演示与排障](docs/voice-troubleshooting.md)
 
