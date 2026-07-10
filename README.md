@@ -30,8 +30,14 @@
 
 - [系统架构](docs/architecture.md)
 - [30–60 秒演示脚本](docs/demo-guide.md)
+- [本机演示验收记录](docs/demo-acceptance.md)
+- [演示素材录制 checklist](docs/demo-capture-checklist.md)
 - [LLM fallback sandbox](docs/llm-sandbox.md)
 - [语音演示与排障](docs/voice-troubleshooting.md)
+
+安全文本 demo 截图：
+
+![文本演示订单截图](docs/assets/demo-chat-order.png)
 
 ## 快速开始（Windows PowerShell）
 
@@ -64,7 +70,7 @@ pip install -r requirements.txt
 
 ```powershell
 cd ..\frontend
-npm install
+npm ci
 ```
 
 5. 启动后端（一个 PowerShell 窗口，从仓库根目录执行）：
@@ -105,7 +111,7 @@ npm run dev
 运行完整 V3 对话基线（默认 `LLM_FALLBACK_MODE=disabled`，不调用真实 LLM）：
 
 ```powershell
-python -B evaluation/run_dialogue_eval_v3.py --dataset evaluation/dialogues_v3.jsonl
+.\backend\.venv\Scripts\python.exe -B evaluation\run_dialogue_eval_v3.py --dataset evaluation\dialogues_v3.jsonl
 ```
 
 8. 可选开启语音和调试：
@@ -266,7 +272,7 @@ LLM_FALLBACK_API_KEY=
 
 ```powershell
 cd backend
-uvicorn app.main:app --reload --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 接口：
@@ -280,7 +286,7 @@ uvicorn app.main:app --reload --port 8000
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -303,8 +309,7 @@ $env:VITE_BACKEND_PROXY_TARGET="http://localhost:8001"
 ## 运行测试
 
 ```powershell
-cd backend
-pytest -q
+.\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
 ```
 
 测试覆盖语义路由、菜单 agent、配送 agent、订单 agent、上下文修复、确认提交和 fallback/smalltalk。
