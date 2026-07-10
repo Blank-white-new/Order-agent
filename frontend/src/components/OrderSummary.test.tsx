@@ -23,6 +23,8 @@ describe("OrderSummary", () => {
               price: 26,
               quantity: 2,
               options: ["不辣"],
+              spicy_level: "少辣",
+              exclusions: ["香菜", "葱"],
               notes: "少油",
               category: "饭类",
               unit: "份",
@@ -39,6 +41,8 @@ describe("OrderSummary", () => {
     expect(screen.getByText("鸡腿饭")).toBeInTheDocument();
     expect(screen.getByText("饭类 · 2份")).toBeInTheDocument();
     expect(screen.getByText("口味：不辣")).toBeInTheDocument();
+    expect(screen.getByText("辣度：少辣")).toBeInTheDocument();
+    expect(screen.getByText("忌口：不要香菜、不要葱")).toBeInTheDocument();
     expect(screen.getByText("备注：少油")).toBeInTheDocument();
     expect(screen.getByText("单价：26 元")).toBeInTheDocument();
     expect(screen.getByText("小计：52 元")).toBeInTheDocument();
@@ -64,6 +68,34 @@ describe("OrderSummary", () => {
     expect(screen.getByText("已填写：138****0000")).toBeInTheDocument();
     expect(screen.getByText("订单号（mock order）：MOCK-ORDER-001")).toBeInTheDocument();
     expect(screen.queryByText("13800000000")).not.toBeInTheDocument();
+  });
+
+  test("hides customization rows when modifiers are missing", () => {
+    render(
+      <OrderSummary
+        state={normalizeOrderState({
+          current_order: [{ name: "牛肉饭", price: 28, quantity: 1, category: "饭类" }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("牛肉饭")).toBeInTheDocument();
+    expect(screen.queryByText(/辣度：/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/忌口：/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/备注：/)).not.toBeInTheDocument();
+  });
+
+  test("does not repeat exclusion-only legacy notes", () => {
+    render(
+      <OrderSummary
+        state={normalizeOrderState({
+          current_order: [{ name: "牛肉饭", price: 28, quantity: 1, exclusions: ["香菜"], notes: "不要香菜" }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("忌口：不要香菜")).toBeInTheDocument();
+    expect(screen.queryByText("备注：不要香菜")).not.toBeInTheDocument();
   });
 
   test("does not crash when item price is missing or invalid", () => {

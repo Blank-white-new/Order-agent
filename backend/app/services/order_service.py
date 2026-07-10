@@ -13,13 +13,24 @@ class OrderService:
         options: list[str] | None = None,
         unit: str | None = None,
         notes: str | None = None,
+        spicy_level: str | None = None,
+        exclusions: list[str] | None = None,
         source: str | None = None,
     ) -> list[OrderItem]:
         quantity = self._positive_quantity(quantity)
-        options = options or []
+        options = self._dedupe(options or [])
+        notes = self._clean_text(notes)
+        spicy_level = self._clean_text(spicy_level)
+        exclusions = self._dedupe(exclusions or [])
         order = [self._copy_order_item(entry) for entry in state.current_order]
         for entry in order:
-            if entry.item_id == item.id and sorted(entry.options) == sorted(options) and entry.notes == notes:
+            if (
+                entry.item_id == item.id
+                and sorted(entry.options) == sorted(options)
+                and entry.notes == notes
+                and entry.spicy_level == spicy_level
+                and sorted(entry.exclusions) == sorted(exclusions)
+            ):
                 entry.quantity += quantity
                 return order
         order.append(
@@ -29,6 +40,8 @@ class OrderService:
                 price=item.price,
                 quantity=quantity,
                 options=options,
+                spicy_level=spicy_level,
+                exclusions=exclusions,
                 notes=notes,
                 category=item.category,
                 unit=unit,
@@ -48,6 +61,8 @@ class OrderService:
                 options=spec.get("options", []),
                 unit=spec.get("unit"),
                 notes=spec.get("notes"),
+                spicy_level=spec.get("spicy_level"),
+                exclusions=spec.get("exclusions", []),
                 source=spec.get("source"),
             )
         return order_state.current_order
@@ -103,6 +118,63 @@ class OrderService:
                 existing = entry.notes.strip() if entry.notes else ""
                 entry.notes = existing if note in existing.split("；") else "；".join(part for part in [existing, note] if part)
                 updated = True
+        return order, updated
+
+    def update_item_modifiers(
+        self,
+        state: SessionState,
+        item_name: str,
+        *,
+        spicy_level: str | None = None,
+        clear_spicy: bool = False,
+        exclusions: list[str] | None = None,
+        remove_exclusions: list[str] | None = None,
+        note: str | None = None,
+        replace_note: bool = False,
+        clear_notes: bool = False,
+        index: int | None = None,
+    ) -> tuple[list[OrderItem], bool]:
+        spicy_level = self._clean_text(spicy_level)
+        exclusions = self._dedupe(exclusions or [])
+        remove_exclusions = self._dedupe(remove_exclusions or [])
+        note = self._clean_text(note)
+        has_requested_change = any(
+            [
+                spicy_level,
+                clear_spicy,
+                exclusions,
+                remove_exclusions,
+                note,
+                replace_note,
+                clear_notes,
+            ]
+        )
+        if not has_requested_change:
+            return [self._copy_order_item(entry) for entry in state.current_order], False
+
+        updated = False
+        order = [self._copy_order_item(entry) for entry in state.current_order]
+        for pos, entry in enumerate(order):
+            if not self._matches_target(pos, entry, item_name, index):
+                continue
+            if clear_spicy:
+                entry.spicy_level = None
+            elif spicy_level:
+                entry.spicy_level = spicy_level
+            if exclusions:
+                entry.exclusions = self._dedupe([*entry.exclusions, *exclusions])
+            if remove_exclusions:
+                removable = set(remove_exclusions)
+                entry.exclusions = [value for value in entry.exclusions if value not in removable]
+            if clear_notes:
+                entry.notes = None
+            elif note:
+                if replace_note:
+                    entry.notes = note
+                else:
+                    existing = entry.notes.strip() if entry.notes else ""
+                    entry.notes = existing if note in existing.split("；") else "；".join(part for part in [existing, note] if part)
+            updated = True
         return order, updated
 
     def update_quantity(self, state: SessionState, item_name: str, quantity: int, index: int | None = None) -> tuple[list[OrderItem], bool]:
@@ -190,8 +262,11 @@ class OrderService:
         parts = []
         for entry in state.current_order:
             option_text = f"（{','.join(entry.options)}）" if entry.options else ""
-            note_text = f"（备注：{entry.notes}）" if entry.notes else ""
-            parts.append(f"{entry.name}{option_text}{note_text} x{entry.quantity}")
+            spicy_text = f"（辣度：{entry.spicy_level}）" if entry.spicy_level else ""
+            exclusion_text = f"（忌口：不要{'、不要'.join(entry.exclusions)}）" if entry.exclusions else ""
+            visible_note = self._visible_note(entry)
+            note_text = f"（备注：{visible_note}）" if visible_note else ""
+            parts.append(f"{entry.name}{option_text}{spicy_text}{exclusion_text}{note_text} x{entry.quantity}")
         return f"你点了：{'、'.join(parts)}。菜品小计 {self.total_price(state)} 元。"
 
     def total_price(self, state: SessionState) -> int:
@@ -212,6 +287,23 @@ class OrderService:
 
     def _positive_quantity(self, quantity: int | None) -> int:
         return max(int(quantity or 1), 1)
+
+    def _clean_text(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    def _dedupe(self, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(value.strip() for value in values if value and value.strip()))
+
+    def _visible_note(self, item: OrderItem) -> str | None:
+        if not item.notes:
+            return None
+        duplicate_notes = {f"不要{value}" for value in item.exclusions}
+        parts = [part.strip() for part in item.notes.split("；") if part.strip()]
+        visible = [part for part in parts if part not in duplicate_notes]
+        return "；".join(visible) if visible else None
 
     def _matches_target(self, pos: int, entry: OrderItem, item_name: str, index: int | None) -> bool:
         if index is not None:
