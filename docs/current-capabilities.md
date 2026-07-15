@@ -29,12 +29,16 @@
 
 ## 阶段 0 测试基线
 
-阶段 0 的可执行代码与基础设施基线为 commit `dda08aaf98121f6c53448eb8785c5137df0de4c6`。文档提交不改变订餐业务行为。验证日期为 2026-07-15，环境为 Windows 11 `10.0.22621`、Python 3.13.2、Node.js 24.15.0、npm 11.12.1。
+阶段 0 的最终稳定版本为 commit `b8fb4a9f816415d8354bac3696933722b9d3b37c`，对应 annotated Tag `v0.1.0-local-voice-demo`。最终主要 CI 证据为 [run 29417431946](https://github.com/Blank-white-new/Order-agent/actions/runs/29417431946)。验证日期为 2026-07-15，环境为 Windows 11 `10.0.22621`、Python 3.13.2、Node.js 24.15.0、npm 11.12.1。
+
+`dda08aaf98121f6c53448eb8785c5137df0de4c6` 是阶段 0 的第一项运行环境与基础设施提交；[run 29416536835](https://github.com/Blank-white-new/Order-agent/actions/runs/29416536835) 是其后续文档提交前的中间 CI 验证记录。二者保留用于追溯，但不再称为最终阶段 0 基线。
+
+`v0.1.0-local-voice-demo` 是阶段 0 冻结时的稳定代码快照。本轮阶段 0.5 只修正文档与加固工具链，不移动或重建该 Tag。
 
 | 检查 | 本轮结果 |
 |---|---|
 | `scripts/check_all.ps1 -Build` | 通过 |
-| GitHub Actions | [run 29416536835](https://github.com/Blank-white-new/Order-agent/actions/runs/29416536835) 通过（Windows，2m46s） |
+| GitHub Actions | [run 29417431946](https://github.com/Blank-white-new/Order-agent/actions/runs/29417431946) 通过（Windows，2m44s） |
 | pytest | 830 passed，3 warnings |
 | Vitest | 7 files passed，69 tests passed |
 | TypeScript | `tsc --noEmit` 通过 |
@@ -64,6 +68,7 @@ CI 和标准检查固定使用：
 ```text
 LLM_FALLBACK_MODE=disabled
 LLM_FALLBACK_ENABLED=false
+LLM_FALLBACK_SPECULATIVE_ENABLED=false
 ALLOW_LIVE_LLM=false
 VOICE_ENABLED=false
 TTS_ENABLED=false
