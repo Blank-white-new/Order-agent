@@ -13,7 +13,10 @@ function Enable-OfflineLlmChecks {
     "DEEPSEEK_MODEL",
     "LLM_FALLBACK_REPLAY_FILE",
     "LLM_FALLBACK_SHADOW_SOURCE",
-    "BACKEND_ENV_FILE"
+    "BACKEND_ENV_FILE",
+    "VOICE_ENABLED",
+    "TTS_ENABLED",
+    "VOICE_TTS_ENABLED"
   )
   $snapshot = @{}
   foreach ($name in $variableNames) {
@@ -24,6 +27,8 @@ function Enable-OfflineLlmChecks {
   [Environment]::SetEnvironmentVariable("LLM_FALLBACK_ENABLED", "false", [EnvironmentVariableTarget]::Process)
   [Environment]::SetEnvironmentVariable("LLM_FALLBACK_SPECULATIVE_ENABLED", "false", [EnvironmentVariableTarget]::Process)
   [Environment]::SetEnvironmentVariable("ALLOW_LIVE_LLM", "false", [EnvironmentVariableTarget]::Process)
+  [Environment]::SetEnvironmentVariable("VOICE_ENABLED", "false", [EnvironmentVariableTarget]::Process)
+  [Environment]::SetEnvironmentVariable("TTS_ENABLED", "false", [EnvironmentVariableTarget]::Process)
   foreach ($name in @(
     "LLM_FALLBACK_API_KEY",
     "LLM_FALLBACK_BASE_URL",

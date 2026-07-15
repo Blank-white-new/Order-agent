@@ -5,4 +5,4 @@ pydantic
 python-dotenv
 httpx
 vosk
-pyttsx3
+pyttsx3; platform_system == "Windows"

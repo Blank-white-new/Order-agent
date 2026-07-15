@@ -150,6 +150,7 @@ def test_status_looks_valid_model_can_record_when_dependency_available(monkeypat
 def test_dependency_failures_do_not_break_chat(monkeypatch, tmp_path):
     model_dir = make_vosk_like_model(tmp_path)
     monkeypatch.setenv("VOICE_ENABLED", "true")
+    monkeypatch.setenv("TTS_ENABLED", "true")
     monkeypatch.setenv("VOSK_MODEL_PATH", str(model_dir))
     clear_settings_cache()
 
@@ -186,6 +187,8 @@ def _use_temp_env(monkeypatch, tmp_path, content: str = "") -> None:
     """Point BACKEND_ENV_FILE to a temp .env with controlled content."""
     env_file = tmp_path / ".env"
     env_file.write_text(content, encoding="utf-8")
+    for name in ("VOICE_ENABLED", "TTS_ENABLED", "VOICE_TTS_ENABLED"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("BACKEND_ENV_FILE", str(env_file))
     clear_settings_cache()
 

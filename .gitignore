@@ -12,8 +12,11 @@ frontend/dist/
 build/
 coverage/
 *.log
+logs/
 *.zip
 *.pid
+*.lnk
+*.tmp
 .codex-run/
 .local-run/
 .DS_Store
@@ -25,5 +28,6 @@ models/tts/*
 *.wav
 *.pcm
 *.mp3
+audio/
 *.onnx
 *.bin

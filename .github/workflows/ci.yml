@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLM_FALLBACK_MODE: disabled
+  LLM_FALLBACK_ENABLED: "false"
+  LLM_FALLBACK_SPECULATIVE_ENABLED: "false"
+  ALLOW_LIVE_LLM: "false"
+  VOICE_ENABLED: "false"
+  TTS_ENABLED: "false"
+  PYTHONUTF8: "1"
+
+jobs:
+  windows-baseline:
+    name: Windows reproducible baseline
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13.2
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.2"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock.txt
+
+      - name: Create backend virtual environment from lock
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m venv backend\.venv
+          .\backend\.venv\Scripts\python.exe -m pip install --upgrade pip
+          .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
+          .\backend\.venv\Scripts\python.exe -m pip check
+
+      - name: Set up Node.js 24.15.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.15.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up npm 11.12.1 and install frontend lock
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm install --global npm@11.12.1
+          if ((npm --version) -ne "11.12.1") { throw "Unexpected npm version" }
+          Push-Location frontend
+          try {
+            npm ci
+          } finally {
+            Pop-Location
+          }
+
+      - name: Run reproducible quality checks
+        shell: pwsh
+        run: .\scripts\check_all.ps1 -Build
+
+      - name: Run V3 dialogue regression evaluation
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B
+          evaluation\run_dialogue_eval_v3.py
+          --dataset evaluation\dialogues_v3.jsonl
+          --fail-on-regression
+
+      - name: Audit Python dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install pip-audit
+          python -m pip_audit -r backend\requirements.lock.txt
+
+      - name: Audit npm dependencies
+        shell: pwsh
+        working-directory: frontend
+        run: npm audit --audit-level=high
