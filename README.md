@@ -4,7 +4,7 @@
 
 一个规则优先、Orchestrator 统一裁决的中文多 Agent 订餐演示系统。它覆盖多轮点餐、推荐、订单修改、配送/自取与提交确认，并提供 React 前端、可选语音演示、安全 LLM fallback sandbox 和可重复的 V3 对话评估。
 
-> 默认运行不调用真实 LLM。菜单、价格与配送费来自服务层；订单提交前必须确认，所有状态修改都经过 Orchestrator。
+> 默认运行不调用真实 LLM。菜单、价格与配送费来自数据库服务层；订单保存前必须确认，所有状态修改都经过 Orchestrator。本地确认不代表真实餐厅已接受。
 > 本项目适合公开 demo、教学和本机验收，不是生产商用订餐系统；没有真实支付、库存或商家后台。
 
 ## 项目亮点
@@ -22,10 +22,10 @@
 |---|---|---|
 | 文本点餐 | 已支持 | 多轮加菜、改数量、删除和换菜 |
 | 推荐 | 已支持 | 基于菜单、偏好和预算生成候选 |
-| 配送/自取 | 已支持 | 地址、电话和 mock 配送费均由服务层处理 |
-| 订单确认 | 已支持 | 提交前确认；submitted 后锁定旧订单 |
+| 配送/自取 | 已支持 | synthetic 地址/电话流程；branch 配送费由数据库服务层处理 |
+| 订单确认 | 已支持 | 确认后持久化为 `CUSTOMER_CONFIRMED`；`merchantStatus=NOT_INTEGRATED` |
 | 菜品定制 | 已支持 | 支持辣度、忌口和备注展示 |
-| 菜单配置化 | 已支持 | 菜单从校验后的 JSON 配置加载 |
+| 菜单版本化 | 已支持 | JSON 用于 seed；运行时从已发布数据库版本加载 |
 | 语音输入 | 演示支持 | 本机 ASR、normalizer 和 barge-in |
 | TTS | 本机演示支持 | server-side pyttsx3 受运行机器音频环境限制 |
 | LLM fallback | sandbox 支持 | 默认 disabled，不直接提交或绕过 validation |
@@ -34,6 +34,7 @@
 架构、录屏流程和专项说明：
 
 - [阶段 1：产品范围、风险边界和验收指标](docs/phase-1/README.md)
+- [阶段 2：统一业务模型和持久化](docs/phase-2/README.md)
 - [当前能力与稳定基线](docs/current-capabilities.md)
 - [本地开发与干净环境安装](docs/local-development.md)
 - [系统架构](docs/architecture.md)
@@ -264,7 +265,7 @@ auto job success：
 - `OrderAgent`：处理加菜、选择推荐、修改偏好、删除菜品。
 - `DeliveryAgent`：处理配送时长、配送费、能否送达、地址和电话收集。
 - `ContextRepairAgent`：处理“我还没点”“你理解错了”等纠错表达。
-- `ConfirmationAgent`：校验并提交订单。
+- `ConfirmationAgent`：校验顾客显式确认；持久化由业务服务完成，不伪造商家接受。
 - `ResponseAgent`：只把 action result 转成简短自然回复，不改状态。
 
 ## 安装依赖
@@ -419,7 +420,7 @@ fallback 只在规则返回 fallback/unknown、低置信或明确理解失败时
 - `少辣` 进入该菜品的 `options`。
 - 配送地址记录为演示地址中山大学南校园。
 - 电话仅使用示例号码 `13800000000`，前端显示为 `138****0000`。
-- 最终确认后提交成功，状态进入 `submitted`。
+- 最终确认后保存到模拟系统，生命周期进入 `CUSTOMER_CONFIRMED`，尚未发送给真实餐厅。
 
 ### 演示 2：自然修改
 
@@ -779,7 +780,7 @@ TTS_ENGINE_RECREATE_PER_TASK=true
 
 ## 扩展菜单
 
-菜单数据在 `backend/app/data/menu.json` 中维护，也可以通过 `MENU_CONFIG_PATH` 指定外部 JSON 配置。字段说明、校验规则和常见错误见 [菜单配置](docs/menu-config.md)。
+菜单运行时事实在数据库已发布 MenuVersion 中；`backend/app/data/menu.json` 和 `MENU_CONFIG_PATH` 仅用于 seed、fixture 和恢复导入。详见 [菜单配置](docs/menu-config.md) 与 [菜单版本化](docs/phase-2/menu-versioning.md)。
 
 新增菜品后建议补充：
 
