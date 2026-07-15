@@ -12,6 +12,7 @@
 - [数据政策](data-policy.md)
 - [验收指标](acceptance-metrics.md)
 - [官方研究来源](research-sources.md)
+- [产品决策归档](product-decisions.md)
 - [需求—风险—指标—场景追踪矩阵](traceability-matrix.md)
 - [机器可读场景](../../evaluation/phase1_scenarios.jsonl)及其 [Schema](../../evaluation/phase1_scenarios.schema.json)
 
@@ -55,15 +56,18 @@
 .\scripts\check_all.ps1 -Build
 ```
 
-## 待产品负责人确认
+## 产品决策状态
 
-只剩会改变未来产品/运营设计的事项：
+阶段 1 的五项产品决定已在[产品决策归档](product-decisions.md)中明确负责人和状态：
 
-1. 人工接管服务时间、目标响应时间和经顾客授权的回拨政策（ASM-005/ASM-011）；
-2. “大幅数量变化”和“复杂团体订单”的餐厅可配置阈值（ASM-006）；
-3. 与模拟餐厅共同确认商家权威接受/回调/幂等协议和过敏原资料维护责任（ASM-007/ASM-008）；
-4. 任何真实香港试点或欧洲国家范围确定后，由相应专业人员确认告知、录音、保留、数据角色和跨境安排（ASM-009/ASM-010）。
+- `DEC-001` 人工服务时间和回拨：`DEFERRED_CONFIGURABLE`；
+- `DEC-002` 大幅修改和复杂团体订单：`RESTAURANT_CONFIGURABLE`；
+- `DEC-003` 商家接受和幂等：`APPROVED_FOR_DOMAIN_MODEL`；
+- `DEC-004` 过敏原权威来源：`RESTAURANT_DECLARED_ONLY`；
+- `DEC-005` 真实数据保留和合规：`DEFERRED_UNTIL_REAL_PILOT`。
+
+这些状态允许阶段 2 建立明确的数据模型，不关闭风险、不启用真实外部系统，也不替代后续餐厅、运营、食品安全或法律审查。
 
 ## 进入阶段 2 的闸门
 
-进入阶段 2 前必须保持：本目录文档审阅通过；140 条场景和 Schema 校验通过；原 pytest/Vitest/TypeScript/build 与 V3 无回归；false mutation、confirmation bypass、live LLM trigger 和八项阻塞计数为 0；高严重度风险、接管/拒绝规则与阻塞指标无孤立项；阶段 1 分支已推送且 Draft PR CI 通过；没有把本规范误实现为阶段 2 生产代码，也没有合并到 `main`。
+进入阶段 2 前必须保持：本目录文档（含产品决策归档）审阅通过；140 条场景和 Schema 校验通过；原 pytest/Vitest/TypeScript/build 与 V3 无回归；false mutation、confirmation bypass、live LLM trigger 和八项阻塞计数为 0；高严重度风险、接管/拒绝规则与阻塞指标无孤立项；阶段 1 PR 最新 CI 通过并按分支保护要求合并；没有把本规范误实现为阶段 2 生产能力。
