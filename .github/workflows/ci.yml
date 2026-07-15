@@ -31,14 +31,16 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Python 3.13.2
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13.2"
           cache: pip
-          cache-dependency-path: backend/requirements.lock.txt
+          cache-dependency-path: |
+            backend/requirements.lock.txt
+            backend/requirements-dev.lock.txt
 
       - name: Create backend virtual environment from lock
         shell: pwsh
@@ -46,12 +48,25 @@ jobs:
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
           python -m venv backend\.venv
-          .\backend\.venv\Scripts\python.exe -m pip install --upgrade pip
+          .\backend\.venv\Scripts\python.exe -m pip install "pip==26.1.2"
           .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
           .\backend\.venv\Scripts\python.exe -m pip check
 
+      - name: Create maintenance tooling environment from lock
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m venv .tooling-venv
+          .\.tooling-venv\Scripts\python.exe -m pip install "pip==26.1.2"
+          .\.tooling-venv\Scripts\python.exe -m pip install -r backend\requirements-dev.lock.txt
+          .\.tooling-venv\Scripts\python.exe -m pip check
+          if ((.\.tooling-venv\Scripts\python.exe -m pip --version) -notmatch '^pip 26\.1\.2 ') {
+            throw "Unexpected tooling pip version"
+          }
+
       - name: Set up Node.js 24.15.0
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24.15.0"
           cache: npm
@@ -88,8 +103,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          python -m pip install pip-audit
-          python -m pip_audit -r backend\requirements.lock.txt
+          .\.tooling-venv\Scripts\python.exe -m pip_audit -r backend\requirements.lock.txt
 
       - name: Audit npm dependencies
         shell: pwsh

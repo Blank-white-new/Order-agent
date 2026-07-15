@@ -1,0 +1,4 @@
+# Maintenance and dependency-audit tools. These are not production dependencies.
+pip==26.1.2
+pip-tools==7.5.3
+pip-audit==2.10.1

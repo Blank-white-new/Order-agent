@@ -9,6 +9,9 @@
 | 工具 | 推荐及 CI 版本 | 声明范围 |
 |---|---|---|
 | Python | 3.13.2 | 阶段 0 只验证并支持此精确版本 |
+| pip | 26.1.2 | 生产环境与维护工具环境均显式固定 |
+| pip-tools | 7.5.3 | 仅用于生成依赖锁文件 |
+| pip-audit | 2.10.1 | 仅用于依赖漏洞审计 |
 | Node.js | 24.15.0 | `>=24 <25`，只实测 24.15.0 |
 | npm | 11.12.1 | `>=11 <12`，只实测 11.12.1 |
 
@@ -25,7 +28,7 @@ node --version
 npm --version
 
 python -m venv backend\.venv
-.\backend\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\backend\.venv\Scripts\python.exe -m pip install "pip==26.1.2"
 .\backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.lock.txt
 .\backend\.venv\Scripts\python.exe -m pip check
 
@@ -34,7 +37,9 @@ npm ci
 Pop-Location
 ```
 
-`backend/requirements.txt` 只描述直接依赖；日常安装和 CI 必须使用带精确版本与哈希的 `backend/requirements.lock.txt`。`pip-tools` 和 `pip-audit` 是维护/审计工具，不是生产运行依赖。
+`backend/requirements.txt` 只描述生产直接依赖；日常安装和 CI 必须使用带精确版本与哈希的 `backend/requirements.lock.txt`。运行应用或执行测试不需要安装开发工具。
+
+`backend/requirements-dev.in` 只列出固定的 pip、pip-tools 和 pip-audit；`backend/requirements-dev.lock.txt` 则锁定这些维护/审计工具的完整传递依赖与哈希。开发工具不得加入生产 `requirements.txt` 或生产虚拟环境。
 
 ## `.env` 与配置分层
 
@@ -139,8 +144,11 @@ TTS_PLAYBACK_TARGET=server
 
 ```powershell
 $env:PYTHONUTF8="1"
-.\backend\.venv\Scripts\python.exe -m pip install pip-audit
-.\backend\.venv\Scripts\python.exe -m pip_audit -r backend\requirements.lock.txt
+python -m venv .tooling-venv
+.\.tooling-venv\Scripts\python.exe -m pip install "pip==26.1.2"
+.\.tooling-venv\Scripts\python.exe -m pip install -r backend\requirements-dev.lock.txt
+.\.tooling-venv\Scripts\python.exe -m pip check
+.\.tooling-venv\Scripts\python.exe -m pip_audit -r backend\requirements.lock.txt
 
 Push-Location frontend
 npm audit
@@ -150,20 +158,34 @@ Pop-Location
 
 ## 重新生成后端锁文件
 
-只能在 Python 3.13.2 环境中生成。维护工具安装在本机虚拟环境，不加入直接依赖：
+只能在 Python 3.13.2 环境中生成。脚本固定使用 pip 26.1.2，并在用户的 LocalAppData 临时目录创建隔离 tooling venv；正常维护从 `requirements-dev.lock.txt` 安装 pip-tools 7.5.3。只重新生成生产锁：
 
 ```powershell
-.\backend\.venv\Scripts\python.exe -m pip install --upgrade pip pip-tools
 .\scripts\compile_backend_lock.ps1
 ```
 
-脚本使用 `pip-compile --generate-hashes`，自动记录 Python 与 pip-tools 版本、保留平台 marker，并拒绝本机绝对路径、`file:///`、私有索引参数。重新生成后必须在仓库外新虚拟环境安装锁文件，并重新运行 pytest、V3 和 `pip-audit`。
+修改 `requirements-dev.in` 后，同时刷新开发工具锁和生产锁：
+
+```powershell
+.\scripts\compile_backend_lock.ps1 -RefreshDevLock -Verify
+```
+
+只有开发工具锁不存在或已损坏时，才使用脚本内记录的固定 bootstrap pip-tools 7.5.3：
+
+```powershell
+.\scripts\compile_backend_lock.ps1 -RefreshDevLock -BootstrapDevLock -Verify
+```
+
+脚本使用 `pip-compile --generate-hashes --allow-unsafe`，使 pip 与 setuptools 也拥有精确版本和哈希；它保留平台 marker，并拒绝本机绝对路径、`file:///`、私有索引、直接 URL 和 editable 安装。`-Verify` 会在仓库外新虚拟环境安装生产锁并执行 `pip check`，临时环境随后自动清理。
+
+锁文件变化后必须检查 `git diff`，再次运行脚本确认无无意义 diff，并重新执行全量测试、V3、`pip-audit` 和 npm audit。生产直接依赖输入 `requirements.txt` 不应因工具链维护而变化。
 
 ## CI 与本地命令对应关系
 
 | GitHub Actions 步骤 | 本地对应命令 |
 |---|---|
 | 后端锁安装和依赖一致性 | `pip install -r backend/requirements.lock.txt`、`pip check` |
+| 维护工具锁安装 | `.tooling-venv` 安装固定 pip 和 `requirements-dev.lock.txt` |
 | 前端锁安装 | `cd frontend; npm ci` |
 | 全量测试、类型和构建 | `scripts/check_all.ps1 -Build` |
 | 对话回归 | V3 命令并加 `--fail-on-regression` |
@@ -171,6 +193,8 @@ Pop-Location
 | npm 高危门槛 | `npm audit --audit-level=high` |
 
 CI 不需要 `.env`、Vosk 模型、麦克风、扬声器、桌面快捷方式、真实 key 或电话平台。
+
+CI 中 `actions/checkout`、`actions/setup-python` 和 `actions/setup-node` 均使用官方仓库的完整 40 位 commit SHA，行尾注释保留对应 major 版本。Dependabot 的 `github-actions` 更新器仍会提出 SHA 更新 PR；所有更新必须经过同一工作流，不能直接信任或自动合并。
 
 ## 常见问题
 

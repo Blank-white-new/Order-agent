@@ -191,7 +191,7 @@ try {
     Write-Host "项目目录：$ProjectRoot"
 
     if (-not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
-      throw "后端虚拟环境缺失。请运行：cd `"$BackendDir`"; python -m venv .venv; .\.venv\Scripts\pip.exe install -r requirements.lock.txt"
+      throw "后端虚拟环境缺失。请运行：cd `"$BackendDir`"; python -m venv .venv; .\.venv\Scripts\python.exe -m pip install `"pip==26.1.2`"; .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt"
     }
     if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
       throw "缺少 .env。请先从 .env.example 复制并保留本机配置。"

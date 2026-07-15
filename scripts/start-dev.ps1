@@ -5,7 +5,7 @@ $BackendDir = Join-Path $ProjectRoot "backend"
 $FrontendDir = Join-Path $ProjectRoot "frontend"
 $BackendVenv = Join-Path $BackendDir ".venv"
 $PythonExe = Join-Path $BackendVenv "Scripts\python.exe"
-$PipExe = Join-Path $BackendVenv "Scripts\pip.exe"
+$PinnedPip = "26.1.2"
 
 function Get-FreePort {
   param([int]$StartPort)
@@ -32,7 +32,8 @@ if (-not (Test-Path $PythonExe)) {
 }
 
 Write-Host "Installing backend dependencies..."
-& $PipExe install -r (Join-Path $BackendDir "requirements.lock.txt")
+& $PythonExe -m pip install "pip==$PinnedPip"
+& $PythonExe -m pip install -r (Join-Path $BackendDir "requirements.lock.txt")
 
 if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
   Write-Host "Installing frontend dependencies..."

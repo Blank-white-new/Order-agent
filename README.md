@@ -74,10 +74,11 @@ notepad .env
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.lock.txt
+python -m pip install "pip==26.1.2"
+python -m pip install -r requirements.lock.txt
 ```
 
-`requirements.txt` 是直接依赖清单；可复现安装和 CI 使用固定完整依赖与哈希的 `requirements.lock.txt`。安装 `pip-tools` 后，可从仓库根目录运行 `.\scripts\compile_backend_lock.ps1` 重新生成锁文件。
+`requirements.txt` 是生产直接依赖清单；可复现安装和 CI 使用固定完整依赖与哈希的 `requirements.lock.txt`。维护与审计工具由 `requirements-dev.in` 和 `requirements-dev.lock.txt` 单独管理；重新生成命令见[本地开发文档](docs/local-development.md)。
 
 4. 安装前端依赖：
 
@@ -271,7 +272,8 @@ auto job success：
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.lock.txt
+python -m pip install "pip==26.1.2"
+python -m pip install -r requirements.lock.txt
 ```
 
 日常安装使用锁文件；`requirements.txt` 仅用于维护直接依赖。重新生成命令与干净环境验证流程见[本地开发文档](docs/local-development.md)。
@@ -525,7 +527,8 @@ TTS_ENGINE_RECREATE_PER_TASK=true
 
 ```powershell
 cd backend
-pip install -r requirements.lock.txt
+python -m pip install "pip==26.1.2"
+python -m pip install -r requirements.lock.txt
 ```
 
 `vosk` 和 `pyttsx3` 都是 lazy import：`VOICE_ENABLED=false` 时，即使没有安装语音依赖，文本模式仍应正常启动和测试。本轮不实现 CLI 语音模式，因此不强制依赖 `sounddevice`；Web 麦克风采集由浏览器 `getUserMedia` 完成。
@@ -565,7 +568,8 @@ Windows 注意事项：
 1. 安装后端依赖：
 
 ```powershell
-python -m pip install -r backend/requirements.lock.txt
+.\backend\.venv\Scripts\python.exe -m pip install "pip==26.1.2"
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements.lock.txt
 ```
 
 2. 下载 Vosk 中文模型。推荐开发使用 `vosk-model-small-cn-0.22`，下载页是 `https://alphacephei.com/vosk/models`。不要把模型文件提交到 Git。
