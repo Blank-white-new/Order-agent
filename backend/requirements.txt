@@ -6,3 +6,6 @@ python-dotenv
 httpx
 vosk
 pyttsx3; platform_system == "Windows"
+SQLAlchemy>=2.0,<2.1
+alembic>=1.16,<2
+psycopg[binary]>=3.2,<4
