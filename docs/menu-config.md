@@ -1,15 +1,16 @@
 # 菜单配置
 
-菜单数据默认从 `backend/app/data/menu.json` 加载。后端启动或 `MenuService` 初始化时会读取并校验该文件；修改菜单配置后需要重启后端。
+阶段 2 运行时菜单从数据库中 branch 的 active published MenuVersion 加载，菜单发布后新请求无需重启即可见。`backend/app/data/menu.json` 仍被校验，但只用于初始 synthetic seed、测试 fixture 和恢复导入。
 
-这不是数据库菜单管理，没有库存、后台管理页面、支付系统，也没有加料加价 SKU。当前只支持通过配置维护静态菜单。
+当前已有数据库菜单模型、版本发布、modifier 加价结构和 branch 售罄，但仍没有真实库存、餐厅后台页面、促销/套餐或支付系统。所有 seed 都是 synthetic。
 
 ## 配置位置
 
-- 默认配置：`backend/app/data/menu.json`
-- 可选外部配置：设置环境变量 `MENU_CONFIG_PATH`
+- 运行时事实：数据库中已发布 MenuVersion
+- 默认导入输入：`backend/app/data/menu.json`
+- 测试/恢复可选输入：环境变量 `MENU_CONFIG_PATH`
 
-`MENU_CONFIG_PATH` 为空时使用内置默认配置；一旦设置，就只加载指定文件。如果文件不存在、JSON 格式错误或校验失败，后端会报出清晰错误，不会静默回退到默认菜单。
+`MENU_CONFIG_PATH` 仅保留给导入和现有 fixture 测试，不会把 JSON 变回生产事实来源。文件不存在、JSON 格式错误或校验失败时明确失败，不静默使用另一份数据。发布流程见 [菜单版本化](phase-2/menu-versioning.md)。
 
 ## 顶层字段
 
