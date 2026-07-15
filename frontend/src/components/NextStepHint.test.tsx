@@ -57,7 +57,8 @@ describe("NextStepHint", () => {
   test("makes submitted demo orders explicit", () => {
     render(<NextStepHint state={normalizeOrderState({ submitted: true })} />);
 
-    expect(screen.getByText(/Mock 订单已提交/)).toBeInTheDocument();
+    expect(screen.getByText(/订单已确认并保存到模拟系统/)).toBeInTheDocument();
+    expect(screen.getByText(/尚未发送给真实餐厅/)).toBeInTheDocument();
     expect(screen.getByText(/点击“新订单”继续/)).toBeInTheDocument();
   });
 });

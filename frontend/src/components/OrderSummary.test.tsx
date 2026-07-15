@@ -44,9 +44,9 @@ describe("OrderSummary", () => {
     expect(screen.getByText("辣度：少辣")).toBeInTheDocument();
     expect(screen.getByText("忌口：不要香菜、不要葱")).toBeInTheDocument();
     expect(screen.getByText("备注：少油")).toBeInTheDocument();
-    expect(screen.getByText("单价：26 元")).toBeInTheDocument();
-    expect(screen.getByText("小计：52 元")).toBeInTheDocument();
-    expect(screen.getByText("52 元")).toBeInTheDocument();
+    expect(screen.getByText("单价：26 HKD")).toBeInTheDocument();
+    expect(screen.getByText("小计：52 HKD")).toBeInTheDocument();
+    expect(screen.getByText("52 HKD")).toBeInTheDocument();
     expect(screen.getByText("配送")).toBeInTheDocument();
     expect(screen.getByText("已填写：中山大学南校园")).toBeInTheDocument();
     expect(screen.getByText("已填写：138****5678")).toBeInTheDocument();
@@ -66,7 +66,9 @@ describe("OrderSummary", () => {
     );
 
     expect(screen.getByText("已填写：138****0000")).toBeInTheDocument();
-    expect(screen.getByText("订单号（mock order）：MOCK-ORDER-001")).toBeInTheDocument();
+    expect(screen.getByText("本地模拟订单号：MOCK-ORDER-001")).toBeInTheDocument();
+    expect(screen.getByText("顾客已确认")).toBeInTheDocument();
+    expect(screen.getByText("未接入真实餐厅")).toBeInTheDocument();
     expect(screen.queryByText("13800000000")).not.toBeInTheDocument();
   });
 

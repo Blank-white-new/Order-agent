@@ -97,7 +97,8 @@ def test_repeated_confirmation_is_idempotent(orchestrator, monkeypatch, message)
     assert result["trace"]["selectedHandler"] == "order_already_submitted"
     assert result["trace"]["stateMutationRejectedReason"] == "order_already_submitted"
     assert order_id in result["response"]
-    assert "订单已提交" in result["response"]
+    assert "已由顾客确认并保存" in result["response"]
+    assert "尚未发送给真实餐厅" in result["response"]
 
 
 @pytest.mark.parametrize("message", ["重新下单", "再来一单", "开始新订单", "新订单", "重新点一份"])

@@ -35,6 +35,11 @@ Write-Host "Installing backend dependencies..."
 & $PythonExe -m pip install "pip==$PinnedPip"
 & $PythonExe -m pip install -r (Join-Path $BackendDir "requirements.lock.txt")
 
+& $PythonExe -B (Join-Path $ProjectRoot "scripts\auto_init_local_db.py")
+if ($LASTEXITCODE -ne 0) {
+  throw "Local database initialization failed; startup stopped."
+}
+
 if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
   Write-Host "Installing frontend dependencies..."
   Push-Location $FrontendDir

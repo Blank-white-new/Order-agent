@@ -15,7 +15,7 @@ export function NextStepHint({ state }: NextStepHintProps) {
 
 export function nextStepText(state: OrderStateView): string {
   if (state.submitted) {
-    return "Mock 订单已提交，可等待演示中的店员处理，或点击“新订单”继续。";
+    return "订单已确认并保存到模拟系统，尚未发送给真实餐厅；可点击“新订单”继续。";
   }
   if (state.currentOrder.length === 0) {
     return "你可以说：我要一份牛肉饭。";

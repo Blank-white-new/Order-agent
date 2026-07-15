@@ -288,6 +288,13 @@ class VoiceGatewayAgent:
                 session.set_status("idle")
 
         cleaned = clean_text_for_tts(reply_text)
+        if not reply_text:
+            self._log_auto_tts_debug(
+                "agent_reply_empty",
+                session_id=session_id,
+                utterance_id=utterance_id,
+                tts_enabled=tts_enabled,
+            )
         self._log_auto_tts_debug(
             "cleaned_tts_text_length",
             session_id=session_id,
@@ -295,6 +302,13 @@ class VoiceGatewayAgent:
             textLength=len(cleaned),
             preview=preview_text(cleaned),
         )
+        if reply_text and not cleaned:
+            self._log_auto_tts_debug(
+                "cleaned_tts_text_empty",
+                session_id=session_id,
+                utterance_id=utterance_id,
+                tts_enabled=tts_enabled,
+            )
         self._log_auto_tts_debug(
             "queue_tts_called",
             session_id=session_id,
@@ -370,8 +384,9 @@ class VoiceGatewayAgent:
             name = item.get("name")
             if name:
                 menu_items.append(name)
-            aliases = item.get("aliases") or []
-            menu_items.extend(alias for alias in aliases if alias)
+            # ASR correction targets canonical authoritative names. Including
+            # aliases here can make a known misrecognition look canonical and
+            # suppress a safe correction (for example “机腿饭”).
         return menu_items
 
     def _transcript_normalizer_context(self, session_id: str) -> dict[str, Any]:

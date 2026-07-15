@@ -104,7 +104,7 @@ function MenuItemContent({ item }: { item: MenuItemView }) {
         <strong>{item.name ?? "菜品名称待确认"}</strong>
         {isRecommended ? <em>推荐</em> : null}
       </span>
-      <span className="menu-price">{formatPrice(item.price)}</span>
+      <span className="menu-price">{formatPrice(item.priceMinor, item.currency)}</span>
       {item.description ? <span className="menu-description">{item.description}</span> : null}
       {tags.length > 0 ? <span className="menu-tags">{tags.join(" · ")}</span> : null}
       {options.length > 0 ? <span className="menu-options">可选：{options.join("、")}</span> : null}

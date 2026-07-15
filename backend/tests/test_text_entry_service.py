@@ -58,7 +58,19 @@ def test_chat_api_shape_stays_compatible():
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"session_id", "response", "state", "trace"}
+    assert set(body) == {
+        "session_id",
+        "response",
+        "state",
+        "trace",
+        "lifecycleStatus",
+        "merchantStatus",
+        "submitted",
+        "submittedDeprecated",
+    }
+    assert body["lifecycleStatus"] == "DRAFT"
+    assert body["merchantStatus"] == "NOT_INTEGRATED"
+    assert body["submittedDeprecated"] is True
     assert body["session_id"] == "api-compat"
     assert body["trace"]["finalIntent"] == "ask_menu"
     assert "饭类" in body["response"]

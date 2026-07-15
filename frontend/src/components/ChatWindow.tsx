@@ -119,7 +119,7 @@ export function ChatWindow() {
         <header>
           <div>
             <h1>订餐助手</h1>
-            <p>文字与语音共用订单状态；提交的是安全的 mock order</p>
+            <p>文字与语音共用订单状态；仅保存合成模拟订单，不连接真实餐厅</p>
           </div>
           <button type="button" className="secondary" onClick={onReset}>
             新订单

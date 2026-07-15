@@ -144,9 +144,9 @@ class MenuAgent:
             if allergen and allergen in item.get("allergens", []):
                 blocked.append(item["name"])
         if blocked:
-            message = f"对{allergen}过敏的话，建议避开：" + "、".join(blocked) + "。"
+            message = f"餐厅声明这些菜含有或可能含有{allergen}：" + "、".join(blocked) + "。交叉污染仍需人工向餐厅核实。"
         else:
-            message = f"菜单里暂时没有标注含{allergen}的菜。"
+            message = f"菜单没有关于{allergen}的权威声明，因此状态是未知，不能据此判断安全；交叉污染需人工向餐厅核实。"
         return {"agent": self.name, "handler": "ask_allergen", "message": message, "patch": {}}
 
     def _ask_order_summary(self, interpretation: Interpretation, state: SessionState) -> dict:
