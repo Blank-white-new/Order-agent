@@ -2,6 +2,8 @@
 
 本矩阵把产品要求、风险、控制、指标、机器可读场景和未来阶段连接起来。`SCENARIO-xxx` 对应 `evaluation/phase1_scenarios.jsonl` 的 `trace_id`。自动校验会阻止孤立要求、高严重度风险和阻塞指标。
 
+产品决定见[产品决策归档](product-decisions.md)。决定状态不会关闭风险；它们只记录阶段 2 可实现的领域边界和仍需后续验证的负责人。
+
 ## 1. 需求端到端追踪
 
 | requirement | 产品要求摘要 | risks | control | metrics | scenarios | future_stage |
@@ -96,3 +98,13 @@
 - 接管原因代码：18，均有场景；拒绝规则均有场景。
 
 这些是目录和规范的静态覆盖结论，不代表对应未来控制已经实现或通过生产验证。运行 `python scripts/validate_phase1_scenarios.py` 重新计算机器可读覆盖。
+
+## 6. 产品决定追踪
+
+| decision | status | assumptions | requirements | risks | owner / target |
+|---|---|---|---|---|---|
+| DEC-001 人工服务时间和回拨 | `DEFERRED_CONFIGURABLE` | ASM-005,ASM-011 | REQ-008,REQ-025,REQ-026 | RISK-038 | 运营负责人；阶段 3/9 |
+| DEC-002 大幅修改和复杂团体订单 | `RESTAURANT_CONFIGURABLE` | ASM-006 | REQ-007,REQ-010,REQ-011 | RISK-002,RISK-038 | 产品负责人 / 餐厅运营负责人 |
+| DEC-003 商家接受和幂等 | `APPROVED_FOR_DOMAIN_MODEL` | ASM-003,ASM-007,ASM-012 | REQ-015,REQ-016,REQ-017,REQ-018,REQ-030 | RISK-006,RISK-007,RISK-008,RISK-032,RISK-033,RISK-035,RISK-039,RISK-042 | 商家集成负责人 |
+| DEC-004 过敏原权威来源 | `RESTAURANT_DECLARED_ONLY` | ASM-008 | REQ-009,REQ-014,REQ-023 | RISK-009,RISK-011,RISK-012,RISK-013,RISK-014 | 餐厅菜单负责人 / 食品安全负责人 |
+| DEC-005 真实数据保留和合规 | `DEFERRED_UNTIL_REAL_PILOT` | ASM-009,ASM-010 | REQ-019,REQ-020,REQ-021,REQ-029 | RISK-021,RISK-022,RISK-023,RISK-024,RISK-025,RISK-026,RISK-027,RISK-028 | 隐私负责人 / 法律专业人员 |
