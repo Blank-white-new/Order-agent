@@ -114,7 +114,7 @@ describe("ChatWindow order UX", () => {
     expect(screen.getByText("基于当前会话最近返回的状态显示")).toBeInTheDocument();
     expect(screen.getByText("黑椒牛肉饭")).toBeInTheDocument();
     expect(screen.getByText("饭类 · 2份")).toBeInTheDocument();
-    expect(screen.getByText("小计：60 元")).toBeInTheDocument();
+    expect(screen.getByText("小计：60 HKD")).toBeInTheDocument();
   });
 
   test("renders user and agent messages with long recommendation-style replies", async () => {

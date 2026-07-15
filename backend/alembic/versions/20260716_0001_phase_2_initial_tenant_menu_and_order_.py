@@ -1,7 +1,7 @@
 """phase 2 initial tenant menu and order schema
 
 Revision ID: 20260716_0001
-Revises: 
+Revises:
 Create Date: 2026-07-16 01:20:02.516474
 """
 from typing import Sequence, Union

@@ -11,6 +11,10 @@ class OrderItem(BaseModel):
     item_id: str
     name: str
     price: int
+    unit_price_minor: int | None = None
+    currency: str = "HKD"
+    menu_item_db_id: int | None = None
+    menu_version_id: int | None = None
     quantity: int = 1
     options: list[str] = Field(default_factory=list)
     spicy_level: str | None = None
@@ -30,6 +34,14 @@ class DeliveryAddressCandidate(BaseModel):
 
 
 class SessionState(BaseModel):
+    restaurant_code: str | None = None
+    branch_code: str | None = None
+    persistence_version: int = 0
+    is_synthetic: bool = True
+    draft_version: int = 1
+    lifecycle_status: str = "DRAFT"
+    merchant_status: str = "NOT_INTEGRATED"
+    confirmation_valid: bool = False
     stage: str = "ordering"
     current_order: list[OrderItem] = Field(default_factory=list)
     last_recommendations: list[dict[str, Any]] = Field(default_factory=list)

@@ -135,9 +135,9 @@ SUBMITTED_CONFIRMATION_COMMANDS = {
 
 
 class OrchestratorAgent:
-    def __init__(self) -> None:
-        self.menu_service = MenuService()
-        self.delivery_service = DeliveryService()
+    def __init__(self, *, menu_service: MenuService | None = None, delivery_service: DeliveryService | None = None) -> None:
+        self.menu_service = menu_service or MenuService()
+        self.delivery_service = delivery_service or DeliveryService()
         self.order_service = OrderService()
         self.semantic_router = SemanticRouterAgent(self.menu_service)
         self.llm_client = create_llm_fallback_client()
@@ -150,6 +150,7 @@ class OrchestratorAgent:
         self.response_agent = ResponseAgent()
 
     def handle_user_message(self, user_message: str, session_state: SessionState | None = None) -> dict[str, Any]:
+        self.menu_service.refresh()
         state = session_state or SessionState()
         before = state.clone()
         normalized = self.semantic_router.normalize(user_message)
@@ -204,6 +205,7 @@ class OrchestratorAgent:
                         confirmed=action_result.get("handler") in ("submit_order", "clear_order"),
                     )
 
+        self._advance_draft_version_if_material_change(before, state)
         response = self.response_agent.generate(action_result, state)
         trace = {
             "userMessage": user_message,
@@ -225,6 +227,9 @@ class OrchestratorAgent:
             "referenceDomain": interpretation.entities.get("reference_domain"),
             "currentStageBefore": before.stage,
             "currentStageAfter": state.stage,
+            "lifecycleStatus": state.lifecycle_status,
+            "merchantStatus": state.merchant_status,
+            "draftVersion": state.draft_version,
             "orderBefore": order_to_dicts(before.current_order),
             "orderAfter": order_to_dicts(state.current_order),
             "officialAddressBefore": before.official_delivery_address,
@@ -249,7 +254,15 @@ class OrchestratorAgent:
         order_id = state.submitted_order_id or "当前订单"
 
         if command in NEW_ORDER_COMMANDS:
-            self._apply_patch(state, SessionState().serializable())
+            self._apply_patch(
+                state,
+                SessionState(
+                    restaurant_code=state.restaurant_code,
+                    branch_code=state.branch_code,
+                    persistence_version=state.persistence_version,
+                    is_synthetic=state.is_synthetic,
+                ).serializable(),
+            )
             final_intent = "start_new_order"
             selected_agent = "OrchestratorAgent"
             selected_handler = "start_new_order"
@@ -261,7 +274,7 @@ class OrchestratorAgent:
             final_intent = "confirm"
             selected_agent = "ConfirmationAgent"
             selected_handler = "order_already_submitted"
-            response = f"订单已提交，订单号 {order_id}。如需重新下单，请说“重新下单”或“再来一单”。"
+            response = f"模拟订单 {order_id} 已由顾客确认并保存，尚未发送给真实餐厅，不能继续修改。如需新订单，请说“重新下单”。"
             mutation_allowed = False
             rejected_reason = "order_already_submitted"
             lifecycle_reason = "order_already_submitted"
@@ -270,7 +283,7 @@ class OrchestratorAgent:
             selected_agent = "ResponseAgent"
             selected_handler = "submitted_order_locked"
             response = (
-                f"订单已提交，订单号 {order_id}，不能继续修改。"
+                f"模拟订单 {order_id} 已由顾客确认并锁定，尚未发送给真实餐厅，不能继续修改。"
                 "如需重新下单，请说“重新下单”或“再来一单”。"
             )
             mutation_allowed = False
@@ -295,6 +308,9 @@ class OrchestratorAgent:
             "conditionalDecision": None,
             "currentStageBefore": before.stage,
             "currentStageAfter": state.stage,
+            "lifecycleStatus": state.lifecycle_status,
+            "merchantStatus": state.merchant_status,
+            "draftVersion": state.draft_version,
             "orderBefore": order_to_dicts(before.current_order),
             "orderAfter": order_to_dicts(state.current_order),
             "officialAddressBefore": before.official_delivery_address,
@@ -1192,6 +1208,25 @@ class OrchestratorAgent:
         if hasattr(value, "dict") or hasattr(value, "model_dump"):
             return dump_model(value)
         return value
+
+    def _advance_draft_version_if_material_change(self, before: SessionState, state: SessionState) -> None:
+        material_before = (
+            order_to_dicts(before.current_order),
+            before.fulfillment_type,
+            before.official_delivery_address,
+            before.phone,
+        )
+        material_after = (
+            order_to_dicts(state.current_order),
+            state.fulfillment_type,
+            state.official_delivery_address,
+            state.phone,
+        )
+        if material_before != material_after and not state.submitted:
+            state.draft_version = max(before.draft_version + 1, state.draft_version)
+            state.confirmation_valid = False
+            state.lifecycle_status = "DRAFT"
+            state.merchant_status = "NOT_INTEGRATED"
 
     def _copy_interpretation(self, interpretation: Interpretation, update: dict[str, Any]) -> Interpretation:
         if hasattr(interpretation, "model_copy"):

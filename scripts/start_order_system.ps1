@@ -235,6 +235,10 @@ try {
       "LLM_FALLBACK_ENABLED",
       "LLM_FALLBACK_SPECULATIVE_ENABLED",
       "ALLOW_LIVE_LLM",
+      "APP_ENV",
+      "DATABASE_URL",
+      "AUTO_MIGRATE_LOCAL",
+      "SIMULATION_DATA_ONLY",
       "VITE_API_BASE_URL",
       "VITE_BACKEND_PROXY_TARGET"
     )
@@ -248,8 +252,19 @@ try {
       [Environment]::SetEnvironmentVariable("LLM_FALLBACK_ENABLED", "false", [EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable("LLM_FALLBACK_SPECULATIVE_ENABLED", "false", [EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable("ALLOW_LIVE_LLM", "false", [EnvironmentVariableTarget]::Process)
+      foreach ($databaseName in @("APP_ENV", "DATABASE_URL", "AUTO_MIGRATE_LOCAL", "SIMULATION_DATA_ONLY")) {
+        $databaseValue = Get-EnvValue -Path $EnvFile -Name $databaseName
+        if (-not [string]::IsNullOrWhiteSpace($databaseValue)) {
+          [Environment]::SetEnvironmentVariable($databaseName, $databaseValue, [EnvironmentVariableTarget]::Process)
+        }
+      }
       [Environment]::SetEnvironmentVariable("VITE_API_BASE_URL", "/api", [EnvironmentVariableTarget]::Process)
       [Environment]::SetEnvironmentVariable("VITE_BACKEND_PROXY_TARGET", "http://127.0.0.1:8000", [EnvironmentVariableTarget]::Process)
+
+      & $PythonExe -B (Join-Path $ProjectRoot "scripts\auto_init_local_db.py")
+      if ($LASTEXITCODE -ne 0) {
+        throw "Local database initialization failed; startup stopped."
+      }
 
       if ($null -eq $backendPid) {
         Remove-Item -LiteralPath $BackendLog, $BackendErrorLog -Force -ErrorAction SilentlyContinue

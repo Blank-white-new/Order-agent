@@ -1,7 +1,8 @@
 export type OrderItemView = {
   key: string;
   name: string;
-  price: number | null;
+  priceMinor: number | null;
+  currency: string;
   quantity: number;
   options: string[];
   spicyLevel: string | null;
@@ -20,13 +21,16 @@ export type OrderStateView = {
   stage: string | null;
   submitted: boolean;
   submittedOrderId: string | null;
+  lifecycleStatus: string;
+  merchantStatus: string;
 };
 
 export type MenuItemView = {
   id: string;
   name: string | null;
   category: string;
-  price: number | null;
+  priceMinor: number | null;
+  currency: string;
   tags: string[];
   options: string[];
   recommendedScore: number | null;
@@ -42,6 +46,7 @@ export type MenuView = {
 export function normalizeOrderState(raw: unknown): OrderStateView {
   const state = isRecord(raw) ? raw : {};
   const rawOrder = Array.isArray(state.current_order) ? state.current_order : [];
+  const submitted = state.submitted === true;
   return {
     currentOrder: rawOrder.map(normalizeOrderItem),
     fulfillmentType: optionalString(state.fulfillment_type),
@@ -49,8 +54,10 @@ export function normalizeOrderState(raw: unknown): OrderStateView {
     pendingDeliveryAddress: pendingAddressLabel(state.pending_delivery_address_candidate),
     phone: optionalString(state.phone),
     stage: optionalString(state.stage),
-    submitted: state.submitted === true,
+    submitted,
     submittedOrderId: optionalString(state.submitted_order_id),
+    lifecycleStatus: optionalString(state.lifecycle_status) ?? (submitted ? "CUSTOMER_CONFIRMED" : "DRAFT"),
+    merchantStatus: optionalString(state.merchant_status) ?? "NOT_INTEGRATED",
   };
 }
 
@@ -68,10 +75,10 @@ export function normalizeMenuResponse(raw: unknown): MenuView {
 }
 
 export function orderLineSubtotal(item: OrderItemView): number | null {
-  if (item.price === null) {
+  if (item.priceMinor === null) {
     return null;
   }
-  return item.price * item.quantity;
+  return item.priceMinor * item.quantity;
 }
 
 export function knownOrderTotal(items: OrderItemView[]): number {
@@ -79,14 +86,14 @@ export function knownOrderTotal(items: OrderItemView[]): number {
 }
 
 export function hasUnknownOrderPrice(items: OrderItemView[]): boolean {
-  return items.some((item) => item.price === null);
+  return items.some((item) => item.priceMinor === null);
 }
 
-export function formatPrice(value: number | null): string {
+export function formatPrice(value: number | null, currency = "HKD"): string {
   if (value === null) {
     return "价格待确认";
   }
-  return `${formatNumber(value)} 元`;
+  return `${formatMinor(value)} ${currency}`;
 }
 
 function normalizeOrderItem(raw: unknown, index: number): OrderItemView {
@@ -95,7 +102,8 @@ function normalizeOrderItem(raw: unknown, index: number): OrderItemView {
   return {
     key: optionalString(item.item_id) ?? rawName ?? `order-item-${index}`,
     name: rawName ?? "菜品待确认",
-    price: finiteNumber(item.price),
+    priceMinor: integerMinor(item.unit_price_minor) ?? majorToMinor(item.price),
+    currency: optionalString(item.currency) ?? "HKD",
     quantity: positiveQuantity(item.quantity),
     options: stringList(item.options),
     spicyLevel: optionalString(item.spicy_level),
@@ -112,7 +120,8 @@ function normalizeMenuItem(raw: unknown, index: number): MenuItemView {
     id: optionalString(item.id) ?? `menu-item-${index}`,
     name: optionalString(item.name),
     category: optionalString(item.category) ?? "未分类",
-    price: finiteNumber(item.price),
+    priceMinor: integerMinor(item.base_price_minor) ?? majorToMinor(item.price),
+    currency: optionalString(item.currency) ?? "HKD",
     tags: stringList(item.tags),
     options: stringList(item.options),
     recommendedScore: finiteNumber(item.recommended_score),
@@ -140,6 +149,14 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function integerMinor(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function majorToMinor(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value * 100 : null;
+}
+
 function positiveQuantity(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return 1;
@@ -158,9 +175,8 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
-function formatNumber(value: number): string {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(2).replace(/\.?0+$/, "");
+function formatMinor(value: number): string {
+  const whole = Math.floor(value / 100);
+  const cents = value % 100;
+  return cents === 0 ? String(whole) : `${whole}.${String(cents).padStart(2, "0")}`;
 }

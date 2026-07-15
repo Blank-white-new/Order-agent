@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 InterpretationSource = Literal["rule", "deterministic", "llm", "merged"]
@@ -32,6 +32,10 @@ class MenuItem(BaseModel):
     name: str
     category: str
     price: int
+    base_price_minor: int | None = None
+    currency: str = "HKD"
+    menu_item_db_id: int | None = None
+    menu_version_id: int | None = None
     tags: list[str] = Field(default_factory=list)
     spicy_level: int = 0
     available: bool = True
@@ -48,9 +52,18 @@ class MenuItem(BaseModel):
 
 
 class ChatRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     session_id: str
     message: str
+    restaurant_id: str | None = Field(default=None, validation_alias=AliasChoices("restaurantId", "restaurant_id"))
+    branch_id: str | None = Field(default=None, validation_alias=AliasChoices("branchId", "branch_id"))
+    idempotency_key: str | None = Field(default=None, validation_alias=AliasChoices("idempotencyKey", "idempotency_key"))
 
 
 class ResetRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     session_id: str
+    restaurant_id: str | None = Field(default=None, validation_alias=AliasChoices("restaurantId", "restaurant_id"))
+    branch_id: str | None = Field(default=None, validation_alias=AliasChoices("branchId", "branch_id"))

@@ -22,7 +22,11 @@ export function OrderSummary({ state }: OrderSummaryProps) {
           <h2 id="order-summary-title">当前订单状态</h2>
           <p>基于当前会话最近返回的状态显示</p>
         </div>
-        {state.submitted ? <span className="status-pill success">已提交</span> : <span className="status-pill">进行中</span>}
+        {state.lifecycleStatus === "CUSTOMER_CONFIRMED" ? (
+          <span className="status-pill success">顾客已确认</span>
+        ) : (
+          <span className="status-pill">进行中</span>
+        )}
       </div>
 
       {hasItems ? (
@@ -44,8 +48,8 @@ export function OrderSummary({ state }: OrderSummaryProps) {
                   {note ? <small>备注：{note}</small> : null}
                 </div>
                 <div className="order-line-price">
-                  <span>单价：{formatPrice(item.price)}</span>
-                  <span>小计：{subtotal === null ? "价格待确认" : formatPrice(subtotal)}</span>
+                  <span>单价：{formatPrice(item.priceMinor, item.currency)}</span>
+                  <span>小计：{subtotal === null ? "价格待确认" : formatPrice(subtotal, item.currency)}</span>
                 </div>
               </li>
             );
@@ -72,17 +76,21 @@ export function OrderSummary({ state }: OrderSummaryProps) {
           <dt>当前阶段</dt>
           <dd>{stageLabel(state.stage)}</dd>
         </div>
+        <div>
+          <dt>商家状态</dt>
+          <dd>{state.merchantStatus === "NOT_INTEGRATED" ? "未接入真实餐厅" : state.merchantStatus}</dd>
+        </div>
       </dl>
 
       {hasItems ? (
         <div className="order-total" aria-label="订单总价">
           <span>总价</span>
-          <strong>{totalLabel(total, hasUnknownPrice)}</strong>
+          <strong>{totalLabel(total, hasUnknownPrice, state.currentOrder[0]?.currency ?? "HKD")}</strong>
         </div>
       ) : null}
 
       {state.submittedOrderId ? (
-        <p className="order-id">订单号（mock order）：{state.submittedOrderId}</p>
+        <p className="order-id">本地模拟订单号：{state.submittedOrderId}</p>
       ) : null}
     </section>
   );
@@ -158,17 +166,17 @@ function stageLabel(value: string | null): string {
     return "待确认";
   }
   if (value === "submitted") {
-    return "已提交";
+    return "顾客已确认（尚未发送）";
   }
   return value ?? "待确认";
 }
 
-function totalLabel(total: number, hasUnknownPrice: boolean): string {
+function totalLabel(total: number, hasUnknownPrice: boolean, currency: string): string {
   if (!hasUnknownPrice) {
-    return formatPrice(total);
+    return formatPrice(total, currency);
   }
   if (total > 0) {
-    return `已知 ${formatPrice(total)}，部分价格待确认`;
+    return `已知 ${formatPrice(total, currency)}，部分价格待确认`;
   }
   return "价格待确认";
 }

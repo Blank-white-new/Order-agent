@@ -45,7 +45,8 @@ def test_complete_order_confirm_can_submit(orchestrator):
 
     assert_trace_basics(result, agent="ConfirmationAgent", handler="submit_order", intent="confirm")
     assert result["state"]["submitted"] is True
-    assert "已提交" in result["response"]
+    assert "订单已确认并保存到模拟系统" in result["response"]
+    assert "尚未发送给真实餐厅" in result["response"]
 
 
 def test_pending_candidate_confirm_confirms_address_not_order(orchestrator):
@@ -185,7 +186,8 @@ def test_e2e_complete_signature_order_closes_submission_loop(orchestrator):
     assert result["state"]["phone"] == "13800138000"
     assert "还需要配送地址" not in result["response"]
     assert "还需要联系电话" not in result["response"]
-    assert "已提交" in result["response"]
+    assert "订单已确认并保存到模拟系统" in result["response"]
+    assert "尚未发送给真实餐厅" in result["response"]
     order = result["state"]["current_order"]
     assert len(order) == 1
     assert order[0]["name"] == "黑椒牛肉饭"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
@@ -9,6 +10,7 @@ from app.api.voice import router as voice_router
 from app.runtime import text_entry_service, voice_runtime
 from app.agents.voice_gateway_agent import VoiceGatewayAgent
 from app.voice.status import evaluate_voice_status
+from app.domain.errors import DomainError
 
 
 app = FastAPI(title="Multi-Agent Ordering System")
@@ -22,6 +24,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(DomainError)
+async def handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
+    return JSONResponse(
+        status_code=int(exc.http_status),
+        content={"error": {"code": exc.code, "message": exc.message}},
+    )
 
 
 @app.get("/api/health")

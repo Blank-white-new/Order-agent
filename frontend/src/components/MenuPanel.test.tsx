@@ -33,7 +33,7 @@ describe("MenuPanel", () => {
 
     expect(await screen.findByText("饭类")).toBeInTheDocument();
     expect(screen.getByText("鸡腿饭")).toBeInTheDocument();
-    expect(screen.getByText("26 元")).toBeInTheDocument();
+    expect(screen.getByText("26 HKD")).toBeInTheDocument();
     expect(screen.getByText("推荐")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "填入我要一份鸡腿饭" }));

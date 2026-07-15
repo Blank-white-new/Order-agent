@@ -38,6 +38,10 @@ class OrderService:
                 item_id=item.id,
                 name=item.name,
                 price=item.price,
+                unit_price_minor=item.base_price_minor if item.base_price_minor is not None else item.price * 100,
+                currency=item.currency,
+                menu_item_db_id=item.menu_item_db_id,
+                menu_version_id=item.menu_version_id,
                 quantity=quantity,
                 options=options,
                 spicy_level=spicy_level,
@@ -222,6 +226,10 @@ class OrderService:
                         item_id=new_item.id,
                         name=new_item.name,
                         price=new_item.price,
+                        unit_price_minor=new_item.base_price_minor if new_item.base_price_minor is not None else new_item.price * 100,
+                        currency=new_item.currency,
+                        menu_item_db_id=new_item.menu_item_db_id,
+                        menu_version_id=new_item.menu_version_id,
                         quantity=quantity or entry.quantity,
                         options=options,
                         category=new_item.category,
@@ -244,6 +252,10 @@ class OrderService:
                     item_id=new_item.id,
                     name=new_item.name,
                     price=new_item.price,
+                    unit_price_minor=new_item.base_price_minor if new_item.base_price_minor is not None else new_item.price * 100,
+                    currency=new_item.currency,
+                    menu_item_db_id=new_item.menu_item_db_id,
+                    menu_version_id=new_item.menu_version_id,
                     quantity=quantity or entry.quantity,
                     options=options,
                     category=new_item.category,
@@ -271,6 +283,9 @@ class OrderService:
 
     def total_price(self, state: SessionState) -> int:
         return sum(entry.price * entry.quantity for entry in state.current_order)
+
+    def subtotal_minor(self, state: SessionState) -> int:
+        return sum((entry.unit_price_minor if entry.unit_price_minor is not None else entry.price * 100) * entry.quantity for entry in state.current_order)
 
     def validate_before_submit(self, state: SessionState) -> tuple[bool, str | None]:
         if not state.current_order:

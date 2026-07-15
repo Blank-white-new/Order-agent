@@ -1,20 +1,96 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from app.models.schemas import MenuItem, dump_model
+from app.db.bootstrap import get_runtime_database
+from app.repositories.uow import SqlAlchemyUnitOfWork
 from app.services.menu_config_loader import load_menu_config
+from app.services.tenant_service import TenantService
 
 
 class MenuService:
-    def __init__(self, config_path: str | Path | None = None) -> None:
-        config = load_menu_config(config_path)
-        self._items = list(config.items)
-        self._categories = list(config.categories)
-        self._category_aliases = {category: list(aliases) for category, aliases in config.category_aliases.items()}
-        self._category_group_aliases = {group: list(aliases) for group, aliases in config.category_group_aliases.items()}
-        self._category_groups = {group: list(categories) for group, categories in config.category_groups.items()}
-        self._safe_match_aliases = {item_id: list(aliases) for item_id, aliases in config.safe_match_aliases.items()}
+    def __init__(
+        self,
+        config_path: str | Path | None = None,
+        *,
+        restaurant_code: str | None = None,
+        branch_code: str | None = None,
+        database=None,
+    ) -> None:
+        # Explicit fixture paths and MENU_CONFIG_PATH remain supported for
+        # import/recovery tests. Normal runtime reads the published DB menu.
+        self._legacy_fixture = config_path is not None or bool(os.getenv("MENU_CONFIG_PATH"))
+        self._restaurant_code = restaurant_code
+        self._branch_code = branch_code
+        self._items: list[MenuItem] = []
+        self._categories: list[str] = []
+        self._category_aliases: dict[str, list[str]] = {}
+        self._category_group_aliases: dict[str, list[str]] = {}
+        self._category_groups: dict[str, list[str]] = {}
+        self._safe_match_aliases: dict[str, list[str]] = {}
+        if self._legacy_fixture:
+            config = load_menu_config(config_path)
+            self._items = [
+                item.model_copy(update={"base_price_minor": item.price * 100, "currency": config.currency})
+                for item in config.items
+            ]
+            self._categories = list(config.categories)
+            self._category_aliases = {category: list(aliases) for category, aliases in config.category_aliases.items()}
+            self._category_group_aliases = {group: list(aliases) for group, aliases in config.category_group_aliases.items()}
+            self._category_groups = {group: list(categories) for group, categories in config.category_groups.items()}
+            self._safe_match_aliases = {item_id: list(aliases) for item_id, aliases in config.safe_match_aliases.items()}
+            return
+        self._database = database or get_runtime_database()
+        self._uow_factory = lambda: SqlAlchemyUnitOfWork(self._database.session_factory)
+        self._tenant_service = TenantService(self._uow_factory, self._database.settings)
+        self.refresh()
+
+    def refresh(self) -> None:
+        if self._legacy_fixture:
+            return
+        tenant = self._tenant_service.resolve(self._restaurant_code, self._branch_code)
+        with self._uow_factory() as uow:
+            records = uow.menus.list_items(tenant.branch_id, include_unavailable=True)
+            categories, aliases, groups = uow.menus.category_configuration(tenant.branch_id)
+        self._items = []
+        for record in records:
+            attributes = record.attributes
+            self._items.append(
+                MenuItem(
+                    id=record.code,
+                    name=record.name,
+                    category=record.category,
+                    price=record.base_price_minor // 100,
+                    base_price_minor=record.base_price_minor,
+                    currency=record.currency,
+                    menu_item_db_id=record.id,
+                    menu_version_id=record.menu_version_id,
+                    tags=list(attributes.get("tags", [])),
+                    spicy_level=int(attributes.get("spicy_level", 0)),
+                    available=record.available,
+                    options=list(attributes.get("options", [])),
+                    aliases=list(record.aliases),
+                    description=str(attributes.get("description", "")),
+                    ingredients=list(attributes.get("ingredients", [])),
+                    allergens=[
+                        declaration["name"]
+                        for declaration in record.allergens
+                        if declaration.get("name") and declaration.get("declaration") in {"CONTAINS", "MAY_CONTAIN"}
+                    ],
+                    recommended_score=float(attributes.get("recommended_score", 0)),
+                    recommend_reason=str(attributes.get("recommend_reason", "")),
+                    prep_speed=str(attributes.get("prep_speed", "normal")),
+                    taste_profile=list(attributes.get("taste_profile", [])),
+                    portion=str(attributes.get("portion", "medium")),
+                )
+            )
+        self._categories = categories
+        self._category_aliases = aliases
+        self._category_groups = groups
+        self._category_group_aliases = {group: [group] for group in groups}
+        self._safe_match_aliases = {}
 
     def get_all_categories(self) -> list[str]:
         categories: list[str] = []
@@ -186,6 +262,10 @@ class MenuService:
     def get_item_price(self, name: str) -> int | None:
         item = self.find_item_by_name(name)
         return item.price if item else None
+
+    def get_item_price_minor(self, name: str) -> int | None:
+        item = self.find_item_by_name(name)
+        return item.base_price_minor if item else None
 
     def get_item_options(self, name: str) -> list[str]:
         item = self.find_item_by_name(name)

@@ -47,8 +47,15 @@ class ConfirmationAgent:
         return {
             "agent": self.name,
             "handler": "submit_order",
-            "message": f"{summary} 订单已提交，订单号{order_id}。",
-            "patch": {"submitted": True, "submitted_order_id": order_id, "stage": "submitted"},
+            "message": f"{summary} 订单已确认并保存到模拟系统，尚未发送给真实餐厅。模拟订单号 {order_id}。",
+            "patch": {
+                "submitted": True,
+                "submitted_order_id": order_id,
+                "stage": "submitted",
+                "lifecycle_status": "CUSTOMER_CONFIRMED",
+                "merchant_status": "NOT_INTEGRATED",
+                "confirmation_valid": True,
+            },
         }
 
     def _handle_pending_action(self, state: SessionState) -> dict | None:
