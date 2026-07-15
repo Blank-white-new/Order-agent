@@ -1,5 +1,7 @@
 # Multi-Agent Ordering System
 
+[![CI](https://github.com/Blank-white-new/Order-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Blank-white-new/Order-agent/actions/workflows/ci.yml)
+
 一个规则优先、Orchestrator 统一裁决的中文多 Agent 订餐演示系统。它覆盖多轮点餐、推荐、订单修改、配送/自取与提交确认，并提供 React 前端、可选语音演示、安全 LLM fallback sandbox 和可重复的 V3 对话评估。
 
 > 默认运行不调用真实 LLM。菜单、价格与配送费来自服务层；订单提交前必须确认，所有状态修改都经过 Orchestrator。
@@ -31,6 +33,8 @@
 
 架构、录屏流程和专项说明：
 
+- [当前能力与稳定基线](docs/current-capabilities.md)
+- [本地开发与干净环境安装](docs/local-development.md)
 - [系统架构](docs/architecture.md)
 - [30–60 秒演示脚本](docs/demo-guide.md)
 - [本机演示验收记录](docs/demo-acceptance.md)
@@ -45,6 +49,8 @@
 ![文本演示订单截图](docs/assets/demo-chat-order.png)
 
 ## 快速开始（Windows PowerShell）
+
+阶段 0 推荐并在 CI 中固定 Python 3.13.2、Node.js 24.15.0 和 npm 11.12.1；完整版本与平台说明见[本地开发文档](docs/local-development.md)。
 
 1. 克隆项目并进入目录：
 
@@ -68,8 +74,10 @@ notepad .env
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 ```
+
+`requirements.txt` 是直接依赖清单；可复现安装和 CI 使用固定完整依赖与哈希的 `requirements.lock.txt`。安装 `pip-tools` 后，可从仓库根目录运行 `.\scripts\compile_backend_lock.ps1` 重新生成锁文件。
 
 4. 安装前端依赖：
 
@@ -263,8 +271,10 @@ auto job success：
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 ```
+
+日常安装使用锁文件；`requirements.txt` 仅用于维护直接依赖。重新生成命令与干净环境验证流程见[本地开发文档](docs/local-development.md)。
 
 ## 配置 `.env`
 
@@ -515,7 +525,7 @@ TTS_ENGINE_RECREATE_PER_TASK=true
 
 ```powershell
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 ```
 
 `vosk` 和 `pyttsx3` 都是 lazy import：`VOICE_ENABLED=false` 时，即使没有安装语音依赖，文本模式仍应正常启动和测试。本轮不实现 CLI 语音模式，因此不强制依赖 `sounddevice`；Web 麦克风采集由浏览器 `getUserMedia` 完成。
@@ -555,7 +565,7 @@ Windows 注意事项：
 1. 安装后端依赖：
 
 ```powershell
-python -m pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements.lock.txt
 ```
 
 2. 下载 Vosk 中文模型。推荐开发使用 `vosk-model-small-cn-0.22`，下载页是 `https://alphacephei.com/vosk/models`。不要把模型文件提交到 Git。

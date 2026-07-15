@@ -32,12 +32,12 @@ if (-not (Test-Path $PythonExe)) {
 }
 
 Write-Host "Installing backend dependencies..."
-& $PipExe install -r (Join-Path $BackendDir "requirements.txt")
+& $PipExe install -r (Join-Path $BackendDir "requirements.lock.txt")
 
 if (-not (Test-Path (Join-Path $FrontendDir "node_modules"))) {
   Write-Host "Installing frontend dependencies..."
   Push-Location $FrontendDir
-  npm install
+  npm ci
   Pop-Location
 }
 
