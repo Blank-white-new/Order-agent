@@ -5,11 +5,22 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ScriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptsDir
+$VenvPython = Join-Path $ProjectRoot "backend\.venv\Scripts\python.exe"
+$Python = if (Test-Path $VenvPython) { $VenvPython } else { "python" }
 . (Join-Path $ScriptsDir "offline_llm_guard.ps1")
 $LlmEnvironmentSnapshot = Enable-OfflineLlmChecks
 
 try {
   Write-Host "Running all quality checks..." -ForegroundColor Cyan
+
+  Write-Host ""
+  Write-Host "==> Phase 1 scenario catalog" -ForegroundColor Cyan
+  & $Python (Join-Path $ScriptsDir "validate_phase1_scenarios.py")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Phase 1 scenario validation failed with exit code $LASTEXITCODE"
+  }
+  Write-Host "[OK] Phase 1 scenario catalog" -ForegroundColor Green
 
   & (Join-Path $ScriptsDir "check_backend.ps1")
   & (Join-Path $ScriptsDir "check_frontend.ps1") -Build:$Build

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/order-agent/phase1_scenarios.schema.json",
+  "title": "Phase 1 policy scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenario_id",
+    "trace_id",
+    "title",
+    "market",
+    "locale",
+    "category",
+    "preconditions",
+    "user_input",
+    "expected_classification",
+    "required_confirmation",
+    "handoff_reason_code",
+    "requirement_ids",
+    "risk_ids",
+    "metric_ids",
+    "data_classes",
+    "forbidden_outcomes",
+    "future_stage",
+    "notes"
+  ],
+  "properties": {
+    "scenario_id": {"type": "string", "pattern": "^P1-(ZH|YUE|EN|MIX)-[0-9]{3}$"},
+    "trace_id": {"type": "string", "pattern": "^SCENARIO-[0-9]{3}$"},
+    "title": {"type": "string", "minLength": 1},
+    "market": {"const": "HK_SIMULATION"},
+    "locale": {"enum": ["zh-CN", "yue-Hant-HK", "en-HK", "mixed"]},
+    "category": {
+      "enum": [
+        "MENU_QUERY",
+        "ORDER_MUTATION",
+        "ORDER_REMOVAL_OR_UPDATE",
+        "RECOMMENDATION",
+        "FULFILLMENT_SELECTION",
+        "ADDRESS_AND_PHONE",
+        "FINAL_CONFIRMATION",
+        "CUSTOMER_CHANGED_MIND",
+        "REPEATED_CORRECTION",
+        "AMBIGUOUS_ITEM",
+        "AMBIGUOUS_QUANTITY",
+        "PRICE_UNAVAILABLE",
+        "SOLD_OUT",
+        "OUTSIDE_HOURS",
+        "REGULATED_ITEM",
+        "LANGUAGE_SWITCH",
+        "SEVERE_ALLERGY",
+        "CROSS_CONTAMINATION",
+        "INTOLERANCE",
+        "COMPLAINT",
+        "REFUND_REQUEST",
+        "PAYMENT_DISPUTE",
+        "EXPLICIT_HUMAN_REQUEST",
+        "MERCHANT_TIMEOUT",
+        "MERCHANT_REJECTED",
+        "SYSTEM_FAILURE",
+        "CALL_INTERRUPTION",
+        "PROMPT_INJECTION",
+        "UNAUTHORIZED_DATA_ACCESS",
+        "OTHER_ORDER_ACCESS",
+        "REPEATED_REQUEST",
+        "ABUSE",
+        "CONFIRMATION_BYPASS_OR_FAKE_ACCEPTANCE",
+        "PAYMENT_CARD_DATA",
+        "OUT_OF_SCOPE_SMS",
+        "UNVERIFIABLE_FOOD_SAFETY_GUARANTEE"
+      ]
+    },
+    "preconditions": {"type": "array", "items": {"type": "string"}},
+    "user_input": {"type": "string", "minLength": 1},
+    "expected_classification": {"enum": ["AUTO_DRAFT", "CONFIRM", "HANDOFF", "REFUSE"]},
+    "required_confirmation": {"type": "boolean"},
+    "handoff_reason_code": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "EXPLICIT_HUMAN_REQUEST",
+        "SEVERE_ALLERGY",
+        "CROSS_CONTAMINATION",
+        "REPEATED_MISUNDERSTANDING",
+        "AMBIGUOUS_ITEM",
+        "AMBIGUOUS_QUANTITY",
+        "UNVERIFIED_ADDRESS",
+        "PRICE_UNAVAILABLE",
+        "MENU_DATA_MISSING",
+        "COMPLAINT",
+        "REFUND_REQUEST",
+        "PAYMENT_DISPUTE",
+        "MERCHANT_REJECTED",
+        "MERCHANT_TIMEOUT",
+        "SYSTEM_FAILURE",
+        "LANGUAGE_UNSUPPORTED",
+        "ABUSE_OR_SECURITY",
+        "REGULATED_ITEM"
+      ]
+    },
+    "requirement_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^REQ-[0-9]{3}$"},
+      "uniqueItems": true
+    },
+    "risk_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^RISK-[0-9]{3}$"},
+      "uniqueItems": true
+    },
+    "metric_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^METRIC-[0-9]{3}$"},
+      "uniqueItems": true
+    },
+    "data_classes": {
+      "type": "array",
+      "items": {"enum": ["PUBLIC", "INTERNAL", "PERSONAL", "HIGH_SENSITIVITY", "SECRET"]},
+      "uniqueItems": true
+    },
+    "forbidden_outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "future_stage": {"type": "integer", "minimum": 2, "maximum": 12},
+    "notes": {"type": "string"}
+  }
+}
