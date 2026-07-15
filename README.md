@@ -33,6 +33,7 @@
 
 架构、录屏流程和专项说明：
 
+- [阶段 1：产品范围、风险边界和验收指标](docs/phase-1/README.md)
 - [当前能力与稳定基线](docs/current-capabilities.md)
 - [本地开发与干净环境安装](docs/local-development.md)
 - [系统架构](docs/architecture.md)
