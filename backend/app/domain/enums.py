@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class RestaurantStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class BranchStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class MenuVersionStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    ARCHIVED = "ARCHIVED"
+
+
+class AllergenDeclaration(StrEnum):
+    CONTAINS = "CONTAINS"
+    MAY_CONTAIN = "MAY_CONTAIN"
+    UNKNOWN = "UNKNOWN"
+
+
+class SessionStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    CLOSED = "CLOSED"
+
+
+class OrderStatus(StrEnum):
+    DRAFT = "DRAFT"
+    CUSTOMER_CONFIRMED = "CUSTOMER_CONFIRMED"
+    SUBMISSION_STARTED = "SUBMISSION_STARTED"
+    MERCHANT_PENDING = "MERCHANT_PENDING"
+    MERCHANT_ACCEPTED = "MERCHANT_ACCEPTED"
+    MERCHANT_REJECTED = "MERCHANT_REJECTED"
+    SUBMISSION_FAILED = "SUBMISSION_FAILED"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
+
+
+class MerchantStatus(StrEnum):
+    NOT_INTEGRATED = "NOT_INTEGRATED"
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ActorType(StrEnum):
+    CUSTOMER = "CUSTOMER"
+    SYSTEM = "SYSTEM"
+    MERCHANT_FIXTURE = "MERCHANT_FIXTURE"
+    OPERATOR = "OPERATOR"

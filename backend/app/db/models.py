@@ -1,0 +1,505 @@
+from __future__ import annotations
+
+from datetime import date, datetime, time, timezone
+from typing import Any
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class Restaurant(Base):
+    __tablename__ = "restaurants"
+    __table_args__ = (
+        CheckConstraint("length(currency) = 3", name="currency_iso3"),
+        CheckConstraint("status in ('ACTIVE','INACTIVE')", name="status_valid"),
+        Index("ix_restaurants_status_simulation", "status", "is_simulation"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ACTIVE")
+    default_locale: Mapped[str] = mapped_column(String(32), nullable=False, default="zh-CN")
+    timezone: Mapped[str] = mapped_column(String(80), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    is_simulation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MenuVersion(Base):
+    __tablename__ = "menu_versions"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "version_number", name="uq_menu_versions_restaurant_number"),
+        UniqueConstraint("id", "restaurant_id", name="uq_menu_versions_id_restaurant"),
+        CheckConstraint("version_number > 0", name="version_positive"),
+        CheckConstraint("status in ('DRAFT','PUBLISHED','ARCHIVED')", name="status_valid"),
+        Index("ix_menu_versions_restaurant_status", "restaurant_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="DRAFT")
+    effective_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class Branch(Base):
+    __tablename__ = "branches"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "code", name="uq_branches_restaurant_code"),
+        UniqueConstraint("id", "restaurant_id", name="uq_branches_id_restaurant"),
+        ForeignKeyConstraint(
+            ["active_menu_version_id", "restaurant_id"],
+            ["menu_versions.id", "menu_versions.restaurant_id"],
+            name="fk_branches_active_menu_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("status in ('ACTIVE','INACTIVE')", name="status_valid"),
+        Index("ix_branches_restaurant_status", "restaurant_id", "status"),
+        Index("ix_branches_active_menu", "restaurant_id", "active_menu_version_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(80), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ACTIVE")
+    active_menu_version_id: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MenuCategory(Base):
+    __tablename__ = "menu_categories"
+    __table_args__ = (
+        UniqueConstraint("menu_version_id", "code", name="uq_menu_categories_version_code"),
+        UniqueConstraint("id", "menu_version_id", name="uq_menu_categories_id_version"),
+        Index("ix_menu_categories_version_sort", "menu_version_id", "sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(80), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class MenuCategoryTranslation(Base):
+    __tablename__ = "menu_category_translations"
+    __table_args__ = (UniqueConstraint("category_id", "locale", name="uq_category_translations_locale"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("menu_categories.id", ondelete="CASCADE"), nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class MenuItem(Base):
+    __tablename__ = "menu_items"
+    __table_args__ = (
+        UniqueConstraint("menu_version_id", "code", name="uq_menu_items_version_code"),
+        UniqueConstraint("id", "menu_version_id", name="uq_menu_items_id_version"),
+        ForeignKeyConstraint(
+            ["category_id", "menu_version_id"],
+            ["menu_categories.id", "menu_categories.menu_version_id"],
+            name="fk_menu_items_category_version",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("base_price_minor >= 0", name="price_nonnegative"),
+        CheckConstraint("length(currency) = 3", name="currency_iso3"),
+        Index("ix_menu_items_version_category", "menu_version_id", "category_id"),
+        Index("ix_menu_items_version_active", "menu_version_id", "active"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+    category_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    base_price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    attributes_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class MenuItemTranslation(Base):
+    __tablename__ = "menu_item_translations"
+    __table_args__ = (UniqueConstraint("menu_item_id", "locale", name="uq_item_translations_locale"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
+class MenuItemAlias(Base):
+    __tablename__ = "menu_item_aliases"
+    __table_args__ = (
+        UniqueConstraint("menu_version_id", "locale", "normalized_alias", name="uq_item_aliases_version_locale_norm"),
+        ForeignKeyConstraint(
+            ["menu_item_id", "menu_version_id"],
+            ["menu_items.id", "menu_items.menu_version_id"],
+            name="fk_item_aliases_item_version",
+            ondelete="CASCADE",
+        ),
+        Index("ix_item_aliases_lookup", "menu_version_id", "locale", "normalized_alias"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False)
+    alias: Mapped[str] = mapped_column(String(200), nullable=False)
+    normalized_alias: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class ModifierGroup(Base):
+    __tablename__ = "modifier_groups"
+    __table_args__ = (
+        UniqueConstraint("menu_version_id", "code", name="uq_modifier_groups_version_code"),
+        CheckConstraint("min_selections >= 0", name="min_nonnegative"),
+        CheckConstraint("max_selections >= min_selections", name="max_gte_min"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    min_selections: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_selections: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ModifierOption(Base):
+    __tablename__ = "modifier_options"
+    __table_args__ = (
+        UniqueConstraint("modifier_group_id", "code", name="uq_modifier_options_group_code"),
+        CheckConstraint("price_delta_minor >= 0", name="price_delta_nonnegative"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    modifier_group_id: Mapped[int] = mapped_column(ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    price_delta_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class MenuItemModifierGroup(Base):
+    __tablename__ = "menu_item_modifier_groups"
+    __table_args__ = (UniqueConstraint("menu_item_id", "modifier_group_id", name="uq_item_modifier_group_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
+    modifier_group_id: Mapped[int] = mapped_column(ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class Allergen(Base):
+    __tablename__ = "allergens"
+    __table_args__ = (UniqueConstraint("restaurant_id", "code", name="uq_allergens_restaurant_code"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class MenuItemAllergen(Base):
+    __tablename__ = "menu_item_allergens"
+    __table_args__ = (
+        UniqueConstraint("menu_item_id", "allergen_id", name="uq_item_allergens_pair"),
+        ForeignKeyConstraint(
+            ["menu_item_id", "menu_version_id"],
+            ["menu_items.id", "menu_items.menu_version_id"],
+            name="fk_item_allergens_item_version",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("declaration in ('CONTAINS','MAY_CONTAIN','UNKNOWN')", name="declaration_valid"),
+        Index("ix_item_allergens_version", "menu_version_id", "menu_item_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    allergen_id: Mapped[int] = mapped_column(ForeignKey("allergens.id", ondelete="RESTRICT"), nullable=False)
+    declaration: Mapped[str] = mapped_column(String(24), nullable=False)
+    source: Mapped[str] = mapped_column(String(200), nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+
+
+class OpeningHours(Base):
+    __tablename__ = "opening_hours"
+    __table_args__ = (
+        UniqueConstraint("branch_id", "weekday", "start_time", "end_time", "effective_date", name="uq_opening_hours_slot"),
+        CheckConstraint("weekday >= 0 and weekday <= 6", name="weekday_range"),
+        Index("ix_opening_hours_branch_weekday", "branch_id", "weekday"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    weekday: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[time] = mapped_column(Time, nullable=False)
+    end_time: Mapped[time] = mapped_column(Time, nullable=False)
+    is_closed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    effective_date: Mapped[date | None] = mapped_column(Date)
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class DeliveryZone(Base):
+    __tablename__ = "delivery_zones"
+    __table_args__ = (
+        UniqueConstraint("branch_id", "code", name="uq_delivery_zones_branch_code"),
+        CheckConstraint("fee_minor >= 0", name="fee_nonnegative"),
+        CheckConstraint("minimum_order_minor >= 0", name="minimum_nonnegative"),
+        Index("ix_delivery_zones_branch_active", "branch_id", "active"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    fee_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    minimum_order_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class BranchItemAvailability(Base):
+    __tablename__ = "branch_item_availability"
+    __table_args__ = (
+        UniqueConstraint("branch_id", "menu_item_id", name="uq_branch_item_availability_pair"),
+        Index("ix_branch_item_availability_lookup", "branch_id", "menu_item_id", "available"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
+    available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sold_out_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class ConversationSession(Base):
+    __tablename__ = "conversation_sessions"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "branch_id", "session_key", name="uq_sessions_tenant_key"),
+        UniqueConstraint("id", "restaurant_id", "branch_id", name="uq_sessions_id_tenant"),
+        ForeignKeyConstraint(
+            ["branch_id", "restaurant_id"],
+            ["branches.id", "branches.restaurant_id"],
+            name="fk_sessions_branch_tenant",
+            ondelete="RESTRICT",
+        ),
+        Index("ix_sessions_key", "session_key"),
+        Index("ix_sessions_tenant_status", "restaurant_id", "branch_id", "status"),
+        CheckConstraint("version > 0", name="version_positive"),
+        CheckConstraint("status in ('ACTIVE','CLOSED')", name="status_valid"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="RESTRICT"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False, default="zh-CN")
+    state_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ACTIVE")
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ConversationContactSnapshot(Base):
+    __tablename__ = "conversation_contact_snapshots"
+    __table_args__ = (
+        UniqueConstraint("session_id", name="uq_contact_snapshots_session"),
+        Index("ix_contact_snapshots_synthetic", "is_synthetic"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("conversation_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    official_delivery_address: Mapped[str | None] = mapped_column(String(500))
+    pending_delivery_address_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    phone: Mapped[str | None] = mapped_column(String(80))
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "external_reference", name="uq_customers_restaurant_external"),
+        Index("ix_customers_restaurant_synthetic", "restaurant_id", "is_synthetic"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="RESTRICT"), nullable=False)
+    external_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Order(Base):
+    __tablename__ = "orders"
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_orders_public_id"),
+        ForeignKeyConstraint(
+            ["branch_id", "restaurant_id"],
+            ["branches.id", "branches.restaurant_id"],
+            name="fk_orders_branch_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["session_id", "restaurant_id", "branch_id"],
+            ["conversation_sessions.id", "conversation_sessions.restaurant_id", "conversation_sessions.branch_id"],
+            name="fk_orders_session_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("subtotal_minor >= 0", name="subtotal_nonnegative"),
+        CheckConstraint("delivery_fee_minor >= 0", name="delivery_fee_nonnegative"),
+        CheckConstraint("total_minor = subtotal_minor + delivery_fee_minor", name="total_matches"),
+        CheckConstraint("length(currency) = 3", name="currency_iso3"),
+        CheckConstraint("draft_version > 0", name="draft_version_positive"),
+        CheckConstraint("fulfillment_type in ('delivery','pickup')", name="fulfillment_valid"),
+        CheckConstraint(
+            "status in ('DRAFT','CUSTOMER_CONFIRMED','SUBMISSION_STARTED','MERCHANT_PENDING',"
+            "'MERCHANT_ACCEPTED','MERCHANT_REJECTED','SUBMISSION_FAILED','CANCELLED','COMPLETED')",
+            name="status_valid",
+        ),
+        Index("ix_orders_tenant_status", "restaurant_id", "branch_id", "status"),
+        Index("ix_orders_session_created", "session_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="RESTRICT"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
+    draft_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    subtotal_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    delivery_fee_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fulfillment_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    delivery_zone_id: Mapped[int | None] = mapped_column(ForeignKey("delivery_zones.id", ondelete="RESTRICT"))
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    __table_args__ = (
+        CheckConstraint("unit_price_minor >= 0", name="unit_price_nonnegative"),
+        CheckConstraint("quantity > 0", name="quantity_positive"),
+        CheckConstraint("line_total_minor = unit_price_minor * quantity", name="line_total_matches"),
+        Index("ix_order_items_order", "order_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="RESTRICT"), nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="RESTRICT"), nullable=False)
+    item_code_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    item_name_snapshot: Mapped[str] = mapped_column(String(200), nullable=False)
+    unit_price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    modifier_snapshot_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    allergen_snapshot_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    line_total_minor: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class OrderConfirmation(Base):
+    __tablename__ = "order_confirmations"
+    __table_args__ = (
+        UniqueConstraint("order_id", "draft_version", name="uq_confirmations_order_version"),
+        UniqueConstraint("confirmation_fingerprint", name="uq_confirmations_fingerprint"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    draft_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    confirmation_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
+class OrderEvent(Base):
+    __tablename__ = "order_events"
+    __table_args__ = (
+        UniqueConstraint("order_id", "sequence_number", name="uq_order_events_sequence"),
+        CheckConstraint("sequence_number > 0", name="sequence_positive"),
+        Index("ix_order_events_order_occurred", "order_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "branch_id", "scope", "idempotency_key", name="uq_idempotency_tenant_scope_key"),
+        Index("ix_idempotency_resource", "resource_type", "resource_id"),
+        Index("ix_idempotency_expiry", "expires_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    scope: Mapped[str] = mapped_column(String(80), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    resource_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
