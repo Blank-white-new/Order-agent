@@ -119,6 +119,19 @@ npm run dev
 .\backend\.venv\Scripts\python.exe -B evaluation\run_dialogue_eval_v3.py --dataset evaluation\dialogues_v3.jsonl
 ```
 
+Windows 本机也可以用项目脚本一键启动和停止。启动脚本会校验虚拟环境、前端依赖、`.env`、Vosk 模型和端口归属，等待前后端健康后再打开浏览器；日志与 PID 保存在已忽略的 `.codex-run/`：
+
+```powershell
+.\scripts\start_order_system.ps1
+.\scripts\stop_order_system.ps1
+```
+
+自动化烟测时可禁止打开浏览器：
+
+```powershell
+.\scripts\start_order_system.ps1 -NoBrowser -NoPauseOnError
+```
+
 8. 可选开启语音和调试：
 
 ```env

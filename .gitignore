@@ -12,6 +12,10 @@ frontend/dist/
 build/
 coverage/
 *.log
+*.zip
+*.pid
+.codex-run/
+.local-run/
 .DS_Store
 models/asr/*
 models/tts/*

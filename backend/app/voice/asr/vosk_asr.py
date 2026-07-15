@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import ntpath
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +26,7 @@ class VoskModelManager:
                 from vosk import Model
             except ImportError as exc:
                 raise RuntimeError("未安装 vosk，请先安装后端语音依赖。") from exc
-            cls._models[model_path] = Model(model_path)
+            cls._models[model_path] = Model(_native_vosk_model_path(model_path))
         return cls._models[model_path]
 
 
@@ -82,3 +84,21 @@ def _safe_json_loads(raw: str) -> dict[str, Any]:
     except (TypeError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _native_vosk_model_path(
+    model_path: str,
+    *,
+    current_dir: str | Path | None = None,
+    platform_name: str | None = None,
+) -> str:
+    """Avoid Vosk's Windows native-path encoding issue when a parent directory is non-ASCII."""
+    if (platform_name or os.name) != "nt" or model_path.isascii():
+        return model_path
+
+    start = str(current_dir or Path.cwd())
+    try:
+        relative_path = ntpath.relpath(model_path, start=start)
+    except ValueError:
+        return model_path
+    return relative_path if relative_path.isascii() else model_path
