@@ -79,6 +79,19 @@ function Normalize-LockHeader {
   if ($Normalized -eq $Content) {
     throw "Unexpected pip-compile header; lock file was not normalized: $Path"
   }
+
+  # pip-compile resolves transitive dependencies for the host platform and does
+  # not carry pyttsx3's Windows marker onto its Windows-only dependency closure.
+  # Keep one hashed production lock installable by both CI operating systems.
+  foreach ($Package in @("comtypes", "pypiwin32", "pywin32")) {
+    $Pattern = "(?m)^($([Regex]::Escape($Package))==[^\s;]+)(\s+\\)\r?$"
+    $Normalized = [Regex]::Replace(
+      $Normalized,
+      $Pattern,
+      '$1 ; platform_system == "Windows"$2'
+    )
+  }
+
   [IO.File]::WriteAllText($Path, $Normalized, [Text.UTF8Encoding]::new($false))
   Assert-LockFileSafe -Path $Path
 }

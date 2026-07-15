@@ -238,7 +238,7 @@ colorama==0.4.6 \
     #   click
     #   pytest
     #   tqdm
-comtypes==1.4.16 \
+comtypes==1.4.16 ; platform_system == "Windows" \
     --hash=sha256:cd66d1add01265cface4df51ba1e31cd1657e04463c281c802e737e79e1ba93c \
     --hash=sha256:e18d85179ff12955524c5a8c3bc09cb3c0d890f1da4d7123d14244c7b78f84c8
     # via pyttsx3
@@ -652,7 +652,7 @@ pygments==2.20.0 \
     --hash=sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f \
     --hash=sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176
     # via pytest
-pypiwin32==223 \
+pypiwin32==223 ; platform_system == "Windows" \
     --hash=sha256:67adf399debc1d5d14dffc1ab5acacb800da569754fafdc576b2a039485aa775 \
     --hash=sha256:71be40c1fbd28594214ecaecb58e7aa8b708eabfa0125c8a109ebd51edbd776a
     # via pyttsx3
@@ -668,7 +668,7 @@ pyttsx3==2.99 ; platform_system == "Windows" \
     --hash=sha256:a18a5601530a570c43491b4112887fc34c47e118fc937287db8d21905da1f74e \
     --hash=sha256:ff3e4ff756c24d72b9f3f2f304e0edaafd0f58adb0e6f4b90d930440cda8b207
     # via -r backend/requirements.txt
-pywin32==312 \
+pywin32==312 ; platform_system == "Windows" \
     --hash=sha256:02ebca0f0242b75292e218065004310d6a477407c09fa449bfe4f6022bc0c0fc \
     --hash=sha256:17948aeadbdb091f0ced6ef0841620794e68327b94ee415571c1203594b7215c \
     --hash=sha256:3020656e34f1cf7faeb7bccd2b84653a607c6ff0c55ada85e6487d61716deabd \
