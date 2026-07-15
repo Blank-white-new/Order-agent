@@ -109,3 +109,75 @@ jobs:
         shell: pwsh
         working-directory: frontend
         run: npm audit --audit-level=high
+
+  postgresql-integration:
+    name: PostgreSQL 17.5 integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: test
+      AUTO_MIGRATE_LOCAL: "false"
+      SIMULATION_DATA_ONLY: "true"
+      DEFAULT_RESTAURANT_CODE: hk-sim-restaurant-a
+      DEFAULT_BRANCH_CODE: central
+      DATABASE_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
+      PHASE2_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
+    services:
+      postgres:
+        image: postgres:17.5-alpine
+        env:
+          POSTGRES_USER: phase2_ci
+          POSTGRES_PASSWORD: phase2_ci_synthetic_password
+          POSTGRES_DB: order_agent_phase2_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U phase2_ci -d order_agent_phase2_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Python 3.13.2
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13.2"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.lock.txt
+            backend/requirements-dev.lock.txt
+
+      - name: Install production and audit locks with pinned pip
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install "pip==26.1.2"
+          backend/.venv/bin/python -m pip install -r backend/requirements.lock.txt
+          backend/.venv/bin/python -m pip check
+          python -m venv .tooling-venv
+          .tooling-venv/bin/python -m pip install "pip==26.1.2"
+          .tooling-venv/bin/python -m pip install -r backend/requirements-dev.lock.txt
+          .tooling-venv/bin/python -m pip check
+
+      - name: Upgrade an empty PostgreSQL database
+        shell: bash
+        run: backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+
+      - name: Run PostgreSQL repositories, isolation, versioning, and idempotency tests
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase2
+
+      - name: Smoke test PostgreSQL downgrade and re-upgrade
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend/.venv/bin/python -m alembic -c backend/alembic.ini downgrade base
+          backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+
+      - name: Audit production dependencies
+        shell: bash
+        run: .tooling-venv/bin/python -m pip_audit -r backend/requirements.lock.txt
