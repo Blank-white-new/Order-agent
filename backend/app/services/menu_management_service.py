@@ -43,3 +43,20 @@ class MenuManagementService:
                 return version
         except (IntegrityError, OperationalError) as exc:
             raise menu_publish_conflict() from exc
+
+    def publish_phase4_catalog(self, restaurant_id: int, catalog: dict) -> tuple[MenuVersion, dict, bool]:
+        """Clone and publish one complete Phase 4 menu in a single transaction."""
+        try:
+            with self.uow_factory() as uow:
+                current = uow.menus.published_version_for_restaurant(restaurant_id)
+                if current is None:
+                    raise DomainError("MENU_VERSION_NOT_FOUND", "Published menu version was not found.", 404)
+                locales = ("zh-CN", "yue-Hant-HK", "en-HK")
+                if uow.menus.is_phase4_catalog_complete(current, catalog["catalog_version"], locales):
+                    return current, {"categories": 0, "items": 0, "aliases": 0, "modifierOptions": 0}, True
+                draft, stats = uow.menus.clone_phase4_draft(restaurant_id, current, catalog)
+                uow.menus.publish_for_restaurant(restaurant_id, draft)
+                uow.flush()
+                return draft, stats, False
+        except (IntegrityError, OperationalError) as exc:
+            raise menu_publish_conflict() from exc

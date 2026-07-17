@@ -14,6 +14,19 @@ class TenantRepository:
     def get_restaurant_by_code(self, code: str) -> Restaurant | None:
         return self.session.scalar(select(Restaurant).where(Restaurant.code == code, Restaurant.deleted_at.is_(None)))
 
+    def list_active_simulation_restaurants(self) -> list[Restaurant]:
+        return list(
+            self.session.scalars(
+                select(Restaurant)
+                .where(
+                    Restaurant.status == "ACTIVE",
+                    Restaurant.is_simulation.is_(True),
+                    Restaurant.deleted_at.is_(None),
+                )
+                .order_by(Restaurant.id)
+            )
+        )
+
     def get_branch(self, restaurant_id: int, code: str) -> Branch | None:
         return self.session.scalar(
             select(Branch).where(

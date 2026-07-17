@@ -1,0 +1,174 @@
+{
+  "catalog_version": "phase4-v3",
+  "categories": {
+    "category-1": {
+      "en-HK": {"name": "Rice dishes"},
+      "yue-Hant-HK": {"name": "飯類"},
+      "zh-CN": {"name": "饭类"}
+    },
+    "category-2": {
+      "en-HK": {"name": "Noodles"},
+      "yue-Hant-HK": {"name": "麵類"},
+      "zh-CN": {"name": "面类"}
+    },
+    "category-3": {
+      "en-HK": {"name": "Snacks"},
+      "yue-Hant-HK": {"name": "小食"},
+      "zh-CN": {"name": "小吃"}
+    },
+    "category-4": {
+      "en-HK": {"name": "Drinks"},
+      "yue-Hant-HK": {"name": "飲品"},
+      "zh-CN": {"name": "饮品"}
+    }
+  },
+  "items": {
+    "beef_rice": {
+      "en-HK": {"aliases": ["beef rice bowl"], "description": "Synthetic beef served with rice.", "name": "Beef rice"},
+      "yue-Hant-HK": {"aliases": ["牛肉碟頭飯"], "description": "合成牛肉配白飯。", "name": "牛肉飯"},
+      "zh-CN": {"aliases": ["牛肉盖饭"], "description": "合成牛肉配米饭。", "name": "牛肉饭"}
+    },
+    "black_pepper_beef_rice": {
+      "en-HK": {"aliases": ["black pepper beef bowl"], "description": "Synthetic black pepper beef served with rice.", "name": "Black pepper beef rice"},
+      "yue-Hant-HK": {"aliases": ["黑椒牛肉碟頭飯"], "description": "合成黑椒牛肉配白飯。", "name": "黑椒牛肉飯"},
+      "zh-CN": {"aliases": ["黑椒饭", "黑胶牛肉饭", "黑角牛肉饭"], "description": "合成黑椒牛肉配米饭。", "name": "黑椒牛肉饭"}
+    },
+    "chicken_leg_rice": {
+      "en-HK": {"aliases": ["chicken leg rice bowl"], "description": "Synthetic chicken leg served with rice.", "name": "Chicken leg rice"},
+      "yue-Hant-HK": {"aliases": ["雞髀碟頭飯"], "description": "合成雞髀配白飯。", "name": "雞髀飯"},
+      "zh-CN": {"aliases": ["鸡腿盖饭", "机腿饭"], "description": "合成鸡腿配米饭。", "name": "鸡腿饭"}
+    },
+    "cola": {
+      "en-HK": {"aliases": ["cola drink"], "description": "Synthetic canned cola.", "name": "Cola"},
+      "yue-Hant-HK": {"aliases": ["罐裝可樂"], "description": "合成罐裝汽水。", "name": "可樂"},
+      "zh-CN": {"aliases": ["可口可乐"], "description": "合成罐装汽水。", "name": "可乐"}
+    },
+    "kung_pao_chicken_rice": {
+      "en-HK": {"aliases": ["kung pao rice"], "description": "Synthetic kung pao chicken served with rice.", "name": "Kung pao chicken rice"},
+      "yue-Hant-HK": {"aliases": ["宮保雞丁碟頭飯"], "description": "合成宮保雞丁配白飯。", "name": "宮保雞丁飯"},
+      "zh-CN": {"aliases": ["宫保饭", "宫保鸡丁"], "description": "合成宫保鸡丁配米饭。", "name": "宫保鸡丁饭"}
+    },
+    "lemon_tea": {
+      "en-HK": {"aliases": ["lemon tea drink"], "description": "Synthetic bottled lemon tea.", "name": "Lemon tea"},
+      "yue-Hant-HK": {"aliases": ["凍檸茶"], "description": "合成樽裝檸檬茶。", "name": "檸檬茶"},
+      "zh-CN": {"aliases": ["柠檬红茶", "冻柠茶"], "description": "合成瓶装柠檬茶。", "name": "柠檬茶"}
+    },
+    "popcorn_chicken": {
+      "en-HK": {"aliases": ["crispy popcorn chicken"], "description": "Synthetic bite-sized fried chicken.", "name": "Popcorn chicken"},
+      "yue-Hant-HK": {"aliases": ["炸雞粒"], "description": "合成香脆炸雞粒。", "name": "雞米花"},
+      "zh-CN": {"aliases": ["炸鸡米花"], "description": "合成香脆鸡米花。", "name": "鸡米花"}
+    },
+    "sour_spicy_potato": {
+      "en-HK": {"aliases": ["sour spicy potato strips"], "description": "Synthetic sour and spicy potato strips.", "name": "Sour and spicy potato"},
+      "yue-Hant-HK": {"aliases": ["醒胃薯仔絲"], "description": "合成酸辣薯仔絲。", "name": "酸辣薯仔絲"},
+      "zh-CN": {"aliases": ["土豆丝"], "description": "合成酸辣土豆丝。", "name": "酸辣土豆丝"}
+    },
+    "sprite": {
+      "en-HK": {"aliases": ["lemon lime soda"], "description": "Synthetic canned lemon-lime soda.", "name": "Sprite"},
+      "yue-Hant-HK": {"aliases": ["罐裝雪碧"], "description": "合成罐裝檸檬青檸汽水。", "name": "雪碧"},
+      "zh-CN": {"aliases": ["柠檬汽水"], "description": "合成罐装柠檬味汽水。", "name": "雪碧"}
+    },
+    "tomato_egg_noodles": {
+      "en-HK": {"aliases": ["tomato egg soup noodles"], "description": "Synthetic tomato and egg soup noodles.", "name": "Tomato egg noodles"},
+      "yue-Hant-HK": {"aliases": ["蕃茄蛋湯麵"], "description": "合成蕃茄蛋湯麵。", "name": "蕃茄蛋麵"},
+      "zh-CN": {"aliases": ["番茄面", "鸡蛋面"], "description": "合成番茄鸡蛋汤面。", "name": "番茄鸡蛋面"}
+    },
+    "beef_noodles": {
+      "en-HK": {"aliases": ["beef soup noodles"], "description": "Synthetic beef soup noodles.", "name": "Beef noodles"},
+      "yue-Hant-HK": {"aliases": ["牛肉湯麵"], "description": "合成牛肉湯麵。", "name": "牛肉麵"},
+      "zh-CN": {"aliases": ["牛肉汤面"], "description": "合成牛肉汤面。", "name": "牛肉面"}
+    }
+  },
+  "modifier_terms": {
+    "标准": {
+      "en-HK": {"aliases": ["regular option"], "name": "Standard"},
+      "yue-Hant-HK": {"aliases": ["正常"], "name": "標準"},
+      "zh-CN": {"aliases": ["正常份量"], "name": "标准"}
+    },
+    "冰": {
+      "en-HK": {"aliases": ["iced"], "name": "With ice"},
+      "yue-Hant-HK": {"aliases": ["凍飲"], "name": "加冰"},
+      "zh-CN": {"aliases": ["加冰"], "name": "冰"}
+    },
+    "不辣": {
+      "en-HK": {"aliases": ["no chilli"], "name": "Not spicy"},
+      "yue-Hant-HK": {"aliases": ["走辣"], "name": "走辣"},
+      "zh-CN": {"aliases": ["不要辣"], "name": "不辣"}
+    },
+    "加蛋": {
+      "en-HK": {"aliases": ["extra egg"], "name": "Add egg"},
+      "yue-Hant-HK": {"aliases": ["加隻蛋"], "name": "加蛋"},
+      "zh-CN": {"aliases": ["多一个蛋"], "name": "加蛋"}
+    },
+    "加青菜": {
+      "en-HK": {"aliases": ["extra vegetables"], "name": "Add vegetables"},
+      "yue-Hant-HK": {"aliases": ["加菜"], "name": "加菜"},
+      "zh-CN": {"aliases": ["多加青菜"], "name": "加青菜"}
+    },
+    "加饭": {
+      "en-HK": {"aliases": ["add rice"], "name": "Extra rice"},
+      "yue-Hant-HK": {"aliases": ["加飯"], "name": "加底"},
+      "zh-CN": {"aliases": ["多加米饭"], "name": "加饭"}
+    },
+    "加面": {
+      "en-HK": {"aliases": ["extra noodles"], "name": "Extra noodles"},
+      "yue-Hant-HK": {"aliases": ["加底麵"], "name": "加麵"},
+      "zh-CN": {"aliases": ["多加面"], "name": "加面"}
+    },
+    "不要葱": {
+      "en-HK": {"aliases": ["without spring onion"], "name": "No spring onion"},
+      "yue-Hant-HK": {"aliases": ["唔要蔥"], "name": "走蔥"},
+      "zh-CN": {"aliases": ["去葱"], "name": "不要葱"}
+    },
+    "不要番茄酱": {
+      "en-HK": {"aliases": ["without ketchup"], "name": "No ketchup"},
+      "yue-Hant-HK": {"aliases": ["唔要茄汁"], "name": "走茄汁"},
+      "zh-CN": {"aliases": ["去番茄酱"], "name": "不要番茄酱"}
+    },
+    "不要香菜": {
+      "en-HK": {"aliases": ["without coriander"], "name": "No coriander"},
+      "yue-Hant-HK": {"aliases": ["走芫荽"], "name": "走芫茜"},
+      "zh-CN": {"aliases": ["去香菜"], "name": "不要香菜"}
+    },
+    "去冰": {
+      "en-HK": {"aliases": ["without ice"], "name": "No ice"},
+      "yue-Hant-HK": {"aliases": ["唔要冰"], "name": "走冰"},
+      "zh-CN": {"aliases": ["不要冰"], "name": "去冰"}
+    },
+    "常温": {
+      "en-HK": {"aliases": ["room temperature"], "name": "Ambient"},
+      "yue-Hant-HK": {"aliases": ["唔凍"], "name": "常溫"},
+      "zh-CN": {"aliases": ["不冰"], "name": "常温"}
+    },
+    "大份": {
+      "en-HK": {"aliases": ["large portion"], "name": "Large"},
+      "yue-Hant-HK": {"aliases": ["大碟"], "name": "大份"},
+      "zh-CN": {"aliases": ["加大"], "name": "大份"}
+    },
+    "番茄酱": {
+      "en-HK": {"aliases": ["tomato ketchup"], "name": "Ketchup"},
+      "yue-Hant-HK": {"aliases": ["番茄醬"], "name": "茄汁"},
+      "zh-CN": {"aliases": ["番茄沙司"], "name": "番茄酱"}
+    },
+    "少冰": {
+      "en-HK": {"aliases": ["light ice"], "name": "Less ice"},
+      "yue-Hant-HK": {"aliases": ["少啲冰"], "name": "少冰"},
+      "zh-CN": {"aliases": ["少点冰"], "name": "少冰"}
+    },
+    "少辣": {
+      "en-HK": {"aliases": ["milder"], "name": "Less spicy"},
+      "yue-Hant-HK": {"aliases": ["少啲辣"], "name": "少辣"},
+      "zh-CN": {"aliases": ["少放辣"], "name": "少辣"}
+    },
+    "热的": {
+      "en-HK": {"aliases": ["hot drink"], "name": "Hot"},
+      "yue-Hant-HK": {"aliases": ["熱飲"], "name": "熱"},
+      "zh-CN": {"aliases": ["热饮"], "name": "热的"}
+    },
+    "微辣": {
+      "en-HK": {"aliases": ["mild chilli"], "name": "Mild spicy"},
+      "yue-Hant-HK": {"aliases": ["少少辣"], "name": "微辣"},
+      "zh-CN": {"aliases": ["一点辣"], "name": "微辣"}
+    }
+  }
+}

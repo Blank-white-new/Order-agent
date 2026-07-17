@@ -11,6 +11,7 @@ from app.db.config import DatabaseSettings
 from app.db.session import Database, create_database
 from app.repositories.uow import SqlAlchemyUnitOfWork
 from app.services.seed_service import seed_phase2_simulation_data
+from app.services.phase4_menu_seed_service import Phase4MenuSeedService
 
 
 _bootstrap_lock = Lock()
@@ -35,6 +36,7 @@ def ensure_local_database(database: Database) -> None:
         command.upgrade(config, "head")
         uow_factory = lambda: SqlAlchemyUnitOfWork(database.session_factory)
         seed_phase2_simulation_data(uow_factory)
+        Phase4MenuSeedService(uow_factory).seed()
 
 
 def initialize_database(database: Database, *, seed: bool = True) -> dict:
@@ -47,4 +49,6 @@ def initialize_database(database: Database, *, seed: bool = True) -> dict:
     if not seed:
         return {}
     summary = seed_phase2_simulation_data(lambda: SqlAlchemyUnitOfWork(database.session_factory))
-    return summary.as_dict()
+    uow_factory = lambda: SqlAlchemyUnitOfWork(database.session_factory)
+    phase4 = Phase4MenuSeedService(uow_factory).seed()
+    return {"phase2": summary.as_dict(), "phase4": phase4.as_dict()}
