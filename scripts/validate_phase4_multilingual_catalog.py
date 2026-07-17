@@ -7,10 +7,12 @@ import json
 from pathlib import Path
 import re
 import sys
+import unicodedata
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "evaluation" / "phase4_multilingual_text.jsonl"
+LOCALE_DATASET = ROOT / "evaluation" / "phase4_locale_detection.jsonl"
 SCHEMA = ROOT / "evaluation" / "phase4_multilingual_text.schema.json"
 I18N = ROOT / "backend" / "app" / "i18n"
 LOCALES = ("zh-CN", "yue-Hant-HK", "en-HK")
@@ -80,6 +82,56 @@ def flatten_phrases(value):
             yield from flatten_phrases(nested)
 
 
+_POLITE_PREFIXES = (
+    "please ",
+    "can i ",
+    "can you ",
+    "could you ",
+    "i'd like ",
+    "i would like ",
+    "请",
+    "請",
+    "麻烦",
+    "麻煩",
+    "唔該",
+)
+_POLITE_SUFFIXES = (" please", " thanks", " thank you", "谢谢", "謝謝", "唔該")
+
+
+def surface_signature(value: str) -> str:
+    return unicodedata.normalize("NFKC", value)
+
+
+def punctuation_signature(value: str) -> str:
+    normalized = surface_signature(value).casefold()
+    return "".join(
+        char
+        for char in normalized
+        if not unicodedata.category(char).startswith("P") and not char.isspace()
+    )
+
+
+def normalized_signature(value: str) -> str:
+    normalized = surface_signature(value).casefold()
+    normalized = "".join(
+        " " if unicodedata.category(char).startswith("P") else char
+        for char in normalized
+    )
+    normalized = " ".join(normalized.split())
+    changed = True
+    while changed:
+        changed = False
+        for prefix in _POLITE_PREFIXES:
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix) :].strip()
+                changed = True
+        for suffix in _POLITE_SUFFIXES:
+            if normalized.endswith(suffix):
+                normalized = normalized[: -len(suffix)].strip()
+                changed = True
+    return normalized
+
+
 def validate_catalogs(errors: list[str]) -> tuple[set[str], dict]:
     menu = load_json(I18N / "catalogs" / "multilingual_menu.json", errors)
     item_codes = set(menu.get("items", {}))
@@ -134,6 +186,9 @@ def validate_dataset(errors: list[str], item_codes: set[str]) -> dict:
     rows: list[dict] = []
     seen_ids: set[str] = set()
     seen_inputs: set[tuple[str, str]] = set()
+    normalized_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    punctuation_groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    category_counts: Counter = Counter()
     try:
         raw = DATASET.read_bytes()
         if raw.startswith(b"\xef\xbb\xbf"):
@@ -153,19 +208,80 @@ def validate_dataset(errors: list[str], item_codes: set[str]) -> dict:
         if sid in seen_ids:
             fail(errors, f"duplicate scenario id: {sid}")
         seen_ids.add(sid)
-        signature = (row.get("locale"), " ".join(str(row.get("input", "")).split()))
+        input_text = str(row.get("input", ""))
+        signature = (row.get("locale"), surface_signature(input_text))
         if signature in seen_inputs:
             fail(errors, f"duplicate scenario input for {signature[0]}: {signature[1]!r}")
         seen_inputs.add(signature)
+        normalized_groups[(row.get("locale"), normalized_signature(input_text))].append(sid)
+        punctuation_groups[(row.get("locale"), punctuation_signature(input_text))].append(sid)
+        category_counts[(row.get("locale"), row.get("semantic_category"))] += 1
         validate_row(row, line_number, item_codes, errors)
     counts = Counter(row.get("locale") for row in rows)
+    mixed_patterns = Counter(
+        row.get("mixed_pattern") for row in rows if row.get("locale") == "mixed"
+    )
     for locale in ALL_LOCALES:
         if counts[locale] < 90:
             fail(errors, f"locale {locale} has {counts[locale]} scenarios; expected at least 90")
     if len(rows) < 360:
         fail(errors, f"dataset has {len(rows)} scenarios; expected at least 360")
+    required_mixed_patterns = {
+        "chinese_dominant", "cantonese_dominant", "english_dominant",
+        "english_verb_chinese_item", "chinese_verb_english_item",
+        "yue_modifier_english_item", "english_quantity_chinese_unit",
+        "chinese_quantity_english_unit",
+    }
+    if missing_patterns := required_mixed_patterns - set(mixed_patterns):
+        fail(errors, f"mixed dataset is missing patterns: {sorted(missing_patterns)}")
+    normalized_duplicates = {
+        key: scenario_ids
+        for key, scenario_ids in normalized_groups.items()
+        if len(scenario_ids) > 1
+    }
+    punctuation_duplicates = {
+        key: scenario_ids
+        for key, scenario_ids in punctuation_groups.items()
+        if len(scenario_ids) > 1
+    }
+    for (locale, signature), scenario_ids in normalized_duplicates.items():
+        fail(
+            errors,
+            f"normalized duplicate in {locale}: {scenario_ids} -> {signature!r}",
+        )
+    for (locale, signature), scenario_ids in punctuation_duplicates.items():
+        fail(
+            errors,
+            f"punctuation/spacing/case duplicate in {locale}: {scenario_ids} -> {signature!r}",
+        )
+    for locale in ALL_LOCALES:
+        locale_categories = {
+            category: count
+            for (category_locale, category), count in category_counts.items()
+            if category_locale == locale
+        }
+        if len(locale_categories) < 45:
+            fail(errors, f"locale {locale} has only {len(locale_categories)} semantic categories")
+        for category, count in locale_categories.items():
+            if count != 2:
+                fail(errors, f"locale {locale} category {category} has {count} expressions; expected 2")
     return {
         "total": len(rows),
+        "surface_unique": len(seen_inputs),
+        "normalized_unique": len(normalized_groups),
+        "near_duplicate_groups": len(normalized_duplicates),
+        "punctuation_duplicate_groups": len(punctuation_duplicates),
+        "base_semantic_categories": {
+            locale: len(
+                {
+                    category
+                    for (category_locale, category), count in category_counts.items()
+                    if category_locale == locale and count
+                }
+            )
+            for locale in ALL_LOCALES
+        },
+        "mixed_patterns": dict(sorted(mixed_patterns.items())),
         "locales": {locale: counts[locale] for locale in ALL_LOCALES},
         "intents": dict(sorted(Counter(row.get("expected_intent") for row in rows).items())),
         "ambiguous": sum("ambiguous" in row.get("tags", []) for row in rows),
@@ -176,16 +292,26 @@ def validate_dataset(errors: list[str], item_codes: set[str]) -> dict:
 def validate_row(row: dict, line: int, item_codes: set[str], errors: list[str]) -> None:
     prefix = f"line {line} ({row.get('scenario_id', 'unknown')})"
     required = {
-        "scenario_id", "locale", "input", "expected_detected_locale", "expected_response_locale",
+        "scenario_id", "locale", "input", "expected_detected_locale", "expected_auto_response_locale",
+        "assisted_response_locale",
         "expected_intent", "expected_entities", "expected_classification", "expected_handoff_reason",
         "expected_refusal_reason", "expected_mutation", "forbidden_outcomes", "setup_inputs",
-        "restaurant_code", "branch_code", "tags",
+        "restaurant_code", "branch_code", "tags", "semantic_category", "expression_variant",
+        "expected_database_order_count", "expected_active_confirmation_count",
     }
     if missing := required - set(row):
         fail(errors, f"{prefix} missing fields: {sorted(missing)}")
         return
     if row["locale"] not in ALL_LOCALES:
         fail(errors, f"{prefix} invalid locale")
+    if row["locale"] == "mixed" and not row.get("mixed_pattern"):
+        fail(errors, f"{prefix} mixed row has no mixed_pattern")
+    if row["assisted_response_locale"] not in LOCALES:
+        fail(errors, f"{prefix} assisted response locale must be concrete")
+    if row["expected_auto_response_locale"] not in LOCALES:
+        fail(errors, f"{prefix} auto response locale must be concrete")
+    if row["expression_variant"] not in {1, 2}:
+        fail(errors, f"{prefix} expression_variant must be 1 or 2")
     if row["expected_intent"] not in INTENTS:
         fail(errors, f"{prefix} invalid intent {row['expected_intent']}")
     classification = row["expected_classification"]
@@ -200,7 +326,11 @@ def validate_row(row: dict, line: int, item_codes: set[str], errors: list[str]) 
         fail(errors, f"{prefix} HANDOFF classification/reason mismatch")
     if (classification == "REFUSE") != (refusal is not None):
         fail(errors, f"{prefix} REFUSE classification/reason mismatch")
-    if row["expected_mutation"] and classification != "AUTO_DRAFT":
+    if row["expected_mutation"] and classification != "AUTO_DRAFT" and not (
+        classification == "CONFIRM"
+        and row["expected_intent"] == "CONFIRM_ORDER"
+        and row.get("expected_confirmation_valid") is True
+    ):
         fail(errors, f"{prefix} unsafe mutation expectation for {classification}")
     entities = row["expected_entities"]
     if not isinstance(entities, dict) or set(entities) - ENTITY_KEYS:
@@ -230,16 +360,80 @@ def validate_row(row: dict, line: int, item_codes: set[str], errors: list[str]) 
             fail(errors, f"{prefix} contains {label}")
 
 
+def validate_locale_dataset(errors: list[str]) -> dict:
+    rows: list[dict] = []
+    seen_ids: set[str] = set()
+    try:
+        raw = LOCALE_DATASET.read_bytes()
+        if raw.startswith(b"\xef\xbb\xbf"):
+            fail(errors, "locale dataset must not contain a UTF-8 BOM")
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        fail(errors, f"cannot read locale dataset as UTF-8: {exc}")
+        return {}
+    required = {
+        "scenario_id",
+        "locale",
+        "input",
+        "expected_detected_locale",
+        "expected_response_locale",
+        "ambiguous_locale",
+        "allowed_detected_locales",
+        "setup_inputs",
+        "restaurant_code",
+        "branch_code",
+        "tags",
+    }
+    for line_number, line in enumerate(text.splitlines(), 1):
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            fail(errors, f"locale dataset line {line_number} is invalid JSON: {exc}")
+            continue
+        rows.append(row)
+        prefix = f"locale line {line_number} ({row.get('scenario_id', 'unknown')})"
+        if missing := required - set(row):
+            fail(errors, f"{prefix} missing fields: {sorted(missing)}")
+            continue
+        if row["scenario_id"] in seen_ids:
+            fail(errors, f"duplicate locale scenario id: {row['scenario_id']}")
+        seen_ids.add(row["scenario_id"])
+        if row["locale"] not in ALL_LOCALES:
+            fail(errors, f"{prefix} invalid locale group")
+        if row["expected_detected_locale"] not in {*ALL_LOCALES, "und"}:
+            fail(errors, f"{prefix} invalid expected detected locale")
+        if row["expected_response_locale"] not in LOCALES:
+            fail(errors, f"{prefix} response locale must be concrete")
+        if row["ambiguous_locale"]:
+            if not row["allowed_detected_locales"]:
+                fail(errors, f"{prefix} ambiguous locale needs allowed outcomes")
+        elif row["allowed_detected_locales"]:
+            fail(errors, f"{prefix} non-ambiguous locale has allowed outcome list")
+    counts = Counter(row.get("locale") for row in rows)
+    for locale in ALL_LOCALES:
+        if counts[locale] < 40:
+            fail(errors, f"locale detection group {locale} has {counts[locale]}; expected at least 40")
+    if len(rows) < 160:
+        fail(errors, f"locale dataset has {len(rows)} rows; expected at least 160")
+    return {
+        "total": len(rows),
+        "locales": {locale: counts[locale] for locale in ALL_LOCALES},
+        "ambiguous": sum(bool(row.get("ambiguous_locale")) for row in rows),
+        "unsupported": sum(row.get("expected_detected_locale") == "und" for row in rows),
+    }
+
+
 def main() -> int:
     errors: list[str] = []
     item_codes, _menu = validate_catalogs(errors)
     summary = validate_dataset(errors, item_codes)
+    locale_summary = validate_locale_dataset(errors)
     if errors:
         print("Phase 4 catalog validation failed:", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print(json.dumps({"status": "ok", **summary}, ensure_ascii=False, sort_keys=True))
+    print(json.dumps({"status": "ok", **summary, "locale_detection": locale_summary}, ensure_ascii=False, sort_keys=True))
     return 0
 
 
