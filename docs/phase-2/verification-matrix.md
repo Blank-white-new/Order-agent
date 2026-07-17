@@ -33,4 +33,4 @@
 | Vitest | 69/69；TypeScript 与 Vite build 通过 |
 | 依赖 | pip check、pip-audit、npm audit 通过；0 已知漏洞 |
 
-GitHub Actions 证据：[CI run #20](https://github.com/Blank-white-new/Order-agent/actions/runs/29563944397)（Windows 与 PostgreSQL 17.5 均 success）。
+GitHub Actions 最终证据：[CI run #21](https://github.com/Blank-white-new/Order-agent/actions/runs/29564446124)，run id `29564446124`，HEAD `e99c04f7df9c4dd70bd2b36704bfe148c15fe763`（Windows 与 PostgreSQL 17.5 均 success）。run #20 保留为中间验证记录。

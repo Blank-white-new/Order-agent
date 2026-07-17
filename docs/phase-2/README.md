@@ -45,4 +45,5 @@
 - 本机/Windows：backend `908 passed, 1 PostgreSQL-only skipped`；Phase 1 `140/140`；V3 `57/57`；Vitest `69/69`；typecheck/build 通过。
 - PostgreSQL 17.5：Phase 2 `76 passed`，无 skip；空库 head、`20260716_0002 → head → 0002 → head` 和 metadata/约束回归通过。
 - false mutation、confirmation bypass、live LLM trigger 均为 0；pip/npm audit 均为 0 已知漏洞。
-- 首轮审计实现 CI 为 [run #20](https://github.com/Blank-white-new/Order-agent/actions/runs/29563944397)，Windows 与 PostgreSQL job 均为 success。
+- 首轮审计实现 CI [run #20](https://github.com/Blank-white-new/Order-agent/actions/runs/29563944397) 保留为中间验证记录，Windows 与 PostgreSQL job 均为 success。
+- 阶段 2 实现的最终 CI 证据为 [run #21](https://github.com/Blank-white-new/Order-agent/actions/runs/29564446124)，run id `29564446124`，HEAD `e99c04f7df9c4dd70bd2b36704bfe148c15fe763`；Windows 与 PostgreSQL 17.5 job 均为 success。
