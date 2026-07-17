@@ -159,6 +159,7 @@ export function ChatWindow() {
       <aside className="support-panel" aria-label="订单辅助信息">
         <NextStepHint state={orderState} />
         <SafetyHandoffPanel
+          sessionId={sessionId}
           state={orderState}
           onStatusChange={(handoffStatus) => setOrderState((current) => ({ ...current, handoffStatus }))}
         />

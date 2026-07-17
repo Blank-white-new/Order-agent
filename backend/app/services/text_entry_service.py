@@ -213,6 +213,7 @@ class TextEntryService:
                 state.handoff_public_id,
                 restaurant_code,
                 branch_code,
+                session_id,
             )
             state.handoff_status = latest_handoff["status"]
         if state.handoff_public_id and (
@@ -222,6 +223,7 @@ class TextEntryService:
                 state.handoff_public_id,
                 restaurant_code,
                 branch_code,
+                session_id,
             )
             state.handoff_status = handoff["status"]
             self._store_set(session_id, state, restaurant_code, branch_code)

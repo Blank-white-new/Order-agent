@@ -8,11 +8,16 @@ export type HandoffView = {
   simulationNotice: string;
 };
 
-async function action(publicId: string, operation: string, payload: Record<string, unknown> = {}): Promise<HandoffView> {
+async function action(
+  publicId: string,
+  sessionId: string,
+  operation: string,
+  payload: Record<string, unknown> = {},
+): Promise<HandoffView> {
   const response = await fetch(`${API_BASE}/handoffs/${encodeURIComponent(publicId)}/${operation}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, sessionId }),
   });
   if (!response.ok) {
     throw new Error("simulated handoff request failed");
@@ -27,20 +32,23 @@ async function action(publicId: string, operation: string, payload: Record<strin
   };
 }
 
-export function simulateAssign(publicId: string): Promise<HandoffView> {
-  return action(publicId, "simulate-assign");
+export function simulateAssign(publicId: string, sessionId: string): Promise<HandoffView> {
+  return action(publicId, sessionId, "simulate-assign");
 }
 
-export function simulateConnect(publicId: string): Promise<HandoffView> {
-  return action(publicId, "simulate-connect");
+export function simulateConnect(publicId: string, sessionId: string): Promise<HandoffView> {
+  return action(publicId, sessionId, "simulate-connect");
 }
 
-export function simulateResolve(publicId: string): Promise<HandoffView> {
-  return action(publicId, "simulate-resolve", { resolutionCode: "SIMULATED_REVIEWED", draftChanged: false });
+export function simulateResolve(publicId: string, sessionId: string): Promise<HandoffView> {
+  return action(publicId, sessionId, "simulate-resolve", {
+    resolutionCode: "SIMULATED_REVIEWED",
+    draftChanged: false,
+  });
 }
 
-export function simulateFail(publicId: string): Promise<HandoffView> {
-  return action(publicId, "simulate-fail", { failureCode: "SYSTEM_ERROR" });
+export function simulateFail(publicId: string, sessionId: string): Promise<HandoffView> {
+  return action(publicId, sessionId, "simulate-fail", { failureCode: "SYSTEM_ERROR" });
 }
 
 function stringValue(value: unknown): string | null {

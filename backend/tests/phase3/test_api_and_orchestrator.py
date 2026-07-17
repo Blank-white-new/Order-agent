@@ -36,6 +36,15 @@ def test_safety_api_returns_structured_decision_and_rejects_contact_fields():
         json={"sessionId": session, "signals": [], "phone": "+852 5555 0101"},
     )
     assert rejected.status_code == 422
+    nested_contact = client.post(
+        "/api/safety/evaluate",
+        json={
+            "sessionId": session,
+            "signals": [],
+            "confidenceMetadata": {"phone": "+852 5555 0101"},
+        },
+    )
+    assert nested_contact.status_code == 422
 
 
 def test_handoff_api_runs_only_simulated_sequence_and_is_tenant_scoped():
@@ -49,11 +58,19 @@ def test_handoff_api_runs_only_simulated_sequence_and_is_tenant_scoped():
     assert case["status"] == "PENDING"
     assert case["simulationNotice"] == "模拟人工接管，不是真实人工"
     public_id = case["handoffId"]
-    assigned = client.post(f"/api/handoffs/{public_id}/simulate-assign", json={}).json()
-    connected = client.post(f"/api/handoffs/{public_id}/simulate-connect", json={}).json()
+    assigned = client.post(
+        f"/api/handoffs/{public_id}/simulate-assign", json={"sessionId": session}
+    ).json()
+    connected = client.post(
+        f"/api/handoffs/{public_id}/simulate-connect", json={"sessionId": session}
+    ).json()
     resolved = client.post(
         f"/api/handoffs/{public_id}/simulate-resolve",
-        json={"resolutionCode": "SIMULATED_REVIEWED", "draftChanged": False},
+        json={
+            "sessionId": session,
+            "resolutionCode": "SIMULATED_REVIEWED",
+            "draftChanged": False,
+        },
     ).json()
     assert [assigned["status"], connected["status"], resolved["status"]] == [
         "SIMULATED_AGENT_ASSIGNED",
@@ -62,21 +79,45 @@ def test_handoff_api_runs_only_simulated_sequence_and_is_tenant_scoped():
     ]
     hidden = client.get(
         f"/api/handoffs/{public_id}",
-        params={"restaurant_id": "hk-sim-restaurant-b", "branch_id": "north"},
+        params={
+            "session_id": session,
+            "restaurant_id": "hk-sim-restaurant-b",
+            "branch_id": "north",
+        },
     )
     assert hidden.status_code == 404
     assert hidden.json()["error"]["code"] == "HANDOFF_NOT_FOUND"
+    wrong_session = client.get(
+        f"/api/handoffs/{public_id}",
+        params={"session_id": _sid("wrong-owner")},
+    )
+    assert wrong_session.status_code == 404
+    assert wrong_session.json()["error"]["code"] == "HANDOFF_NOT_FOUND"
 
 
 def test_simulation_control_endpoints_are_hidden_in_production(monkeypatch):
+    session = _sid("production")
+    created = client.post(
+        "/api/handoffs",
+        json={"sessionId": session, "reasonCode": "EXPLICIT_HUMAN_REQUEST"},
+    ).json()
     settings = DatabaseSettings(app_env="production", simulation_handoff_controls_enabled=False)
     monkeypatch.setattr(safety_api, "database", SimpleNamespace(settings=settings))
-    response = client.post(
+    create_response = client.post(
         "/api/handoffs",
-        json={"sessionId": _sid("production"), "reasonCode": "EXPLICIT_HUMAN_REQUEST"},
+        json={"sessionId": session, "reasonCode": "EXPLICIT_HUMAN_REQUEST"},
     )
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "SIMULATION_CONTROLS_DISABLED"
+    evaluate_response = client.post(
+        "/api/safety/evaluate",
+        json={"sessionId": session, "signals": ["FINAL_ORDER"]},
+    )
+    get_response = client.get(
+        f"/api/handoffs/{created['handoffId']}",
+        params={"session_id": session},
+    )
+    for response in (create_response, evaluate_response, get_response):
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "SIMULATION_CONTROLS_DISABLED"
 
 
 def test_refuse_has_no_order_side_effect_and_handoff_freezes_confirmed_order():

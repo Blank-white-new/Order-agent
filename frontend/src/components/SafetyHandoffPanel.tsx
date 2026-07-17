@@ -3,13 +3,14 @@ import { HandoffView, simulateAssign, simulateConnect, simulateFail, simulateRes
 import { OrderStateView } from "../types/order";
 
 type Props = {
+  sessionId: string;
   state: OrderStateView;
   onStatusChange?: (status: string) => void;
 };
 
 const DEVELOPMENT_CONTROLS = import.meta.env.DEV || import.meta.env.MODE === "test";
 
-export function SafetyHandoffPanel({ state, onStatusChange }: Props) {
+export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) {
   const [status, setStatus] = useState(state.handoffStatus);
   const [failureCode, setFailureCode] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -19,14 +20,14 @@ export function SafetyHandoffPanel({ state, onStatusChange }: Props) {
     setStatus(state.handoffStatus);
   }, [state.handoffStatus, state.handoffPublicId]);
 
-  async function run(operation: (publicId: string) => Promise<HandoffView>) {
+  async function run(operation: (publicId: string, sessionId: string) => Promise<HandoffView>) {
     if (!state.handoffPublicId || pending) {
       return;
     }
     setPending(true);
     setError(null);
     try {
-      const result = await operation(state.handoffPublicId);
+      const result = await operation(state.handoffPublicId, sessionId);
       setStatus(result.status);
       setFailureCode(result.failureCode);
       onStatusChange?.(result.status);

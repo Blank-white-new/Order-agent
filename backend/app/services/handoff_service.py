@@ -124,18 +124,43 @@ class HandoffService:
         public_id: str,
         restaurant_code: str | None = None,
         branch_code: str | None = None,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            case = self._get_scoped(uow, public_id, tenant)
+            case = self._get_scoped(uow, public_id, tenant, session_key)
             events = uow.handoffs.list_events(case.id)
             return self._serialize(case, events)
 
-    def simulate_assign(self, public_id: str, restaurant_code: str | None, branch_code: str | None) -> dict[str, Any]:
-        return self._provider_transition(public_id, restaurant_code, branch_code, "simulate_assign")
+    def simulate_assign(
+        self,
+        public_id: str,
+        restaurant_code: str | None,
+        branch_code: str | None,
+        session_key: str | None = None,
+    ) -> dict[str, Any]:
+        return self._provider_transition(
+            public_id,
+            restaurant_code,
+            branch_code,
+            "simulate_assign",
+            session_key=session_key,
+        )
 
-    def simulate_connect(self, public_id: str, restaurant_code: str | None, branch_code: str | None) -> dict[str, Any]:
-        return self._provider_transition(public_id, restaurant_code, branch_code, "simulate_connect")
+    def simulate_connect(
+        self,
+        public_id: str,
+        restaurant_code: str | None,
+        branch_code: str | None,
+        session_key: str | None = None,
+    ) -> dict[str, Any]:
+        return self._provider_transition(
+            public_id,
+            restaurant_code,
+            branch_code,
+            "simulate_connect",
+            session_key=session_key,
+        )
 
     def simulate_fail(
         self,
@@ -143,6 +168,7 @@ class HandoffService:
         failure_code: HandoffFailureCode,
         restaurant_code: str | None,
         branch_code: str | None,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         return self._provider_transition(
             public_id,
@@ -150,6 +176,7 @@ class HandoffService:
             branch_code,
             "simulate_fail",
             failure_code,
+            session_key=session_key,
         )
 
     def resolve(
@@ -158,27 +185,29 @@ class HandoffService:
         resolution: dict[str, Any],
         restaurant_code: str | None,
         branch_code: str | None,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         validate_safe_payload(resolution)
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            case = self._get_scoped(uow, public_id, tenant)
+            case = self._get_scoped(uow, public_id, tenant, session_key)
             result = self.provider.resolve(case, resolution)
             self._apply_transition(uow, case, result, HandoffActorType.SIMULATION_PROVIDER)
-        return self.get(public_id, tenant.restaurant_code, tenant.branch_code)
+        return self.get(public_id, tenant.restaurant_code, tenant.branch_code, session_key)
 
     def cancel(
         self,
         public_id: str,
         restaurant_code: str | None,
         branch_code: str | None,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            case = self._get_scoped(uow, public_id, tenant)
+            case = self._get_scoped(uow, public_id, tenant, session_key)
             result = self.provider.cancel_handoff(case)
             self._apply_transition(uow, case, result, HandoffActorType.CUSTOMER)
-        return self.get(public_id, tenant.restaurant_code, tenant.branch_code)
+        return self.get(public_id, tenant.restaurant_code, tenant.branch_code, session_key)
 
     def _provider_transition(
         self,
@@ -187,16 +216,17 @@ class HandoffService:
         branch_code: str | None,
         provider_method: str,
         *args,
+        session_key: str | None = None,
     ) -> dict[str, Any]:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            case = self._get_scoped(uow, public_id, tenant)
+            case = self._get_scoped(uow, public_id, tenant, session_key)
             method = getattr(self.provider, provider_method, None)
             if method is None:
                 raise invalid_handoff_transition(case.status, provider_method)
             result = method(case, *args)
             self._apply_transition(uow, case, result, HandoffActorType.SIMULATION_PROVIDER)
-        return self.get(public_id, tenant.restaurant_code, tenant.branch_code)
+        return self.get(public_id, tenant.restaurant_code, tenant.branch_code, session_key)
 
     def _create_or_reuse(self, *, tenant, session_key: str, decision: SafetyDecision, trace_id: str) -> tuple[str, bool]:
         with self.uow_factory() as uow:
@@ -354,10 +384,14 @@ class HandoffService:
         )
 
     @staticmethod
-    def _get_scoped(uow, public_id: str, tenant) -> HandoffCase:
+    def _get_scoped(uow, public_id: str, tenant, session_key: str | None = None) -> HandoffCase:
         case = uow.handoffs.get_scoped(public_id, tenant.restaurant_id, tenant.branch_id)
         if case is None:
             raise handoff_not_found()
+        if session_key is not None:
+            session = uow.sessions.get(session_key, tenant.restaurant_id, tenant.branch_id)
+            if session is None or case.session_id != session.id:
+                raise handoff_not_found()
         return case
 
     @staticmethod

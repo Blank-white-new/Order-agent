@@ -15,7 +15,12 @@ describe("SafetyHandoffPanel", () => {
     ["CONFIRM", "需要确认"],
     ["REFUSE", "已拒绝"],
   ])("renders %s as text rather than relying on color", (classification, label) => {
-    render(<SafetyHandoffPanel state={normalizeOrderState({ safety_classification: classification })} />);
+    render(
+      <SafetyHandoffPanel
+        sessionId="safety-ui-test"
+        state={normalizeOrderState({ safety_classification: classification })}
+      />,
+    );
     expect(screen.getByText(label)).toBeInTheDocument();
     if (classification === "REFUSE") {
       expect(screen.getByRole("alert")).toHaveTextContent("没有显示或执行成功结果");
@@ -25,6 +30,7 @@ describe("SafetyHandoffPanel", () => {
   test("labels connected status as simulated and never as a real human", () => {
     render(
       <SafetyHandoffPanel
+        sessionId="safety-ui-test"
         state={normalizeOrderState({
           safety_classification: "HANDOFF",
           safety_reason_code: "SEVERE_ALLERGY",
@@ -43,7 +49,7 @@ describe("SafetyHandoffPanel", () => {
   });
 
   test("development control follows the allowed simulated state sequence", async () => {
-    const fetchMock = vi.fn((_url: string) => Promise.resolve(okJson({
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(okJson({
       handoffId: "SIM-HO-TEST",
       status: "SIMULATED_AGENT_ASSIGNED",
       reasonCode: "SEVERE_ALLERGY",
@@ -54,6 +60,7 @@ describe("SafetyHandoffPanel", () => {
     const onStatusChange = vi.fn();
     render(
       <SafetyHandoffPanel
+        sessionId="safety-ui-test"
         state={normalizeOrderState({
           safety_classification: "HANDOFF",
           safety_reason_code: "SEVERE_ALLERGY",
@@ -67,6 +74,9 @@ describe("SafetyHandoffPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "模拟分配" }));
     await waitFor(() => expect(onStatusChange).toHaveBeenCalledWith("SIMULATED_AGENT_ASSIGNED"));
     expect(fetchMock.mock.calls[0][0]).toContain("/simulate-assign");
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
+      sessionId: "safety-ui-test",
+    });
   });
 
   test("failure response keeps explicit draft-preservation wording", async () => {
@@ -78,6 +88,7 @@ describe("SafetyHandoffPanel", () => {
     }))));
     render(
       <SafetyHandoffPanel
+        sessionId="safety-ui-test"
         state={normalizeOrderState({
           safety_classification: "HANDOFF",
           handoff_public_id: "SIM-HO-TEST",
