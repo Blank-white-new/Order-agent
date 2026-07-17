@@ -1,0 +1,7 @@
+# Text normalization and quantities
+
+The normalizer retains `original_text` only in the current request object and produces a separate `normalized_text`. Neither full raw text nor contact/address contents are added to ordinary traces. It applies Unicode NFKC, converts full-width Latin characters and digits, normalizes reviewed Chinese/English punctuation, collapses whitespace, removes zero-width and unsafe control characters, and creates a case-folded comparison value. It does not transliterate or globally convert traditional Chinese to simplified Chinese.
+
+Input limits are 1,000 code points, 256 segments, 128 characters for an ASCII word, and 64 repeated identical characters. The parser performs no network request and has no filesystem path derived from user input. Its regular expressions are bounded and avoid nested unbounded patterns.
+
+`NumberParser` maps Arabic digits, Chinese numbers, Cantonese quantity forms and English number words to positive integers. It covers units such as 份, 個, portion and cup, plus `2x`, `x2`, “one more”, “add another”, “少一个”, “make it two” and mixed forms. `a/an` means one only when a menu item context exists. Multiple distinct candidates produce `AMBIGUOUS_QUANTITY`; values above 50 require confirmation. A delete may reach zero through the existing order service, but negative quantities are never stored. `double` is not automatically interpreted in an ambiguous context.
