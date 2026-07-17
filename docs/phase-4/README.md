@@ -15,6 +15,7 @@ Phase 4 adds a deterministic text layer for `zh-CN`, `yue-Hant-HK`, `en-HK`, and
 - [Safety integration](safety-integration.md)
 - [Evaluation](evaluation.md)
 - [Verification matrix](verification-matrix.md)
+- [Completion audit](completion-audit.md)
 
 ## Runtime
 
@@ -26,8 +27,16 @@ raw text -> bounded NFKC normalization -> locale context -> reviewed lexicons
 -> existing Orchestrator/services -> localized message catalog
 ```
 
+When the multilingual service is enabled, every supported, unambiguous intent
+with non-empty `canonical_text` uses this path, including default Mandarin with
+no locale fields. Requested locale, detection, and locale lock affect locale
+state and reply rendering; they do not select a legacy mutation path. Ambiguous
+item/quantity text, non-explicit confirmation, safety decisions, and UNKNOWN
+input stop before raw text can reach the legacy semantic router. Read-only
+intents use reviewed canonical text through the same Orchestrator.
+
 Locale detection confidence is trace metadata only. It never authorizes a mutation, confirms an order, clears a safety hold, changes an item code, or represents order accuracy. Explicit language switching changes the response locale without clearing the cart or advancing the draft version.
 
 ## Boundaries
 
-This phase does not implement ASR, TTS, real-time voice, accent models, telephone lines, barge-in, audio recording, a real human, a real restaurant, POS, payment, real inventory, machine translation, generative free-form replies, complete Cantonese coverage, or European local languages. All menu, addresses, telephone-shaped fixtures, restaurants and customers are synthetic. Phase 5 may begin provider design and offline voice evaluation only while all Phase 4 text and Phase 3 safety gates remain green.
+This phase does not implement ASR, TTS, real-time voice, accent models, telephone lines, barge-in, audio recording, a real human, a real restaurant, real customers, POS, payment, real inventory, open-domain translation, generative free-form replies, complete Cantonese coverage, or European local languages. All menu, addresses, telephone-shaped fixtures, restaurants and customers are synthetic. Phase 5 is outside this PR.
