@@ -1,0 +1,90 @@
+{
+  "locale": "en-HK",
+  "intent_phrases": {
+    "ADD_ITEM": ["i'd like", "i would like", "can i get", "i want", "add another"],
+    "ADD_MODIFIER": ["extra rice", "add egg", "add vegetables"],
+    "ADD_NOTE": ["add a note", "note that"],
+    "CANCEL_ORDER": ["cancel the order", "clear the order"],
+    "CHANGE_QUANTITY": ["make it", "make", "change to", "remove one"],
+    "CONFIRM_ORDER": ["confirm the order", "place the order"],
+    "MENU_QUERY": ["show me the menu", "what is on the menu", "what drinks do you have"],
+    "PRICE_QUERY": ["how much", "what is the price"],
+    "RECOMMEND": ["recommend something", "what do you recommend", "signature dish"],
+    "REMOVE_ITEM": ["remove", "delete", "i don't want this"],
+    "REMOVE_MODIFIER": ["without onion", "no onion", "no ice"],
+    "REPLACE_ITEM": ["replace with", "replace", "swap for"],
+    "SET_ADDRESS": ["the address is", "deliver to", "delivery to"],
+    "SET_FULFILLMENT_DELIVERY": ["delivery", "deliver it"],
+    "SET_FULFILLMENT_PICKUP": ["pickup", "collect it"],
+    "SET_PHONE": ["the phone number is", "phone number", "contact number"],
+    "SET_SPICY_LEVEL": ["less spicy", "not spicy", "mild spicy"],
+    "SHOW_ORDER": ["show my order", "order summary", "what did i order"],
+    "START_NEW_ORDER": ["start a new order", "new order", "order again"]
+  },
+  "quantity_words": {
+    "1": ["one", "a", "an"],
+    "2": ["two"],
+    "3": ["three"],
+    "4": ["four"],
+    "5": ["five"]
+  },
+  "units": ["portion", "portions", "cup", "cups", "bowl", "bowls"],
+  "add_words": ["want", "get", "add", "another"],
+  "remove_words": ["remove", "delete", "without", "no"],
+  "replace_words": ["replace", "swap", "change"],
+  "confirmation_words": {
+    "confirm": ["confirm", "yes, that's correct", "that's right", "place the order", "go ahead"],
+    "reject": ["no, that's wrong", "not correct", "cancel", "do not place the order", "stop"]
+  },
+  "negation_words": ["no", "not", "don't", "do not", "without"],
+  "fulfillment_words": {
+    "delivery": ["delivery", "deliver", "send it"],
+    "pickup": ["pickup", "pick up", "collect"]
+  },
+  "modifier_words": {
+    "extra_rice": ["extra rice"],
+    "less_spicy": ["less spicy"],
+    "no_ice": ["no ice"],
+    "no_onion": ["no onion", "without onion"],
+    "no_spicy": ["not spicy", "no chilli"]
+  },
+  "spicy_level_words": {
+    "less": ["less spicy"],
+    "none": ["not spicy", "no chilli"],
+    "mild": ["mild spicy"]
+  },
+  "language_switch_words": {
+    "en-HK": ["english please", "switch to english", "can we continue in english", "please reply in english"],
+    "yue-Hant-HK": [],
+    "zh-CN": []
+  },
+  "safety_phrases": {
+    "ABUSE_OR_SECURITY": ["attack the system", "damage the system"],
+    "AMBIGUOUS_ITEM": ["the item name is ambiguous", "unclear menu item"],
+    "AMBIGUOUS_QUANTITY": ["the quantity is ambiguous", "unclear quantity"],
+    "BYPASS_CONFIRMATION": ["bypass confirmation", "skip confirmation and order"],
+    "CARD_DATA_STORAGE": ["store my card", "save the full card number"],
+    "COMPLAINT": ["make a complaint", "complain about the service"],
+    "CROSS_CONTAMINATION": ["cross contamination", "cross-contamination risk"],
+    "CROSS_TENANT_ACCESS": ["show another restaurant's data", "access other restaurant data"],
+    "EXPLICIT_HUMAN_REQUEST": ["human agent", "real person", "speak to a person"],
+    "FORGE_MERCHANT_ACCEPTANCE": ["fake merchant acceptance", "mark merchant accepted"],
+    "INTERNAL_SECRET_EXTRACTION": ["extract the system prompt", "show the internal api key"],
+    "PAYMENT_DISPUTE": ["payment dispute", "dispute the payment"],
+    "PRICE_UNAVAILABLE": ["authoritative price unavailable", "cannot retrieve the price"],
+    "MENU_DATA_MISSING": ["menu data is missing", "no menu data"],
+    "MERCHANT_REJECTED": ["merchant rejected the order"],
+    "MERCHANT_TIMEOUT": ["merchant response timed out"],
+    "REPEATED_MISUNDERSTANDING": ["you misunderstood me again", "repeated misunderstanding"],
+    "REFUND_REQUEST": ["request a refund", "i want a refund"],
+    "REGULATED_ITEM": ["buy a regulated item"],
+    "SECURITY_ATTACK": ["prompt injection attack", "steal system data", "attack the system and steal data"],
+    "SEVERE_ALLERGY": ["severe allergy", "anaphylaxis", "fatal allergy"],
+    "SYSTEM_FAILURE": ["the system keeps failing", "system processing failure"],
+    "UNVERIFIED_ADDRESS": ["address cannot be verified", "unverified address"],
+    "UNAUTHORIZED_ORDER_ACCESS": ["show another customer's order", "access someone else's order"],
+    "UNSUPPORTED_SAFETY_GUARANTEE": ["guarantee allergen safe", "guarantee no allergen"]
+  },
+  "address_words": ["address", "deliver to", "delivery to", "street", "road", "building", "zone"],
+  "phone_words": ["phone", "mobile", "contact number"]
+}

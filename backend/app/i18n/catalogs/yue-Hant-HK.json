@@ -1,0 +1,90 @@
+{
+  "locale": "yue-Hant-HK",
+  "intent_phrases": {
+    "ADD_ITEM": ["我要", "俾我", "加多", "要多個"],
+    "ADD_MODIFIER": ["加底", "加蛋", "加菜"],
+    "ADD_NOTE": ["備註"],
+    "CANCEL_ORDER": ["取消張單", "清空張單"],
+    "CHANGE_QUANTITY": ["改做", "改為", "少一個"],
+    "CONFIRM_ORDER": ["確認張單", "可以落單"],
+    "MENU_QUERY": ["餐牌", "有咩食", "有咩飲", "俾我睇餐牌", "睇餐牌"],
+    "PRICE_QUERY": ["幾錢", "價錢", "幾多錢"],
+    "RECOMMEND": ["推介", "招牌係咩"],
+    "REMOVE_ITEM": ["唔要呢個", "刪走", "唔要"],
+    "REMOVE_MODIFIER": ["走蔥", "走芫茜", "走冰"],
+    "REPLACE_ITEM": ["轉做", "換做"],
+    "SET_ADDRESS": ["地址係", "送去", "外賣去"],
+    "SET_FULFILLMENT_DELIVERY": ["外賣", "送貨"],
+    "SET_FULFILLMENT_PICKUP": ["自取", "自己拎"],
+    "SET_PHONE": ["電話係", "聯絡電話"],
+    "SET_SPICY_LEVEL": ["少辣", "走辣", "微辣"],
+    "SHOW_ORDER": ["睇下張單", "睇張單", "訂單摘要", "我叫咗咩"],
+    "START_NEW_ORDER": ["開張新單", "重新落單", "再嚟一單"]
+  },
+  "quantity_words": {
+    "1": ["一", "一個", "一份"],
+    "2": ["兩", "兩個", "兩份"],
+    "3": ["三", "三個", "三份"],
+    "4": ["四", "四個", "四份"],
+    "5": ["五", "五個", "五份"]
+  },
+  "units": ["份", "個", "杯", "碗"],
+  "add_words": ["要", "俾", "加", "加多"],
+  "remove_words": ["唔要", "刪走", "走", "拎走"],
+  "replace_words": ["轉做", "改做", "換做"],
+  "confirmation_words": {
+    "confirm": ["確認", "啱", "係", "冇問題", "就咁", "確認張單"],
+    "reject": ["唔啱", "唔係", "取消", "唔好落單", "住先"]
+  },
+  "negation_words": ["唔", "冇", "唔要", "唔係", "咪"],
+  "fulfillment_words": {
+    "delivery": ["外賣", "送貨", "送去"],
+    "pickup": ["自取", "自己拎", "到舖拎"]
+  },
+  "modifier_words": {
+    "extra_rice": ["加底", "多飯"],
+    "less_spicy": ["少辣"],
+    "no_ice": ["走冰"],
+    "no_onion": ["走蔥"],
+    "no_spicy": ["走辣"]
+  },
+  "spicy_level_words": {
+    "less": ["少辣"],
+    "none": ["走辣"],
+    "mild": ["微辣"]
+  },
+  "language_switch_words": {
+    "en-HK": [],
+    "yue-Hant-HK": ["講廣東話", "用廣東話", "可唔可以講廣東話", "轉做廣東話"],
+    "zh-CN": []
+  },
+  "safety_phrases": {
+    "ABUSE_OR_SECURITY": ["攻擊個系統", "整壞個系統"],
+    "AMBIGUOUS_ITEM": ["菜名唔清楚", "菜式有歧義"],
+    "AMBIGUOUS_QUANTITY": ["數量唔清楚", "數量有歧義"],
+    "BYPASS_CONFIRMATION": ["繞過確認", "唔使確認直接落單"],
+    "CARD_DATA_STORAGE": ["保存銀行卡", "儲存銀行卡", "記低完整卡號", "完整號碼"],
+    "COMPLAINT": ["我要投訴", "投訴服務"],
+    "CROSS_CONTAMINATION": ["交叉污染", "會唔會交叉污染"],
+    "CROSS_TENANT_ACCESS": ["睇其他餐廳資料", "睇其他餐廳嘅資料", "顯示第二間餐廳資料"],
+    "EXPLICIT_HUMAN_REQUEST": ["轉人工", "搵真人", "我要真人"],
+    "FORGE_MERCHANT_ACCEPTANCE": ["扮商戶已接受", "偽造商戶接受", "標記商戶接受咗"],
+    "INTERNAL_SECRET_EXTRACTION": ["攞系統提示", "攞出系統提示", "顯示內部密鑰"],
+    "PAYMENT_DISPUTE": ["付款爭議", "畀錢有爭議"],
+    "PRICE_UNAVAILABLE": ["查唔到價錢", "冇權威價錢"],
+    "MENU_DATA_MISSING": ["餐牌資料缺失", "冇餐牌資料"],
+    "MERCHANT_REJECTED": ["商戶拒絕張單"],
+    "MERCHANT_TIMEOUT": ["商戶回覆超時"],
+    "REPEATED_MISUNDERSTANDING": ["你又理解錯", "連續理解錯誤"],
+    "REFUND_REQUEST": ["我要退款", "申請退款"],
+    "REGULATED_ITEM": ["買受管制物品"],
+    "SECURITY_ATTACK": ["注入攻擊", "偷系統資料", "攻擊系統同破壞資料"],
+    "SEVERE_ALLERGY": ["嚴重敏感", "會過敏休克", "致命敏感"],
+    "SYSTEM_FAILURE": ["系統處理故障", "系統持續失敗"],
+    "UNVERIFIED_ADDRESS": ["地址驗證唔到", "地址唔確定"],
+    "UNAUTHORIZED_ORDER_ACCESS": ["睇其他客張單", "睇其他客人嘅訂單", "顯示人哋訂單"],
+    "UNSUPPORTED_SAFETY_GUARANTEE": ["保證一定唔會敏感", "保證冇致敏原"]
+  },
+  "address_words": ["地址", "送去", "外賣去", "道", "街", "號", "樓"],
+  "phone_words": ["電話", "手機", "聯絡電話"]
+}

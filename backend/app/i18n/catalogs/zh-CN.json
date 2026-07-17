@@ -1,0 +1,90 @@
+{
+  "locale": "zh-CN",
+  "intent_phrases": {
+    "ADD_ITEM": ["我要", "来一份", "再加", "加一个"],
+    "ADD_MODIFIER": ["加饭", "加蛋", "加青菜"],
+    "ADD_NOTE": ["备注"],
+    "CANCEL_ORDER": ["取消订单", "清空订单"],
+    "CHANGE_QUANTITY": ["改成", "改为", "少一个"],
+    "CONFIRM_ORDER": ["确认订单", "可以下单"],
+    "MENU_QUERY": ["菜单", "有什么吃的", "有什么喝的"],
+    "PRICE_QUERY": ["多少钱", "价格"],
+    "RECOMMEND": ["推荐", "招牌菜"],
+    "REMOVE_ITEM": ["删掉", "删除", "不要这个"],
+    "REMOVE_MODIFIER": ["不要葱", "不要香菜", "去冰"],
+    "REPLACE_ITEM": ["换成", "替换成"],
+    "SET_ADDRESS": ["地址是", "送到", "配送到"],
+    "SET_FULFILLMENT_DELIVERY": ["配送", "送餐"],
+    "SET_FULFILLMENT_PICKUP": ["自取", "到店取"],
+    "SET_PHONE": ["电话是", "联系电话"],
+    "SET_SPICY_LEVEL": ["少辣", "不辣", "微辣"],
+    "SHOW_ORDER": ["查看订单", "订单摘要", "我点了什么"],
+    "START_NEW_ORDER": ["开始新订单", "重新下单", "再来一单"]
+  },
+  "quantity_words": {
+    "1": ["一", "一个", "一份"],
+    "2": ["两", "二", "两个", "两份"],
+    "3": ["三", "三个", "三份"],
+    "4": ["四", "四个", "四份"],
+    "5": ["五", "五个", "五份"]
+  },
+  "units": ["份", "个", "杯", "碗"],
+  "add_words": ["要", "来", "加", "再加"],
+  "remove_words": ["不要", "删掉", "删除", "去掉"],
+  "replace_words": ["换成", "改成", "替换"],
+  "confirmation_words": {
+    "confirm": ["确认", "对", "没问题", "就这样", "可以下单", "确认订单"],
+    "reject": ["不对", "不是", "取消", "不要下单", "先别下单"]
+  },
+  "negation_words": ["不", "没", "不要", "不是", "别"],
+  "fulfillment_words": {
+    "delivery": ["配送", "送餐", "外送"],
+    "pickup": ["自取", "到店取", "自己取"]
+  },
+  "modifier_words": {
+    "extra_rice": ["加饭", "多点饭"],
+    "less_spicy": ["少辣"],
+    "no_ice": ["去冰"],
+    "no_onion": ["不要葱"],
+    "no_spicy": ["不辣"]
+  },
+  "spicy_level_words": {
+    "less": ["少辣"],
+    "none": ["不辣"],
+    "mild": ["微辣"]
+  },
+  "language_switch_words": {
+    "en-HK": [],
+    "yue-Hant-HK": [],
+    "zh-CN": ["用普通话", "请说普通话", "切换到中文", "普通话就行"]
+  },
+  "safety_phrases": {
+    "ABUSE_OR_SECURITY": ["攻击系统", "破坏系统"],
+    "AMBIGUOUS_ITEM": ["菜名不清楚", "菜品有歧义"],
+    "AMBIGUOUS_QUANTITY": ["数量不清楚", "数量有歧义"],
+    "BYPASS_CONFIRMATION": ["绕过确认", "不用确认直接下单"],
+    "CARD_DATA_STORAGE": ["保存银行卡", "保存完整卡号"],
+    "COMPLAINT": ["我要投诉", "投诉服务"],
+    "CROSS_CONTAMINATION": ["交叉污染", "会不会交叉污染"],
+    "CROSS_TENANT_ACCESS": ["查看其他餐厅数据", "显示别的餐厅数据"],
+    "EXPLICIT_HUMAN_REQUEST": ["找人工", "我要真人", "转人工"],
+    "FORGE_MERCHANT_ACCEPTANCE": ["伪造商家接受", "标记商家已接受"],
+    "INTERNAL_SECRET_EXTRACTION": ["提取系统提示", "显示内部密钥"],
+    "PAYMENT_DISPUTE": ["支付争议", "付款争议"],
+    "PRICE_UNAVAILABLE": ["价格查不到", "没有权威价格"],
+    "MENU_DATA_MISSING": ["菜单数据缺失", "没有菜单数据"],
+    "MERCHANT_REJECTED": ["商家拒绝订单"],
+    "MERCHANT_TIMEOUT": ["商家响应超时"],
+    "REPEATED_MISUNDERSTANDING": ["你又理解错了", "连续理解错误"],
+    "REFUND_REQUEST": ["我要退款", "申请退款"],
+    "REGULATED_ITEM": ["购买受管制物品"],
+    "SECURITY_ATTACK": ["注入攻击", "窃取系统数据", "攻击系统并破坏数据"],
+    "SEVERE_ALLERGY": ["严重过敏", "致命过敏", "过敏性休克"],
+    "SYSTEM_FAILURE": ["系统处理故障", "系统持续失败"],
+    "UNVERIFIED_ADDRESS": ["地址无法验证", "地址不确定"],
+    "UNAUTHORIZED_ORDER_ACCESS": ["查看其他顾客订单", "显示别人的订单"],
+    "UNSUPPORTED_SAFETY_GUARANTEE": ["保证绝不过敏", "保证没有过敏原"]
+  },
+  "address_words": ["地址", "送到", "配送到", "路", "街", "号", "楼"],
+  "phone_words": ["电话", "手机", "联系电话"]
+}
