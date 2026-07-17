@@ -5,13 +5,13 @@
 ## 默认拒绝
 
 - repository 查询 order 必须同时带 restaurant_id 和 branch_id；menu 从 branch active version 读取。
-- session key 首次创建时绑定 tenant；后续任一 code 不一致都是 `TENANT_CONTEXT_MISMATCH`。
-- branch active menu、session branch 和 order branch/session 关联有组合外键，不只依赖应用过滤。
+- session key 首次创建时绑定 tenant，数据库对 `session_key` 全局唯一；后续任一 code 不一致都是不泄露原租户信息的 `TENANT_CONTEXT_MISMATCH`。
+- branch active menu、session branch、order branch/session/customer/delivery zone、OrderItem、availability、allergen 和 idempotency 关键关联有复合外键，不只依赖应用过滤。
 - 错误只返回稳定 code/message/status，不返回 SQL、stack 或 DATABASE_URL；他租户资源查询返回未找到或上下文不匹配。
 
 ## Session 持久化
 
-`conversation_sessions` 保存 JSON 草稿、locale、tenant、status 和 version。每次保存用 `WHERE id=? AND version=?` 乐观更新；0 row 返回 `SESSION_VERSION_CONFLICT`。事务失败时原 DB 状态不变，调用者对象的 version 也不提前增加。closed session 返回 `SESSION_CLOSED`。重新构造 engine/app 后依然从 DB 恢复草稿。
+`conversation_sessions` 保存 JSON 草稿、locale、tenant、status 和 version。运行时只用 `get_by_session_key` 做全局确定性查询，不再混用 tenant-scoped 唯一和模糊全局查询。并发创建相同 key 由数据库全局唯一收敛为一行。每次保存用 `WHERE id=? AND version=?` 乐观更新；0 row 返回 `SESSION_VERSION_CONFLICT`。事务失败时原 DB 状态不变，调用者对象的 version 也不提前增加。closed session 返回 `SESSION_CLOSED`。重新构造 engine/app 后依然从 DB 恢复草稿。
 
 ## 对应阶段 1
 
