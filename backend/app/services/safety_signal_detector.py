@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import re
+
+from app.i18n.lexicon_loader import load_all_lexicons
+
 
 class SafetySignalDetector:
-    """A narrow deterministic safety guard, not a multilingual intent parser."""
+    """Reviewed multilingual safety phrases with conservative token boundaries."""
 
     _PHRASES: tuple[tuple[tuple[str, ...], str], ...] = (
         (("真人", "人工", "human agent", "real person"), "EXPLICIT_HUMAN_REQUEST"),
@@ -20,6 +24,26 @@ class SafetySignalDetector:
         (("保证不过敏", "guarantee allergen safe", "guarantee no allergen"), "UNSUPPORTED_SAFETY_GUARANTEE"),
     )
 
+    def __init__(self) -> None:
+        multilingual: list[tuple[tuple[str, ...], str]] = []
+        by_signal: dict[str, list[str]] = {}
+        for lexicon in load_all_lexicons().values():
+            for signal, phrases in lexicon.data["safety_phrases"].items():
+                by_signal.setdefault(signal, []).extend(phrases)
+        for signal, phrases in sorted(by_signal.items()):
+            multilingual.append((tuple(dict.fromkeys(phrase.casefold() for phrase in phrases)), signal))
+        self._compiled = tuple((*self._PHRASES, *multilingual))
+
     def detect(self, text: str) -> frozenset[str]:
         normalized = text.casefold()
-        return frozenset(signal for phrases, signal in self._PHRASES if any(phrase in normalized for phrase in phrases))
+        return frozenset(
+            signal
+            for phrases, signal in self._compiled
+            if any(self._contains(normalized, phrase.casefold()) for phrase in phrases)
+        )
+
+    @staticmethod
+    def _contains(text: str, phrase: str) -> bool:
+        if phrase.isascii():
+            return bool(re.search(rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])", text))
+        return phrase in text

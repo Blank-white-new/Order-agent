@@ -8,6 +8,7 @@ from app.db.bootstrap import get_runtime_database
 from app.repositories.uow import SqlAlchemyUnitOfWork
 from app.services.menu_config_loader import load_menu_config
 from app.services.tenant_service import TenantService
+from app.i18n.locales import CONCRETE_LOCALES, ZH_CN
 
 
 class MenuService:
@@ -18,12 +19,16 @@ class MenuService:
         restaurant_code: str | None = None,
         branch_code: str | None = None,
         database=None,
+        locale: str = ZH_CN,
     ) -> None:
         # Explicit fixture paths and MENU_CONFIG_PATH remain supported for
         # import/recovery tests. Normal runtime reads the published DB menu.
         self._legacy_fixture = config_path is not None or bool(os.getenv("MENU_CONFIG_PATH"))
         self._restaurant_code = restaurant_code
         self._branch_code = branch_code
+        if locale not in CONCRETE_LOCALES:
+            raise ValueError("unsupported locale")
+        self._locale = locale
         self._items: list[MenuItem] = []
         self._categories: list[str] = []
         self._category_aliases: dict[str, list[str]] = {}
@@ -52,8 +57,16 @@ class MenuService:
             return
         tenant = self._tenant_service.resolve(self._restaurant_code, self._branch_code)
         with self._uow_factory() as uow:
-            records = uow.menus.list_items(tenant.branch_id, include_unavailable=True)
-            categories, aliases, groups = uow.menus.category_configuration(tenant.branch_id)
+            records = uow.menus.list_items(tenant.branch_id, locale=self._locale, include_unavailable=True)
+            categories, aliases, groups = uow.menus.category_configuration(tenant.branch_id, locale=self._locale)
+            multilingual_rows = uow.menus.multilingual_lexicon(tenant.branch_id)
+        localized_options: dict[str, dict[str, str]] = {}
+        for row in multilingual_rows:
+            localized_options[row["code"]] = {
+                option["internalName"]: option.get("translations", {}).get(self._locale, {}).get("name", option["internalName"])
+                for group in row.get("modifierGroups", [])
+                for option in group.get("options", [])
+            }
         self._items = []
         for record in records:
             attributes = record.attributes
@@ -67,10 +80,13 @@ class MenuService:
                     currency=record.currency,
                     menu_item_db_id=record.id,
                     menu_version_id=record.menu_version_id,
-                    tags=list(attributes.get("tags", [])),
+                    tags=list(attributes.get("tags", [])) if self._locale == ZH_CN else [],
                     spicy_level=int(attributes.get("spicy_level", 0)),
                     available=record.available,
-                    options=list(attributes.get("options", [])),
+                    options=[
+                        localized_options.get(record.code, {}).get(option, option)
+                        for option in attributes.get("options", [])
+                    ],
                     aliases=list(record.aliases),
                     description=str(attributes.get("description", "")),
                     ingredients=list(attributes.get("ingredients", [])),
@@ -80,7 +96,7 @@ class MenuService:
                         if declaration.get("name") and declaration.get("declaration") in {"CONTAINS", "MAY_CONTAIN"}
                     ],
                     recommended_score=float(attributes.get("recommended_score", 0)),
-                    recommend_reason=str(attributes.get("recommend_reason", "")),
+                    recommend_reason=str(attributes.get("recommend_reason", "")) if self._locale == ZH_CN else "",
                     prep_speed=str(attributes.get("prep_speed", "normal")),
                     taste_profile=list(attributes.get("taste_profile", [])),
                     portion=str(attributes.get("portion", "medium")),
