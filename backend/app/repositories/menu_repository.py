@@ -20,6 +20,7 @@ from app.db.models import (
     ModifierGroup,
     ModifierOption,
 )
+from app.domain.errors import menu_publish_conflict
 from app.repositories.records import MenuItemRecord
 
 
@@ -140,30 +141,45 @@ class MenuRepository:
     def get_item_by_code(self, branch_id: int, code: str) -> MenuItemRecord | None:
         return next((item for item in self.list_items(branch_id, include_unavailable=True) if item.code == code), None)
 
-    def selected_modifier_options(self, menu_item_id: int, option_names: list[str]) -> list[dict]:
-        if not option_names:
-            return []
-        rows = self.session.execute(
-            select(ModifierOption, ModifierGroup)
-            .join(ModifierGroup, ModifierGroup.id == ModifierOption.modifier_group_id)
-            .join(MenuItemModifierGroup, MenuItemModifierGroup.modifier_group_id == ModifierGroup.id)
-            .join(MenuItem, MenuItem.id == MenuItemModifierGroup.menu_item_id)
-            .where(
-                MenuItemModifierGroup.menu_item_id == menu_item_id,
-                ModifierGroup.menu_version_id == MenuItem.menu_version_id,
-                ModifierGroup.active.is_(True),
-                ModifierOption.active.is_(True),
-                ModifierOption.name.in_(option_names),
+    def modifier_configuration(self, menu_item_id: int) -> list[dict]:
+        groups = list(
+            self.session.scalars(
+                select(ModifierGroup)
+                .join(MenuItemModifierGroup, MenuItemModifierGroup.modifier_group_id == ModifierGroup.id)
+                .where(MenuItemModifierGroup.menu_item_id == menu_item_id)
+                .order_by(MenuItemModifierGroup.sort_order, ModifierGroup.id)
             )
-        ).all()
+        )
+        if not groups:
+            return []
+        options_by_group: dict[int, list[ModifierOption]] = {group.id: [] for group in groups}
+        for option in self.session.scalars(
+            select(ModifierOption)
+            .where(ModifierOption.modifier_group_id.in_(options_by_group))
+            .order_by(ModifierOption.sort_order, ModifierOption.id)
+        ):
+            options_by_group[option.modifier_group_id].append(option)
         return [
             {
-                "groupCode": group.code,
-                "optionCode": option.code,
-                "name": option.name,
-                "priceDeltaMinor": option.price_delta_minor,
+                "id": group.id,
+                "code": group.code,
+                "name": group.name,
+                "required": group.required,
+                "minSelections": group.min_selections,
+                "maxSelections": group.max_selections,
+                "active": group.active,
+                "options": [
+                    {
+                        "id": option.id,
+                        "code": option.code,
+                        "name": option.name,
+                        "priceDeltaMinor": option.price_delta_minor,
+                        "active": option.active,
+                    }
+                    for option in options_by_group[group.id]
+                ],
             }
-            for option, group in rows
+            for group in groups
         ]
 
     def category_configuration(self, branch_id: int, *, locale: str = "zh-CN") -> tuple[list[str], dict[str, list[str]], dict[str, list[str]]]:
@@ -195,19 +211,35 @@ class MenuRepository:
         numbers = self.session.scalars(select(MenuVersion.version_number).where(MenuVersion.restaurant_id == restaurant_id)).all()
         return max(numbers, default=0) + 1
 
-    def publish(self, restaurant_id: int, branch_ids: list[int], version: MenuVersion) -> None:
+    def publish_for_restaurant(self, restaurant_id: int, version: MenuVersion) -> None:
         now = datetime.now(timezone.utc)
-        self.session.execute(
-            update(MenuVersion)
-            .where(MenuVersion.restaurant_id == restaurant_id, MenuVersion.status == "PUBLISHED", MenuVersion.id != version.id)
-            .values(status="ARCHIVED")
+        current = self.session.scalar(
+            select(MenuVersion)
+            .where(
+                MenuVersion.restaurant_id == restaurant_id,
+                MenuVersion.status == "PUBLISHED",
+                MenuVersion.id != version.id,
+            )
+            .with_for_update()
         )
+        if current is not None:
+            archived = self.session.execute(
+                update(MenuVersion)
+                .where(MenuVersion.id == current.id, MenuVersion.status == "PUBLISHED")
+                .values(status="ARCHIVED")
+            )
+            if archived.rowcount != 1:
+                raise menu_publish_conflict()
         version.status = "PUBLISHED"
         version.published_at = now
         version.effective_at = version.effective_at or now
         self.session.execute(
             update(Branch)
-            .where(Branch.restaurant_id == restaurant_id)
+            .where(
+                Branch.restaurant_id == restaurant_id,
+                Branch.status == "ACTIVE",
+                Branch.deleted_at.is_(None),
+            )
             .values(active_menu_version_id=version.id)
         )
 

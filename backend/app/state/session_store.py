@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from app.db.models import ConversationSession
-from app.domain.errors import session_closed, session_version_conflict, tenant_context_mismatch
+from app.domain.errors import database_write_failed, session_closed, session_version_conflict, tenant_context_mismatch
 from app.services.tenant_service import TenantService
 from app.state.session_state import SessionState
 from app.state.session_persistence import apply_contact, contact_from_state, state_json_without_contact
@@ -40,39 +42,51 @@ class PersistentSessionStore:
 
     def get(self, session_id: str, restaurant_code: str | None = None, branch_code: str | None = None) -> SessionState:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
-        with self.uow_factory() as uow:
-            existing = uow.sessions.find_any_tenant(session_id)
-            if existing and (existing.restaurant_id != tenant.restaurant_id or existing.branch_id != tenant.branch_id):
-                raise tenant_context_mismatch()
-            if existing and existing.status == "CLOSED":
-                raise session_closed()
-            if not existing:
+        try:
+            with self.uow_factory() as uow:
+                existing = uow.sessions.get_by_session_key(session_id)
+                if existing:
+                    return self._state_for_existing(uow, existing, tenant)
                 state = SessionState(
                     restaurant_code=tenant.restaurant_code,
                     branch_code=tenant.branch_code,
                     persistence_version=1,
                     is_synthetic=True,
                 )
-                existing = ConversationSession(
-                    session_key=session_id,
-                    restaurant_id=tenant.restaurant_id,
-                    branch_id=tenant.branch_id,
-                    locale="zh-CN",
-                    state_json=state_json_without_contact(state),
-                    version=1,
-                    status="ACTIVE",
-                    is_synthetic=True,
+                uow.sessions.add(
+                    ConversationSession(
+                        session_key=session_id,
+                        restaurant_id=tenant.restaurant_id,
+                        branch_id=tenant.branch_id,
+                        locale="zh-CN",
+                        state_json=state_json_without_contact(state),
+                        version=1,
+                        status="ACTIVE",
+                        is_synthetic=True,
+                    )
                 )
-                uow.sessions.add(existing)
                 uow.flush()
                 return state
-            state = SessionState(**dict(existing.state_json or {}))
-            state.restaurant_code = tenant.restaurant_code
-            state.branch_code = tenant.branch_code
-            state.persistence_version = existing.version
-            state.is_synthetic = existing.is_synthetic
-            apply_contact(state, uow.sessions.get_contact(existing.id))
-            return state
+        except IntegrityError:
+            # A concurrent creator may have committed the globally bound key first.
+            with self.uow_factory() as uow:
+                existing = uow.sessions.get_by_session_key(session_id)
+                if existing is None:
+                    raise database_write_failed()
+                return self._state_for_existing(uow, existing, tenant)
+
+    def _state_for_existing(self, uow, existing: ConversationSession, tenant) -> SessionState:
+        if existing.restaurant_id != tenant.restaurant_id or existing.branch_id != tenant.branch_id:
+            raise tenant_context_mismatch()
+        if existing.status == "CLOSED":
+            raise session_closed()
+        state = SessionState(**dict(existing.state_json or {}))
+        state.restaurant_code = tenant.restaurant_code
+        state.branch_code = tenant.branch_code
+        state.persistence_version = existing.version
+        state.is_synthetic = existing.is_synthetic
+        apply_contact(state, uow.sessions.get_contact(existing.id))
+        return state
 
     def set(
         self,
@@ -86,7 +100,7 @@ class PersistentSessionStore:
             branch_code or state.branch_code,
         )
         with self.uow_factory() as uow:
-            existing = uow.sessions.find_any_tenant(session_id)
+            existing = uow.sessions.get_by_session_key(session_id)
             if not existing or existing.restaurant_id != tenant.restaurant_id or existing.branch_id != tenant.branch_id:
                 raise tenant_context_mismatch()
             if existing.status == "CLOSED":
@@ -102,7 +116,7 @@ class PersistentSessionStore:
     def reset(self, session_id: str, restaurant_code: str | None = None, branch_code: str | None = None) -> SessionState:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            existing = uow.sessions.find_any_tenant(session_id)
+            existing = uow.sessions.get_by_session_key(session_id)
             if existing and (existing.restaurant_id != tenant.restaurant_id or existing.branch_id != tenant.branch_id):
                 raise tenant_context_mismatch()
             if not existing:

@@ -28,6 +28,7 @@ from app.domain.errors import (
     tenant_context_mismatch,
 )
 from app.services.order_lifecycle_service import OrderLifecycleService
+from app.services.modifier_validation_service import ModifierSelectionValidator
 from app.services.tenant_service import TenantService
 from app.state.session_state import SessionState
 from app.state.session_persistence import apply_contact, contact_from_state, state_json_without_contact
@@ -52,6 +53,7 @@ class OrderPersistenceService:
         self.tenant_service = tenant_service
         self.simulation_data_only = simulation_data_only
         self.lifecycle = OrderLifecycleService()
+        self.modifier_validator = ModifierSelectionValidator()
 
     def confirm_order(
         self,
@@ -103,9 +105,7 @@ class OrderPersistenceService:
                         "verifiedAt": None,
                     }
                 ]
-                modifier_snapshot = uow.menus.selected_modifier_options(menu_item.id, entry.options)
-                if len({entry["name"] for entry in modifier_snapshot}) != len(set(entry.options)):
-                    raise DomainError("INVALID_MODIFIER", "A selected modifier is not authoritative for this menu item.", 422)
+                modifier_snapshot = self.modifier_validator.validate(uow.menus, menu_item.id, entry.options)
                 if entry.spicy_level:
                     modifier_snapshot.append({"type": "spicy-level", "name": entry.spicy_level, "priceDeltaMinor": 0})
                 if entry.exclusions:
@@ -152,7 +152,7 @@ class OrderPersistenceService:
 
     def _confirm_transaction(self, tenant, session_key, state, key, fingerprint, request, source) -> ConfirmationResult:
         with self.uow_factory() as uow:
-            session_row = uow.sessions.find_any_tenant(session_key)
+            session_row = uow.sessions.get_by_session_key(session_key)
             if not session_row or session_row.restaurant_id != tenant.restaurant_id or session_row.branch_id != tenant.branch_id:
                 raise tenant_context_mismatch()
             persisted_state = SessionState(**dict(session_row.state_json or {}))
@@ -206,6 +206,7 @@ class OrderPersistenceService:
                 uow.orders.add(
                     OrderItemModel(
                         order_id=order.id,
+                        restaurant_id=tenant.restaurant_id,
                         menu_item_id=item["menu_item_id"],
                         menu_version_id=item["menu_version_id"],
                         item_code_snapshot=item["code"],

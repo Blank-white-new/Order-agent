@@ -20,7 +20,7 @@ def _draft_order(context) -> str:
     context.session_store.get(key)
     tenant = context.tenant_service.resolve()
     with context.uow_factory() as uow:
-        session_row = uow.sessions.find_any_tenant(key)
+        session_row = uow.sessions.get_by_session_key(key)
         order = Order(
             public_id="SIM-" + uuid.uuid4().hex[:16].upper(),
             restaurant_id=tenant.restaurant_id,

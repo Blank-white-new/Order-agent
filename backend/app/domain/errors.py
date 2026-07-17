@@ -61,3 +61,58 @@ def session_version_conflict() -> DomainError:
 
 def session_closed() -> DomainError:
     return DomainError("SESSION_CLOSED", "The session is closed and cannot be modified.")
+
+
+def menu_publish_conflict() -> DomainError:
+    return DomainError(
+        "MENU_PUBLISH_CONFLICT",
+        "Another menu publication won the restaurant-wide publication race.",
+    )
+
+
+def modifier_required(group_code: str) -> DomainError:
+    return DomainError(
+        "MODIFIER_REQUIRED",
+        f"A required modifier selection is missing for group '{group_code}'.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def modifier_too_few(group_code: str) -> DomainError:
+    return DomainError(
+        "MODIFIER_TOO_FEW",
+        f"Too few modifier selections were provided for group '{group_code}'.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def modifier_too_many(group_code: str) -> DomainError:
+    return DomainError(
+        "MODIFIER_TOO_MANY",
+        f"Too many modifier selections were provided for group '{group_code}'.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def modifier_not_available() -> DomainError:
+    return DomainError(
+        "MODIFIER_NOT_AVAILABLE",
+        "A selected modifier is not available for this menu item.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def modifier_ambiguous() -> DomainError:
+    return DomainError(
+        "MODIFIER_AMBIGUOUS",
+        "A modifier name matches more than one group; use an unambiguous selection.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def modifier_duplicate() -> DomainError:
+    return DomainError(
+        "MODIFIER_DUPLICATE",
+        "The same modifier option cannot be selected more than once.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
