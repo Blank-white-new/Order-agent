@@ -121,8 +121,10 @@ def test_canonical_intent_contract_is_complete_and_language_independent():
         "ADD_NOTE", "SET_SPICY_LEVEL", "SET_FULFILLMENT_DELIVERY",
         "SET_FULFILLMENT_PICKUP", "SET_ADDRESS", "SET_PHONE", "SHOW_ORDER",
         "CONFIRM_ORDER", "CANCEL_ORDER", "START_NEW_ORDER", "SWITCH_LANGUAGE",
-        "REQUEST_HUMAN", "COMPLAINT", "REFUND_REQUEST", "PAYMENT_DISPUTE", "UNKNOWN",
-    }
+            "REQUEST_HUMAN", "COMPLAINT", "REFUND_REQUEST", "PAYMENT_DISPUTE", "UNKNOWN",
+            "ITEM_INFO_QUERY", "CONTEXT_SELECTION", "CONTEXT_REFERENCE",
+            "CANCEL_PENDING_ACTION",
+        }
     assert set(CANONICAL_INTENTS) == required
 
 

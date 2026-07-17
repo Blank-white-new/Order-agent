@@ -34,6 +34,27 @@ def test_chat_backward_compatibility_and_locale_metadata():
     assert "handoffStatus" in body
 
 
+def test_chat_default_mandarin_without_locale_uses_canonical_path():
+    response = client().post(
+        "/api/chat",
+        json={
+            "session_id": f"p4-api-canonical-zh-{uuid.uuid4().hex}",
+            "message": "给我来两份鸡腿盖饭",
+            "restaurantId": "hk-sim-restaurant-a",
+            "branchId": "central",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["detectedLocale"] == "zh-CN"
+    assert body["trace"]["executionPath"] == "CANONICAL_MULTILINGUAL"
+    assert body["trace"]["multilingual"]["canonicalIntent"] == "ADD_ITEM"
+    assert body["trace"]["multilingual"]["entities"]["item_code"] == "chicken_leg_rice"
+    assert body["trace"]["multilingual"]["entities"]["quantity"] == 2
+    assert body["state"]["current_order"][0]["item_id"] == "chicken_leg_rice"
+    assert body["state"]["current_order"][0]["quantity"] == 2
+
+
 def test_chat_accepts_camel_case_locale_fields_and_returns_cantonese():
     response = client().post(
         "/api/chat",
@@ -69,6 +90,37 @@ def test_mixed_input_is_reported_without_forcing_single_input_locale():
     assert body["detectedLocale"] == "mixed"
     assert body["mixedLanguage"] is True
     assert body["responseLocale"] in {"zh-CN", "en-HK"}
+
+
+def test_api_cannot_switch_an_existing_session_to_another_tenant():
+    session_id = f"p4-api-tenant-{uuid.uuid4().hex}"
+    first = client().post(
+        "/api/chat",
+        json={
+            "session_id": session_id,
+            "message": "给我来两份鸡腿盖饭",
+            "restaurantId": "hk-sim-restaurant-a",
+            "branchId": "central",
+        },
+    )
+    switched = client().post(
+        "/api/chat",
+        json={
+            "session_id": session_id,
+            "message": "show my order",
+            "restaurantId": "hk-sim-restaurant-b",
+            "branchId": "north",
+        },
+    )
+
+    assert first.status_code == 200
+    assert switched.status_code == 409
+    body = switched.json()
+    assert body["error"]["code"] == "TENANT_CONTEXT_MISMATCH"
+    serialized = str(body)
+    assert "chicken_leg_rice" not in serialized
+    assert "鸡腿饭" not in serialized
+    assert "SIM-" not in serialized
 
 
 def test_invalid_locale_has_stable_error_and_menu_is_strict():

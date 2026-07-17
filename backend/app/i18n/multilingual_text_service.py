@@ -73,6 +73,8 @@ class MultilingualTextService:
             entries,
             explicit_switch=detection.explicit_switch,
             safety_signals=safety_signals,
+            pending_action=getattr(state, "pending_action", None),
+            has_recommendations=bool(getattr(state, "last_recommendations", [])),
         )
         return MultilingualTextAnalysis(
             normalized=normalized,

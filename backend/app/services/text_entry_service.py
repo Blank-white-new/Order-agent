@@ -122,7 +122,6 @@ class TextEntryService:
     ) -> dict[str, Any]:
         state = self._store_get(session_id, restaurant_code, branch_code)
         analysis = None
-        phase4_active = False
         if self.multilingual_text_service:
             try:
                 analysis = self.multilingual_text_service.analyze(
@@ -141,19 +140,44 @@ class TextEntryService:
                     raise invalid_locale() from exc
                 raise
             self.multilingual_text_service.apply_locale_state(state, analysis)
-            phase4_active = bool(
-                locale is not None
-                or locale_hint is not None
-                or locale_locked is not None
-                or analysis.parsed.locale_context.detected_locale != "zh-CN"
-                or analysis.parsed.locale_context.locale_locked
-            )
             # A language command may share an utterance with a safety signal.  The
             # switch is immediate only when there is no new risk to classify;
             # otherwise the unchanged Phase 3 safety preflight remains authoritative.
             if analysis.explicit_switch and not analysis.safety_signals:
                 self._store_set(session_id, state, restaurant_code, branch_code)
                 return self._switch_language_result(session_id, state, analysis)
+            repeated_clarification = self._is_repeated_canonical_clarification(
+                state,
+                analysis,
+            )
+            self._apply_canonical_clarification_state(state, analysis)
+            if repeated_clarification:
+                self._store_set(session_id, state, restaurant_code, branch_code)
+                repeated = self._guarded_result(
+                    session_id,
+                    state,
+                    self.multilingual_text_service.response_renderer.render_item_candidates(
+                        analysis.parsed,
+                        analysis.menu_entries,
+                    ),
+                    {
+                        "selectedAgent": "OrchestratorAgent",
+                        "selectedHandler": "multilingual_clarification_replay",
+                        "finalIntent": "clarify",
+                        "fallbackUsed": False,
+                        "stateMutationAllowed": False,
+                        "stateMutationRejectedReason": "same_clarification_pending",
+                        "safety": {
+                            "classification": DecisionClass.CONFIRM.value,
+                            "reason_code": None,
+                        },
+                    },
+                )
+                return self._decorate_multilingual_result(
+                    repeated,
+                    analysis,
+                    guarded=True,
+                )
         if self.safety_audit_service and self.handoff_service:
             guarded = self._handle_safety_preflight(
                 session_id=session_id,
@@ -162,14 +186,8 @@ class TextEntryService:
                 restaurant_code=restaurant_code,
                 branch_code=branch_code,
                 confidence_metadata=confidence_metadata,
-                extra_signals=(
-                    analysis.safety_signals
-                    if analysis and phase4_active
-                    else analysis.parsed.safety_signals if analysis else ()
-                ),
-                required_confirmations=(
-                    analysis.parsed.required_confirmations if analysis and phase4_active else ()
-                ),
+                extra_signals=analysis.safety_signals if analysis else (),
+                required_confirmations=(analysis.parsed.required_confirmations if analysis else ()),
                 parsed_confidence=(analysis.parsed.confidence.summary() if analysis else None),
             )
             if guarded is not None:
@@ -178,13 +196,29 @@ class TextEntryService:
                         self._store_set(session_id, state, restaurant_code, branch_code)
                     return self._decorate_multilingual_result(guarded, analysis, guarded=True)
                 return guarded
+        if analysis and not analysis.parsed.canonical_text:
+            self._store_set(session_id, state, restaurant_code, branch_code)
+            unknown = self._guarded_result(
+                session_id,
+                state,
+                "我还不能安全确认你的意思，请重新说明要查看或修改的内容。",
+                {
+                    "selectedAgent": "OrchestratorAgent",
+                    "selectedHandler": "multilingual_unknown",
+                    "finalIntent": "unknown",
+                    "fallbackUsed": False,
+                    "stateMutationAllowed": False,
+                    "stateMutationRejectedReason": "multilingual_canonical_text_unavailable",
+                    "lifecycleStatus": state.lifecycle_status,
+                    "merchantStatus": state.merchant_status,
+                },
+            )
+            return self._decorate_multilingual_result(unknown, analysis, guarded=True)
         orchestrator = self.orchestrator_factory(restaurant_code, branch_code) if self.orchestrator_factory else self.orchestrator
-        operation_text = (
-            analysis.parsed.canonical_text
-            if phase4_active and analysis and analysis.parsed.canonical_text
-            else text
-        )
+        operation_text = analysis.parsed.canonical_text if analysis else text
         result = orchestrator.handle_user_message(operation_text, state)
+        if analysis:
+            result.setdefault("trace", {})["executionPath"] = "CANONICAL_MULTILINGUAL"
         safety_record = None
         if self.safety_audit_service:
             post_signals = self._postflight_signals(result)
@@ -464,6 +498,47 @@ class TextEntryService:
             "submitted_deprecated": state.submitted,
         }
 
+    @staticmethod
+    def _apply_canonical_clarification_state(state, analysis) -> None:
+        if "AMBIGUOUS_ITEM" not in analysis.parsed.ambiguities:
+            return
+        candidate_codes = set(analysis.parsed.entities.get("item_candidates", []))
+        candidates = [
+            {"name": entry.internal_name}
+            for entry in analysis.menu_entries
+            if entry.code in candidate_codes
+        ]
+        if candidates:
+            state.pending_action = {
+                "type": "select_ambiguous_dish_candidate",
+                "candidates": candidates,
+                "source_text": "[canonical multilingual clarification]",
+            }
+            state.stage = "ordering"
+
+    @staticmethod
+    def _is_repeated_canonical_clarification(state, analysis) -> bool:
+        if (
+            "AMBIGUOUS_ITEM" not in analysis.parsed.ambiguities
+            or analysis.parsed.safety_signals
+            or analysis.unsupported_language
+            or state.safety_classification != DecisionClass.CONFIRM.value
+            or not state.pending_action
+            or state.pending_action.get("type") != "select_ambiguous_dish_candidate"
+        ):
+            return False
+        candidate_codes = set(analysis.parsed.entities.get("item_candidates", []))
+        expected_names = {
+            entry.internal_name
+            for entry in analysis.menu_entries
+            if entry.code in candidate_codes
+        }
+        pending_names = {
+            candidate.get("name")
+            for candidate in state.pending_action.get("candidates", [])
+        }
+        return bool(expected_names) and pending_names == expected_names
+
     def _store_get(self, session_id: str, restaurant_code: str | None, branch_code: str | None):
         if restaurant_code is None and branch_code is None:
             return self.store.get(session_id)
@@ -495,12 +570,23 @@ class TextEntryService:
     def _decorate_multilingual_result(self, result: dict[str, Any], analysis, *, guarded: bool) -> dict[str, Any]:
         context = analysis.parsed.locale_context
         trace = result.setdefault("trace", {})
+        trace.setdefault(
+            "executionPath",
+            "CANONICAL_MULTILINGUAL_GUARDED"
+            if guarded
+            else "CANONICAL_MULTILINGUAL_CONTROL",
+        )
         trace["multilingual"] = analysis.parsed.serializable()
         if analysis.parsed.canonical_intent in {"SET_ADDRESS", "SET_PHONE", "ADD_NOTE"}:
             trace.pop("userMessage", None)
             trace.pop("normalizedMessage", None)
         safety = trace.get("safety", {})
-        if analysis.parsed.canonical_intent == "SWITCH_LANGUAGE":
+        if guarded and "AMBIGUOUS_ITEM" in analysis.parsed.ambiguities:
+            result["response"] = self.multilingual_text_service.response_renderer.render_item_candidates(
+                analysis.parsed,
+                analysis.menu_entries,
+            )
+        elif analysis.parsed.canonical_intent == "SWITCH_LANGUAGE":
             result["response"] = self.multilingual_text_service.response_renderer.render_switch(
                 context.response_locale
             )
