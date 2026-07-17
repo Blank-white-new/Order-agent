@@ -92,6 +92,23 @@ jobs:
         shell: pwsh
         run: .\scripts\check_all.ps1 -Build
 
+      - name: Phase 4 catalog and message validation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe scripts\validate_phase4_multilingual_catalog.py
+
+      - name: Phase 4 backend tests
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase4
+
+      - name: Phase 4 multilingual text evaluation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase4_multilingual_text_eval.py
+
+      - name: Frontend multilingual Vitest
+        shell: pwsh
+        working-directory: frontend
+        run: npm test -- --run src/components/MultilingualText.test.tsx --cache=false
+
       - name: Run V3 dialogue regression evaluation
         shell: pwsh
         run: >-
@@ -129,6 +146,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
       PHASE2_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
       PHASE3_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
+      PHASE4_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
     services:
       postgres:
         image: postgres:17.5-alpine
@@ -178,6 +196,10 @@ jobs:
         shell: bash
         run: backend/.venv/bin/python -B scripts/seed_phase2_simulation_data.py
 
+      - name: Phase 4 multilingual menu seed and publication
+        shell: bash
+        run: backend/.venv/bin/python -B scripts/seed_phase4_multilingual_menu.py
+
       - name: Run PostgreSQL repositories, isolation, versioning, and idempotency tests
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase2
@@ -185,6 +207,16 @@ jobs:
       - name: Run PostgreSQL Phase 3 safety, handoff, concurrency, and tenant-negative tests
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase3
+
+      - name: Run PostgreSQL Phase 4 menu, tenant, snapshot, and multilingual tests
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase4
+
+      - name: Run Phase 4 multilingual text evaluation on PostgreSQL
+        shell: bash
+        run: >-
+          backend/.venv/bin/python -B evaluation/run_phase4_multilingual_text_eval.py
+          --database-url "$PHASE4_POSTGRES_URL"
 
       - name: Run Phase 1 runtime safety policy evaluation
         shell: bash
