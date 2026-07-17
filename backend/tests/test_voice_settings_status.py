@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -639,7 +640,10 @@ def test_chat_still_works_after_tts_config_changes(monkeypatch, tmp_path):
     voice_api.reset_voice_runtime_for_test(runtime)
 
     client = TestClient(app)
-    response = client.post("/api/chat", json={"session_id": "tts-config-chat", "message": "有啥吃的"})
+    response = client.post(
+        "/api/chat",
+        json={"session_id": f"tts-config-chat-{uuid4().hex}", "message": "有啥吃的"},
+    )
     assert response.status_code == 200
     assert "饭" in response.json()["response"] or "菜" in response.json()["response"]
 
