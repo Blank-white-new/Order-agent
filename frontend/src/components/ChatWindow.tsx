@@ -9,6 +9,7 @@ import { NextStepHint } from "./NextStepHint";
 import { OrderSummary } from "./OrderSummary";
 import { VoiceControls } from "./VoiceControls";
 import { SafetyHandoffPanel } from "./SafetyHandoffPanel";
+import { ConcreteLocale, LocalePreference, localeLabel, ui } from "../i18n";
 
 type Message = {
   id: string;
@@ -32,6 +33,12 @@ export function ChatWindow() {
   const [loading, setLoading] = useState(false);
   const [orderState, setOrderState] = useState<OrderStateView>(() => normalizeOrderState(null));
   const [ttsPreference, setTtsPreference] = useState<TtsPreference>({ enabled: false, canSpeak: false });
+  const [localePreference, setLocalePreference] = useState<LocalePreference>("auto");
+  const [responseLocale, setResponseLocale] = useState<ConcreteLocale>("zh-CN");
+  const [detectedLocale, setDetectedLocale] = useState("zh-CN");
+  const [localeConfidence, setLocaleConfidence] = useState(1);
+  const [mixedLanguage, setMixedLanguage] = useState(false);
+  const [requiredConfirmations, setRequiredConfirmations] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -49,8 +56,17 @@ export function ChatWindow() {
     setLoading(true);
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text }]);
     try {
-      const result = await sendChatMessage(sessionId, text);
+      const result = await sendChatMessage(sessionId, text, {
+        locale: localePreference === "auto" ? undefined : localePreference,
+        localeHint: localePreference === "auto" ? undefined : localePreference,
+        localeLocked: localePreference !== "auto",
+      });
       setOrderState(result.state);
+      setResponseLocale(result.responseLocale);
+      setDetectedLocale(result.detectedLocale);
+      setLocaleConfidence(result.localeConfidence);
+      setMixedLanguage(result.mixedLanguage);
+      setRequiredConfirmations(result.requiredConfirmations);
       setMessages((current) => [
         ...current,
         { id: crypto.randomUUID(), role: "agent", text: result.response, trace: result.trace },
@@ -63,7 +79,7 @@ export function ChatWindow() {
         {
           id: crypto.randomUUID(),
           role: "agent",
-          text: "后端暂时没连上，请稍后再试。详情请查看浏览器控制台。",
+          text: ui(responseLocale).offlineError,
           tone: "error",
         },
       ]);
@@ -79,13 +95,26 @@ export function ChatWindow() {
     setInput("");
     setLoading(false);
     setOrderState(normalizeOrderState(null));
-    setMessages([{ id: "welcome", role: "agent", text: "会话已重置，想吃点什么？", tone: "system" }]);
+    setRequiredConfirmations([]);
+    setMessages([{ id: "welcome", role: "agent", text: ui(responseLocale).resetWelcome, tone: "system" }]);
     try {
       await resetSession(previousSessionId);
     } catch (err) {
       console.warn("Failed to reset previous order session.", err);
     }
   }
+
+  function onLocaleChange(value: LocalePreference) {
+    setLocalePreference(value);
+    const nextLocale = value === "auto" ? responseLocale : value;
+    setResponseLocale(nextLocale);
+    setMessages((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "agent", text: ui(nextLocale).languageChanged, tone: "system" },
+    ]);
+  }
+
+  const labels = ui(responseLocale);
 
   function appendVoiceUserMessage(text: string) {
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text }]);
@@ -116,55 +145,84 @@ export function ChatWindow() {
 
   return (
     <section className="ordering-workspace">
-      <section className="chat-window" aria-label="当前对话">
+      <section className="chat-window" aria-label={labels.appTitle}>
         <header>
           <div>
-            <h1>订餐助手</h1>
-            <p>文字与语音共用订单状态；仅保存合成模拟订单，不连接真实餐厅</p>
+            <h1>{labels.appTitle}</h1>
+            <p>{labels.appSubtitle}</p>
           </div>
           <button type="button" className="secondary" onClick={onReset}>
-            新订单
+            {labels.newOrder}
           </button>
         </header>
+        <div className="locale-toolbar" role="group" aria-label={labels.language}>
+          <label htmlFor="locale-selector">{labels.language}</label>
+          <select
+            id="locale-selector"
+            value={localePreference}
+            onChange={(event) => onLocaleChange(event.target.value as LocalePreference)}
+          >
+            <option value="auto">{labels.autoDetect}</option>
+            <option value="zh-CN">普通话</option>
+            <option value="yue-Hant-HK">廣東話</option>
+            <option value="en-HK">English</option>
+          </select>
+          <span role="status">{labels.responseLanguage}: {localeLabel(responseLocale, responseLocale)}</span>
+          <span>{labels.detectedLanguage}: {localeLabel(detectedLocale, responseLocale)}</span>
+          <span>{labels.languageConfidence}: {(localeConfidence * 100).toFixed(0)}%</span>
+          {mixedLanguage ? <strong className="mixed-language-badge">{labels.mixed}</strong> : null}
+        </div>
+        <p className="text-only-notice">{labels.textOnly}</p>
         <div className="messages" aria-live="polite">
           {messages.map((message) => (
-            <MessageBubble key={message.id} {...message} />
+            <MessageBubble key={message.id} {...message} debugLabel={labels.debug} />
           ))}
-          {loading ? <p className="sending-indicator">正在发送...</p> : null}
+          {loading ? (
+            <p className="sending-indicator">
+              {responseLocale === "zh-CN" ? "正在发送..." : `${labels.sending}...`}
+            </p>
+          ) : null}
           <div ref={messagesEndRef} />
         </div>
-        <VoiceControls
+        {responseLocale === "zh-CN" ? <VoiceControls
           sessionId={sessionId}
           onUserFinal={appendVoiceUserMessage}
           onAgentReply={appendVoiceAgentReply}
           onOrderStateChange={setOrderState}
           onTtsPreferenceChange={setTtsPreference}
-        />
+        /> : null}
         <form onSubmit={onSubmit} className="composer">
           <label className="sr-only" htmlFor="chat-input">
-            输入点餐消息
+            {labels.inputLabel}
           </label>
           <input
             id="chat-input"
             ref={inputRef}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="输入：招牌菜是啥、黑椒牛肉饭不辣、配送到中山大学南校园"
+            placeholder={labels.placeholder}
           />
           <button type="submit" disabled={loading || !input.trim()}>
-            {loading ? "发送中" : "发送"}
+            {loading ? labels.sending : labels.send}
           </button>
         </form>
       </section>
-      <aside className="support-panel" aria-label="订单辅助信息">
-        <NextStepHint state={orderState} />
+      <aside className="support-panel" aria-label={labels.supportPanel}>
+        {requiredConfirmations.length ? (
+          <section className="panel clarification-panel" role="status" aria-labelledby="clarification-title">
+            <h2 id="clarification-title">{labels.clarification}</h2>
+            <ul>{requiredConfirmations.map((field) => <li key={field}>{field}</li>)}</ul>
+          </section>
+        ) : null}
+        <NextStepHint state={orderState} locale={responseLocale} />
         <SafetyHandoffPanel
           sessionId={sessionId}
           state={orderState}
           onStatusChange={(handoffStatus) => setOrderState((current) => ({ ...current, handoffStatus }))}
+          locale={responseLocale}
         />
-        <OrderSummary state={orderState} />
-        <MenuPanel onPickItem={fillInputFromMenu} />
+        <OrderSummary state={orderState} locale={responseLocale} />
+        <MenuPanel onPickItem={fillInputFromMenu} locale={responseLocale} />
       </aside>
     </section>
   );

@@ -3,15 +3,18 @@ type Props = {
   text: string;
   trace?: Record<string, unknown>;
   tone?: "normal" | "error" | "system";
+  debugLabel?: string;
 };
 
-export function MessageBubble({ role, text, trace, tone = "normal" }: Props) {
+const SHOW_DEBUG = import.meta.env.DEV || import.meta.env.MODE === "test";
+
+export function MessageBubble({ role, text, trace, tone = "normal", debugLabel = "调试信息（默认折叠）" }: Props) {
   return (
     <article className={`message ${role} ${tone}`} role={tone === "error" ? "alert" : undefined}>
       <p>{text}</p>
-      {trace ? (
+      {trace && SHOW_DEBUG ? (
         <details>
-          <summary>调试信息（默认折叠）</summary>
+          <summary>{debugLabel}</summary>
           <pre>{JSON.stringify(redactTraceForDisplay(trace), null, 2)}</pre>
         </details>
       ) : null}
