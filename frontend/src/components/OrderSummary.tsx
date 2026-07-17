@@ -22,7 +22,9 @@ export function OrderSummary({ state }: OrderSummaryProps) {
           <h2 id="order-summary-title">当前订单状态</h2>
           <p>基于当前会话最近返回的状态显示</p>
         </div>
-        {state.lifecycleStatus === "CUSTOMER_CONFIRMED" ? (
+        {state.safetyClassification === "HANDOFF" && !["RESOLVED", "CANCELLED"].includes(state.handoffStatus) ? (
+          <span className="status-pill warning">自动提交已冻结</span>
+        ) : state.lifecycleStatus === "CUSTOMER_CONFIRMED" ? (
           <span className="status-pill success">顾客已确认</span>
         ) : (
           <span className="status-pill">进行中</span>

@@ -631,6 +631,64 @@ pre {
   opacity: 0.82;
 }
 
+.safety-panel {
+  border-color: #fdba74;
+}
+
+.safety-panel .simulation-warning {
+  padding: 10px 12px;
+  border: 2px solid #c2410c;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.safety-handoff,
+.status-pill.warning {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.safety-refuse {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.safety-confirm {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.safety-auto_draft {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.handoff-details > p {
+  overflow-wrap: anywhere;
+}
+
+.simulation-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.simulation-controls button {
+  border: 1px solid #fb923c;
+  border-radius: 8px;
+  padding: 8px;
+  background: #ffffff;
+  color: #9a3412;
+  cursor: pointer;
+}
+
+.simulation-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     padding: 14px;
