@@ -14,6 +14,8 @@ from app.services.safety_audit_service import SafetyAuditService
 from app.services.handoff_service import HandoffService
 from app.services.safety_signal_detector import SafetySignalDetector
 from app.state.session_store import InMemorySessionStore
+from app.domain.errors import invalid_locale, invalid_text_input
+from app.i18n.text_normalizer import TextInputError
 
 
 @dataclass
@@ -66,6 +68,7 @@ class TextEntryService:
         safety_audit_service: SafetyAuditService | None = None,
         handoff_service: HandoffService | None = None,
         safety_signal_detector: SafetySignalDetector | None = None,
+        multilingual_text_service=None,
     ) -> None:
         self.store = store
         self.orchestrator = orchestrator
@@ -75,6 +78,7 @@ class TextEntryService:
         self.safety_audit_service = safety_audit_service
         self.handoff_service = handoff_service
         self.safety_signal_detector = safety_signal_detector or SafetySignalDetector()
+        self.multilingual_text_service = multilingual_text_service
 
     async def handle_text_message(
         self,
@@ -85,6 +89,9 @@ class TextEntryService:
         branch_code: str | None = None,
         idempotency_key: str | None = None,
         confidence_metadata: dict[str, Any] | None = None,
+        locale: str | None = None,
+        locale_hint: str | None = None,
+        locale_locked: bool | None = None,
     ) -> dict[str, Any]:
         lock = self.lock_manager.get_lock(session_id)
         async with lock:
@@ -96,6 +103,9 @@ class TextEntryService:
                 branch_code,
                 idempotency_key,
                 confidence_metadata,
+                locale,
+                locale_hint,
+                locale_locked,
             )
 
     def _handle_text_message_sync(
@@ -106,8 +116,44 @@ class TextEntryService:
         branch_code: str | None = None,
         idempotency_key: str | None = None,
         confidence_metadata: dict[str, Any] | None = None,
+        locale: str | None = None,
+        locale_hint: str | None = None,
+        locale_locked: bool | None = None,
     ) -> dict[str, Any]:
         state = self._store_get(session_id, restaurant_code, branch_code)
+        analysis = None
+        phase4_active = False
+        if self.multilingual_text_service:
+            try:
+                analysis = self.multilingual_text_service.analyze(
+                    text,
+                    state,
+                    restaurant_code=restaurant_code,
+                    branch_code=branch_code,
+                    locale=locale,
+                    locale_hint=locale_hint,
+                    locale_locked=locale_locked,
+                )
+            except TextInputError as exc:
+                raise invalid_text_input(exc.code) from exc
+            except ValueError as exc:
+                if "locale" in str(exc).casefold():
+                    raise invalid_locale() from exc
+                raise
+            self.multilingual_text_service.apply_locale_state(state, analysis)
+            phase4_active = bool(
+                locale is not None
+                or locale_hint is not None
+                or locale_locked is not None
+                or analysis.parsed.locale_context.detected_locale != "zh-CN"
+                or analysis.parsed.locale_context.locale_locked
+            )
+            # A language command may share an utterance with a safety signal.  The
+            # switch is immediate only when there is no new risk to classify;
+            # otherwise the unchanged Phase 3 safety preflight remains authoritative.
+            if analysis.explicit_switch and not analysis.safety_signals:
+                self._store_set(session_id, state, restaurant_code, branch_code)
+                return self._switch_language_result(session_id, state, analysis)
         if self.safety_audit_service and self.handoff_service:
             guarded = self._handle_safety_preflight(
                 session_id=session_id,
@@ -116,11 +162,29 @@ class TextEntryService:
                 restaurant_code=restaurant_code,
                 branch_code=branch_code,
                 confidence_metadata=confidence_metadata,
+                extra_signals=(
+                    analysis.safety_signals
+                    if analysis and phase4_active
+                    else analysis.parsed.safety_signals if analysis else ()
+                ),
+                required_confirmations=(
+                    analysis.parsed.required_confirmations if analysis and phase4_active else ()
+                ),
+                parsed_confidence=(analysis.parsed.confidence.summary() if analysis else None),
             )
             if guarded is not None:
+                if analysis:
+                    if guarded["trace"].get("safety", {}).get("classification") != DecisionClass.HANDOFF.value:
+                        self._store_set(session_id, state, restaurant_code, branch_code)
+                    return self._decorate_multilingual_result(guarded, analysis, guarded=True)
                 return guarded
         orchestrator = self.orchestrator_factory(restaurant_code, branch_code) if self.orchestrator_factory else self.orchestrator
-        result = orchestrator.handle_user_message(text, state)
+        operation_text = (
+            analysis.parsed.canonical_text
+            if phase4_active and analysis and analysis.parsed.canonical_text
+            else text
+        )
+        result = orchestrator.handle_user_message(operation_text, state)
         safety_record = None
         if self.safety_audit_service:
             post_signals = self._postflight_signals(result)
@@ -153,12 +217,13 @@ class TextEntryService:
                 )
                 self._apply_handoff_state(result["raw_state"], handoff)
                 self._store_set(session_id, result["raw_state"], restaurant_code, branch_code)
-                return self._guarded_result(
+                guarded_result = self._guarded_result(
                     session_id,
                     result["raw_state"],
                     "已进入模拟人工接管流程（不是真实人工）；当前订单不会自动提交。",
                     result["trace"],
                 )
+                return self._decorate_multilingual_result(guarded_result, analysis, guarded=True) if analysis else guarded_result
         persistence_result = None
         if result["trace"].get("selectedHandler") == "submit_order" and self.order_persistence_service:
             persistence_result = self.order_persistence_service.confirm_order(
@@ -186,7 +251,7 @@ class TextEntryService:
             result["state"] = result["raw_state"].serializable()
         else:
             self._store_set(session_id, result["raw_state"], restaurant_code, branch_code)
-        return {
+        final_result = {
             "session_id": session_id,
             "response": result["response"],
             "state": result["state"],
@@ -196,6 +261,7 @@ class TextEntryService:
             "merchant_status": result["raw_state"].merchant_status,
             "submitted_deprecated": result["raw_state"].submitted,
         }
+        return self._decorate_multilingual_result(final_result, analysis, guarded=False) if analysis else final_result
 
     def _handle_safety_preflight(
         self,
@@ -206,6 +272,9 @@ class TextEntryService:
         restaurant_code: str | None,
         branch_code: str | None,
         confidence_metadata: dict[str, Any] | None,
+        extra_signals: tuple[str, ...] = (),
+        required_confirmations: tuple[str, ...] = (),
+        parsed_confidence: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         normalized = text.casefold()
         if state.handoff_public_id:
@@ -240,6 +309,7 @@ class TextEntryService:
             )
 
         signals = set(self.safety_signal_detector.detect(text))
+        signals.update(extra_signals)
         blocking_statuses = {
             HandoffStatus.REQUESTED.value,
             HandoffStatus.PENDING.value,
@@ -253,7 +323,7 @@ class TextEntryService:
         )
         if state.safety_reason_code and (state.handoff_status in blocking_statuses or mandatory_cancelled):
             signals.add(state.safety_reason_code)
-        if not signals and confidence_metadata is None:
+        if not signals and confidence_metadata is None and not required_confirmations:
             return None
 
         record = self.safety_audit_service.evaluate_and_record(
@@ -263,7 +333,8 @@ class TextEntryService:
             context=SafetyEvaluationContext(
                 signals=frozenset(signals),
                 requested_action="USER_MESSAGE",
-                confidence=ConfidenceMetadata.from_mapping(confidence_metadata),
+                required_confirmations=required_confirmations,
+                confidence=ConfidenceMetadata.from_mapping(confidence_metadata or parsed_confidence),
                 deterministic_input=bool(signals),
             ),
         )
@@ -403,3 +474,78 @@ class TextEntryService:
             self.store.set(session_id, state)
             return
         self.store.set(session_id, state, restaurant_code, branch_code)
+
+    def _switch_language_result(self, session_id: str, state, analysis) -> dict[str, Any]:
+        response = self.multilingual_text_service.response_renderer.render_switch(state.response_locale)
+        result = self._guarded_result(
+            session_id,
+            state,
+            response,
+            {
+                "selectedAgent": "OrchestratorAgent",
+                "selectedHandler": "switch_language",
+                "finalIntent": "switch_language",
+                "stateMutationAllowed": False,
+                "lifecycleStatus": state.lifecycle_status,
+                "merchantStatus": state.merchant_status,
+            },
+        )
+        return self._decorate_multilingual_result(result, analysis, guarded=False)
+
+    def _decorate_multilingual_result(self, result: dict[str, Any], analysis, *, guarded: bool) -> dict[str, Any]:
+        context = analysis.parsed.locale_context
+        trace = result.setdefault("trace", {})
+        trace["multilingual"] = analysis.parsed.serializable()
+        if analysis.parsed.canonical_intent in {"SET_ADDRESS", "SET_PHONE", "ADD_NOTE"}:
+            trace.pop("userMessage", None)
+            trace.pop("normalizedMessage", None)
+        safety = trace.get("safety", {})
+        if analysis.parsed.canonical_intent == "SWITCH_LANGUAGE":
+            result["response"] = self.multilingual_text_service.response_renderer.render_switch(
+                context.response_locale
+            )
+        elif (
+            guarded
+            and safety.get("classification") in {"REFUSE", "HANDOFF", "CONFIRM"}
+            and (
+                context.response_locale != "zh-CN"
+                or context.requested_locale is not None
+                or context.detected_locale == "mixed"
+                or context.locale_locked
+            )
+        ):
+            result["response"] = self.multilingual_text_service.response_renderer.render_safety(
+                context.response_locale,
+                safety.get("classification"),
+                safety.get("reason_code"),
+            )
+        elif (
+            context.response_locale != "zh-CN"
+            or context.requested_locale is not None
+            or context.detected_locale == "mixed"
+        ):
+            result["response"] = self.multilingual_text_service.response_renderer.render_result(
+                analysis.parsed,
+                result,
+            )
+        result.update(
+            {
+                "detected_locale": context.detected_locale,
+                "dominant_locale": context.dominant_locale,
+                "response_locale": context.response_locale,
+                "locale_confidence": context.confidence,
+                "mixed_language": context.mixed_language,
+                "required_confirmations": list(
+                    dict.fromkeys(
+                        [
+                            *analysis.parsed.required_confirmations,
+                            *result["raw_state"].unconfirmed_fields,
+                        ]
+                    )
+                ),
+            }
+        )
+        # Safety and locale processing may update the authoritative state after
+        # the orchestrator built its snapshot. Never return that stale snapshot.
+        result["state"] = result["raw_state"].serializable()
+        return result

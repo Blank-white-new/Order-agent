@@ -63,6 +63,26 @@ def session_closed() -> DomainError:
     return DomainError("SESSION_CLOSED", "The session is closed and cannot be modified.")
 
 
+def invalid_locale() -> DomainError:
+    return DomainError(
+        "INVALID_LOCALE",
+        "Locale must be one of zh-CN, yue-Hant-HK, or en-HK.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def invalid_text_input(code: str) -> DomainError:
+    allowed = {
+        "TEXT_INVALID",
+        "TEXT_TOO_LONG",
+        "TEXT_TOO_MANY_SEGMENTS",
+        "TEXT_WORD_TOO_LONG",
+        "TEXT_EXCESSIVE_REPETITION",
+    }
+    stable = code if code in allowed else "TEXT_INVALID"
+    return DomainError(stable, "The text input cannot be processed safely.", HTTPStatus.UNPROCESSABLE_ENTITY)
+
+
 def menu_publish_conflict() -> DomainError:
     return DomainError(
         "MENU_PUBLISH_CONFLICT",
