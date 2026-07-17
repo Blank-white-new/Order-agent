@@ -24,6 +24,7 @@ class DatabaseSettings:
     simulation_data_only: bool = True
     default_restaurant_code: str = "hk-sim-restaurant-a"
     default_branch_code: str = "central"
+    simulation_handoff_controls_enabled: bool = True
 
     @classmethod
     def from_env(cls) -> "DatabaseSettings":
@@ -41,14 +42,18 @@ class DatabaseSettings:
                 raw = file_values.get(name)
             return default if raw is None else str(raw).strip().lower() in TRUE_VALUES
 
+        app_env = value("APP_ENV", "development").strip().lower()
         return cls(
-            app_env=value("APP_ENV", "development").strip().lower(),
+            app_env=app_env,
             database_url=value("DATABASE_URL", "sqlite:///./.local-run/order-agent.db").strip(),
             database_echo=boolean("DATABASE_ECHO", False),
             auto_migrate_local=boolean("AUTO_MIGRATE_LOCAL", True),
             simulation_data_only=boolean("SIMULATION_DATA_ONLY", True),
             default_restaurant_code=value("DEFAULT_RESTAURANT_CODE", "hk-sim-restaurant-a").strip(),
             default_branch_code=value("DEFAULT_BRANCH_CODE", "central").strip(),
+            simulation_handoff_controls_enabled=boolean(
+                "SIMULATION_HANDOFF_CONTROLS_ENABLED", app_env in {"development", "test"}
+            ),
         )
 
     @property
@@ -62,3 +67,11 @@ class DatabaseSettings:
     @property
     def safe_database_label(self) -> str:
         return "sqlite" if self.is_sqlite else self.database_url.split(":", 1)[0]
+
+    @property
+    def may_use_simulation_handoff_controls(self) -> bool:
+        return (
+            self.app_env in {"development", "test"}
+            and self.simulation_data_only
+            and self.simulation_handoff_controls_enabled
+        )

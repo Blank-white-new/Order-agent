@@ -63,6 +63,14 @@ class SessionState(BaseModel):
     phone: str | None = None
     submitted: bool = False
     submitted_order_id: str | None = None
+    safety_classification: str = "AUTO_DRAFT"
+    safety_reason_code: str | None = None
+    safety_decision_id: str | None = None
+    handoff_public_id: str | None = None
+    handoff_status: str = "NOT_REQUIRED"
+    safety_blocked_actions: list[str] = Field(default_factory=list)
+    confirmed_fields: list[str] = Field(default_factory=list)
+    unconfirmed_fields: list[str] = Field(default_factory=list)
 
     def serializable(self) -> dict[str, Any]:
         return dump_model(self)
