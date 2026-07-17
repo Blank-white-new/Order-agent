@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.chat import _safe_trace
@@ -10,6 +11,12 @@ from app.main import app
 
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ensure_phase4_catalog_is_published(phase4):
+    """Publish Phase 4 after earlier PostgreSQL suites rebuild their shared DB."""
+    return phase4
 
 
 def test_chat_backward_compatibility_and_locale_metadata():
