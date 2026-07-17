@@ -208,10 +208,32 @@ class ModifierGroup(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
+class ModifierGroupTranslation(Base):
+    __tablename__ = "modifier_group_translations"
+    __table_args__ = (
+        UniqueConstraint("modifier_group_id", "locale", name="uq_modifier_group_translations_locale"),
+        ForeignKeyConstraint(
+            ["modifier_group_id", "menu_version_id"],
+            ["modifier_groups.id", "modifier_groups.menu_version_id"],
+            name="fk_modifier_group_translations_group_version",
+            ondelete="CASCADE",
+        ),
+        Index("ix_modifier_group_translations_version_locale", "menu_version_id", "locale"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    modifier_group_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    aliases_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+
+
 class ModifierOption(Base):
     __tablename__ = "modifier_options"
     __table_args__ = (
         UniqueConstraint("modifier_group_id", "code", name="uq_modifier_options_group_code"),
+        UniqueConstraint("id", "modifier_group_id", name="uq_modifier_options_id_group"),
         CheckConstraint("price_delta_minor >= 0", name="price_delta_nonnegative"),
     )
 
@@ -222,6 +244,34 @@ class ModifierOption(Base):
     price_delta_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ModifierOptionTranslation(Base):
+    __tablename__ = "modifier_option_translations"
+    __table_args__ = (
+        UniqueConstraint("modifier_option_id", "locale", name="uq_modifier_option_translations_locale"),
+        ForeignKeyConstraint(
+            ["modifier_option_id", "modifier_group_id"],
+            ["modifier_options.id", "modifier_options.modifier_group_id"],
+            name="fk_modifier_option_translations_option_group",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["modifier_group_id", "menu_version_id"],
+            ["modifier_groups.id", "modifier_groups.menu_version_id"],
+            name="fk_modifier_option_translations_group_version",
+            ondelete="CASCADE",
+        ),
+        Index("ix_modifier_option_translations_version_locale", "menu_version_id", "locale"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    modifier_option_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    modifier_group_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    locale: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    aliases_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
 
 class MenuItemModifierGroup(Base):
