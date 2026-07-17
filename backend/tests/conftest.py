@@ -28,6 +28,9 @@ def _force_offline_llm_environment() -> None:
     os.environ["LLM_FALLBACK_ENABLED"] = "false"
     os.environ["LLM_FALLBACK_SPECULATIVE_ENABLED"] = "false"
     os.environ["ALLOW_LIVE_LLM"] = "false"
+    os.environ["VOICE_ENABLED"] = "false"
+    os.environ["TTS_ENABLED"] = "false"
+    os.environ["SIMULATION_DATA_ONLY"] = "true"
     os.environ["BACKEND_ENV_FILE"] = _OFFLINE_ENV_FILE
     for name in _LLM_CONNECTION_ENV_VARS:
         os.environ.pop(name, None)
@@ -47,6 +50,9 @@ def force_offline_llm_for_tests(monkeypatch):
     monkeypatch.setenv("LLM_FALLBACK_ENABLED", "false")
     monkeypatch.setenv("LLM_FALLBACK_SPECULATIVE_ENABLED", "false")
     monkeypatch.setenv("ALLOW_LIVE_LLM", "false")
+    monkeypatch.setenv("VOICE_ENABLED", "false")
+    monkeypatch.setenv("TTS_ENABLED", "false")
+    monkeypatch.setenv("SIMULATION_DATA_ONLY", "true")
     monkeypatch.setenv("BACKEND_ENV_FILE", _OFFLINE_ENV_FILE)
     for name in _LLM_CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
