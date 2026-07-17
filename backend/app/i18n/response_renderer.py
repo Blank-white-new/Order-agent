@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.i18n.message_catalog import MessageCatalog
 from app.i18n.multilingual_parser import ParsedUtterance
+from app.i18n.menu_lexicon import MenuLexiconEntry
 
 
 class ResponseRenderer:
@@ -19,6 +20,21 @@ class ResponseRenderer:
         if classification == "HANDOFF":
             return self.catalog.render("safety_handoff", locale, reason=reason_code or "SAFETY_POLICY")
         return self.catalog.render("clarification_required", locale)
+
+    def render_item_candidates(
+        self,
+        parsed: ParsedUtterance,
+        entries: tuple[MenuLexiconEntry, ...],
+    ) -> str:
+        locale = parsed.locale_context.response_locale
+        requested = set(parsed.entities.get("item_candidates", []))
+        names = [
+            entry.names.get(locale, entry.internal_name)
+            for entry in entries
+            if entry.code in requested
+        ]
+        base = self.catalog.render("item_ambiguous", locale)
+        return f"{base} {' / '.join(names)}" if names else base
 
     def render_result(self, parsed: ParsedUtterance, result: dict) -> str:
         locale = parsed.locale_context.response_locale

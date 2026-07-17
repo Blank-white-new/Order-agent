@@ -108,20 +108,50 @@ class MenuLexiconService:
 
 
 class MenuMatcher:
-    def match(self, text: str, entries: list[MenuLexiconEntry], *, preferred_locale: str) -> MenuMatch:
+    def match(
+        self,
+        text: str,
+        entries: list[MenuLexiconEntry],
+        *,
+        preferred_locale: str,
+        mixed_language: bool = False,
+    ) -> MenuMatch:
         normalized_text = normalize_match_value(text)
         code_matches = [entry for entry in entries if self._contains(text.casefold(), entry.code.casefold(), ascii_word=True)]
         if code_matches:
             return MenuMatch(tuple(code_matches), tuple(entry.code for entry in code_matches))
+
+        if mixed_language:
+            mixed_matches = self._phrase_matches(
+                normalized_text, entries, CONCRETE_LOCALES
+            )
+            result = MenuMatch(
+                tuple(item for item, _phrase in mixed_matches),
+                tuple(phrase for _item, phrase in mixed_matches),
+            )
+            if result.candidates:
+                return result
+            return self._reference_fragment_match(
+                normalized_text,
+                entries,
+                CONCRETE_LOCALES,
+            )
 
         preferred = self._phrase_matches(normalized_text, entries, (preferred_locale,))
         if preferred:
             return MenuMatch(tuple(item for item, _phrase in preferred), tuple(phrase for _item, phrase in preferred))
         other_locales = tuple(locale for locale in CONCRETE_LOCALES if locale != preferred_locale)
         cross_locale = self._phrase_matches(normalized_text, entries, other_locales)
-        return MenuMatch(
+        result = MenuMatch(
             tuple(item for item, _phrase in cross_locale),
             tuple(phrase for _item, phrase in cross_locale),
+        )
+        if result.candidates:
+            return result
+        return self._reference_fragment_match(
+            normalized_text,
+            entries,
+            (preferred_locale, *other_locales),
         )
 
     @staticmethod
@@ -140,6 +170,52 @@ class MenuMatcher:
                 longest = max(matched, key=lambda phrase: len(normalize_match_value(phrase)))
                 matches.append((entry, longest))
         return matches
+
+    @staticmethod
+    def _reference_fragment_match(
+        normalized_text: str,
+        entries: list[MenuLexiconEntry],
+        locales: tuple[str, ...],
+    ) -> MenuMatch:
+        """Resolve reviewed dish-fragment references without fuzzy matching.
+
+        The fragment must be immediately followed by a known reference suffix,
+        and it must occur literally in a service-layer menu name or alias.  A
+        multi-match remains ambiguous and is never converted into an order.
+        """
+        suffixes = (
+            "那个",
+            "那個",
+            "这个",
+            "這個",
+            "嗰個",
+            "呢個",
+            "thatone",
+            "thisone",
+        )
+        fragment = next(
+            (
+                normalized_text[: -len(suffix)]
+                for suffix in suffixes
+                if normalized_text.endswith(suffix)
+            ),
+            "",
+        )
+        if len(fragment) < 2:
+            return MenuMatch((), ())
+        matches: list[tuple[MenuLexiconEntry, str]] = []
+        for entry in entries:
+            phrases = [
+                phrase
+                for locale in locales
+                for phrase in entry.phrases(locale)
+            ]
+            if any(fragment in normalize_match_value(phrase) for phrase in phrases):
+                matches.append((entry, fragment))
+        return MenuMatch(
+            tuple(entry for entry, _fragment in matches),
+            tuple(value for _entry, value in matches),
+        )
 
     @staticmethod
     def _contains(text: str, phrase: str, *, ascii_word: bool = False) -> bool:

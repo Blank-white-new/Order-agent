@@ -37,6 +37,10 @@ CANONICAL_INTENTS = (
     "COMPLAINT",
     "REFUND_REQUEST",
     "PAYMENT_DISPUTE",
+    "ITEM_INFO_QUERY",
+    "CONTEXT_SELECTION",
+    "CONTEXT_REFERENCE",
+    "CANCEL_PENDING_ACTION",
     "UNKNOWN",
 )
 
@@ -56,7 +60,63 @@ _MUTATING_ITEM_INTENTS = {
     "SET_SPICY_LEVEL",
     "ADD_NOTE",
 }
-_QUESTION_MARKERS = ("?", "？", "吗", "嗎", "是不是", "是否", "可唔可以", "係咪", "would it")
+_QUESTION_MARKERS = (
+    "?",
+    "？",
+    "吗",
+    "嗎",
+    "是不是",
+    "是否",
+    "哪里",
+    "哪裏",
+    "怎么",
+    "點整",
+    "可唔可以",
+    "係咪",
+    "would it",
+    "what is",
+    "what's",
+    "how is",
+)
+_ITEM_INFO_MARKERS = (
+    "里面有什么",
+    "裡面有咩",
+    "有什么配料",
+    "有咩材料",
+    "哪里的",
+    "哪裏",
+    "怎么做",
+    "點整",
+    "what's in",
+    "what is in",
+    "how is",
+    "contains",
+)
+_CONTEXT_SELECTIONS = {
+    "第一个": "第一个",
+    "第一個": "第一个",
+    "第二个": "第二个",
+    "第二個": "第二个",
+    "第三个": "第三个",
+    "第三個": "第三个",
+    "first one": "第一个",
+    "second one": "第二个",
+    "third one": "第三个",
+    "1": "1",
+    "2": "2",
+    "3": "3",
+}
+_CONTEXT_REFERENCES = {
+    "就那个": "就那个",
+    "就那個": "就那个",
+    "就嗰個": "就那个",
+    "that one": "就那个",
+}
+_CONTEXT_CANCELLATIONS = {
+    "算了": "算了",
+    "唔要喇": "算了",
+    "never mind": "算了",
+}
 
 
 @dataclass(frozen=True)
@@ -114,28 +174,63 @@ class MultilingualParser:
         *,
         explicit_switch: bool = False,
         safety_signals: tuple[str, ...] = (),
+        pending_action: dict[str, Any] | None = None,
+        has_recommendations: bool = False,
     ) -> ParsedUtterance:
         comparison = text.casefold()
+        compact = " ".join(comparison.strip().split()).rstrip(".!。！")
         confirmation = self.confirmation_parser.parse(text)
-        match = self.menu_matcher.match(text, menu_entries, preferred_locale=locale_context.response_locale)
+        match = self.menu_matcher.match(
+            text,
+            menu_entries,
+            preferred_locale=locale_context.response_locale,
+            mixed_language=locale_context.mixed_language,
+        )
         is_question = any(marker in comparison for marker in _QUESTION_MARKERS)
         if any(phrase in comparison for phrase in ("can i get", "could i get", "i'd like", "i would like")):
             is_question = False
 
+        context_command: str | None = None
         if explicit_switch:
             intent = "SWITCH_LANGUAGE"
+        elif safety_intent := self._intent_from_safety(safety_signals):
+            intent = safety_intent
+        elif safety_signals:
+            # Refusal and non-business safety signals must not be reinterpreted
+            # as order mutations merely because their text also contains words
+            # such as "order", "confirm", or a menu alias.
+            intent = "UNKNOWN"
+        elif pending_action and compact in _CONTEXT_CANCELLATIONS:
+            intent = "CANCEL_PENDING_ACTION"
+            context_command = _CONTEXT_CANCELLATIONS[compact]
+        elif pending_action and compact in _CONTEXT_SELECTIONS:
+            intent = "CONTEXT_SELECTION"
+            context_command = _CONTEXT_SELECTIONS[compact]
+        elif has_recommendations and compact in _CONTEXT_REFERENCES:
+            intent = "CONTEXT_REFERENCE"
+            context_command = _CONTEXT_REFERENCES[compact]
         else:
-            intent = self._intent_from_safety(safety_signals) or self._detect_intent(comparison, is_question)
+            intent = self._detect_intent(comparison, is_question)
+        if (
+            not safety_signals
+            and not explicit_switch
+            and match.unique
+            and any(marker in comparison for marker in _ITEM_INFO_MARKERS)
+        ):
+            intent = "ITEM_INFO_QUERY"
         if intent == "UNKNOWN" and match.candidates:
             intent = "ADD_ITEM"
-        if confirmation == ConfirmationResult.EXPLICIT_CONFIRM and not is_question:
-            intent = "CONFIRM_ORDER"
-        elif confirmation == ConfirmationResult.EXPLICIT_REJECT and intent == "UNKNOWN":
-            intent = "CANCEL_ORDER"
+        if not safety_signals:
+            if confirmation == ConfirmationResult.EXPLICIT_CONFIRM and not is_question:
+                intent = "CONFIRM_ORDER"
+            elif confirmation == ConfirmationResult.EXPLICIT_REJECT and intent == "UNKNOWN":
+                intent = "CANCEL_ORDER"
 
         entities: dict[str, Any] = {}
         ambiguities: list[str] = []
         required: list[str] = []
+        if context_command:
+            entities["context_command"] = context_command
 
         if match.unique:
             item = match.unique
@@ -178,7 +273,15 @@ class MultilingualParser:
         if quantity.exceeds_safe_threshold:
             ambiguities.append("QUANTITY_THRESHOLD_EXCEEDED")
             required.append("quantity")
-        if intent in {"ADD_ITEM", "CHANGE_QUANTITY"} and quantity.value is None and quantity.relative_delta is None:
+        if (
+            intent == "ADD_ITEM"
+            and match.candidates
+            and quantity.value is None
+            and quantity.relative_delta is None
+            and not is_question
+        ):
+            entities["quantity"] = 1
+        elif intent in {"ADD_ITEM", "CHANGE_QUANTITY"} and quantity.value is None and quantity.relative_delta is None:
             ambiguities.append("QUANTITY_MISSING")
             required.append("quantity")
 
@@ -214,6 +317,9 @@ class MultilingualParser:
         if is_question and intent in _MUTATING_ITEM_INTENTS:
             ambiguities.append("QUESTION_NOT_MUTATION")
             required.append("intent")
+        if intent == "CONFIRM_ORDER" and confirmation != ConfirmationResult.EXPLICIT_CONFIRM:
+            ambiguities.append("CONFIRMATION_NOT_EXPLICIT")
+            required.append("final_order")
 
         canonical_text = self._canonical_text(intent, entities, modifier_matches)
         if ambiguities or is_question and intent in _MUTATING_ITEM_INTENTS:
@@ -375,11 +481,16 @@ class MultilingualParser:
             "START_NEW_ORDER": "开始新订单",
             "SET_FULFILLMENT_DELIVERY": "改成配送",
             "SET_FULFILLMENT_PICKUP": "改成自取",
+            "CONTEXT_SELECTION": entities.get("context_command"),
+            "CONTEXT_REFERENCE": entities.get("context_command"),
+            "CANCEL_PENDING_ACTION": entities.get("context_command"),
         }
         if intent in mapping:
             return mapping[intent]
         if intent == "PRICE_QUERY" and item_name:
             return f"{item_name}多少钱"
+        if intent == "ITEM_INFO_QUERY" and item_name:
+            return f"{item_name}里面有什么"
         if intent == "ADD_ITEM" and item_name and quantity:
             return f"我要{quantity}份{item_name}{modifier_text}"
         if intent == "REMOVE_ITEM" and item_name:
