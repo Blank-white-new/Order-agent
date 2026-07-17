@@ -20,6 +20,13 @@ from app.domain.errors import (
     idempotency_conflict,
     invalid_order_transition,
     item_unavailable,
+    menu_publish_conflict,
+    modifier_ambiguous,
+    modifier_duplicate,
+    modifier_not_available,
+    modifier_required,
+    modifier_too_few,
+    modifier_too_many,
     no_published_menu,
     restaurant_not_found,
     simulation_data_required,
@@ -71,6 +78,13 @@ def test_stable_domain_error_codes_and_http_semantics():
         idempotency_conflict(),
         simulation_data_required(),
         database_write_failed(),
+        menu_publish_conflict(),
+        modifier_required("size"),
+        modifier_too_few("size"),
+        modifier_too_many("size"),
+        modifier_not_available(),
+        modifier_ambiguous(),
+        modifier_duplicate(),
     ]
     assert {error.code for error in errors} >= {
         "TENANT_CONTEXT_MISMATCH",
@@ -84,6 +98,13 @@ def test_stable_domain_error_codes_and_http_semantics():
         "IDEMPOTENCY_CONFLICT",
         "SIMULATION_DATA_REQUIRED",
         "DATABASE_WRITE_FAILED",
+        "MENU_PUBLISH_CONFLICT",
+        "MODIFIER_REQUIRED",
+        "MODIFIER_TOO_FEW",
+        "MODIFIER_TOO_MANY",
+        "MODIFIER_NOT_AVAILABLE",
+        "MODIFIER_AMBIGUOUS",
+        "MODIFIER_DUPLICATE",
     }
     assert restaurant_not_found().http_status == 404
     assert branch_not_found().http_status == 404

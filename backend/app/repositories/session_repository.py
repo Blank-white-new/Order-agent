@@ -10,7 +10,7 @@ class ConversationSessionRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def find_any_tenant(self, session_key: str) -> ConversationSession | None:
+    def get_by_session_key(self, session_key: str) -> ConversationSession | None:
         return self.session.scalar(select(ConversationSession).where(ConversationSession.session_key == session_key))
 
     def get(self, session_key: str, restaurant_id: int, branch_id: int) -> ConversationSession | None:

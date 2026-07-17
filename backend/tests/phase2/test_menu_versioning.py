@@ -62,10 +62,7 @@ def test_publish_is_transactional_archives_old_and_updates_all_restaurant_branch
     cached_menu = MenuService(database=phase2.database)
     old_price = cached_menu.get_item_price_minor("鸡腿饭")
     version_id, _ = _new_menu(phase2)
-    branch_ids = []
-    with phase2.database.session_factory() as session:
-        branch_ids = list(session.scalars(select(Branch.id).where(Branch.restaurant_id == tenant.restaurant_id)))
-    published = service.publish(tenant.restaurant_id, branch_ids, version_id)
+    published = service.publish(tenant.restaurant_id, version_id)
     assert published.status == "PUBLISHED"
     with phase2.database.session_factory() as session:
         versions = list(session.scalars(select(MenuVersion).where(MenuVersion.restaurant_id == tenant.restaurant_id)))
@@ -120,9 +117,7 @@ def test_historical_order_keeps_old_name_price_and_menu_version(phase2):
 
     version_id, _ = _new_menu(phase2, price_minor=9100, name="Synthetic Renamed Chicken")
     tenant = phase2.tenant_service.resolve()
-    with phase2.database.session_factory() as session:
-        branch_ids = list(session.scalars(select(Branch.id).where(Branch.restaurant_id == tenant.restaurant_id)))
-    MenuManagementService(phase2.uow_factory).publish(tenant.restaurant_id, branch_ids, version_id)
+    MenuManagementService(phase2.uow_factory).publish(tenant.restaurant_id, version_id)
 
     with phase2.uow_factory() as uow:
         order = uow.orders.get_by_public_id(confirmed.public_id, tenant.restaurant_id, tenant.branch_id)
