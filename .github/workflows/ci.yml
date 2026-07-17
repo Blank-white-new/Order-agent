@@ -92,15 +92,35 @@ jobs:
         shell: pwsh
         run: .\scripts\check_all.ps1 -Build
 
-      - name: Phase 4 catalog and message validation
+      - name: Phase 4 dataset diversity validation
         shell: pwsh
         run: .\backend\.venv\Scripts\python.exe scripts\validate_phase4_multilingual_catalog.py
 
-      - name: Phase 4 backend tests
+      - name: Phase 4 unified canonical path tests
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase4\test_unified_canonical_path.py backend\tests\phase4\test_api_contract.py
+
+      - name: Phase 4 evaluator independence tests
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase4\test_evaluator_independence.py
+
+      - name: Phase 4 database order checks on SQLite
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase4\test_database_tenant_evaluation.py
+
+      - name: Phase 4 complete backend tests
         shell: pwsh
         run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase4
 
-      - name: Phase 4 multilingual text evaluation
+      - name: Phase 4 auto locale detection evaluation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase4_multilingual_text_eval.py --mode auto
+
+      - name: Phase 4 assisted locale evaluation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase4_multilingual_text_eval.py --mode assisted
+
+      - name: Phase 4 combined multilingual text evaluation
         shell: pwsh
         run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase4_multilingual_text_eval.py
 
@@ -208,14 +228,34 @@ jobs:
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase3
 
-      - name: Run PostgreSQL Phase 4 menu, tenant, snapshot, and multilingual tests
+      - name: Phase 4 PostgreSQL database duplicate-order validation
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase4/test_database_tenant_evaluation.py -k confirmation
+
+      - name: Phase 4 PostgreSQL cross-tenant real access tests
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase4/test_database_tenant_evaluation.py -k cross_tenant
+
+      - name: Phase 4 PostgreSQL default Mandarin canonical path tests
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase4/test_unified_canonical_path.py
+
+      - name: Run PostgreSQL Phase 4 complete test suite
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase4
 
-      - name: Run Phase 4 multilingual text evaluation on PostgreSQL
+      - name: Run Phase 4 auto locale detection evaluation on PostgreSQL
         shell: bash
         run: >-
           backend/.venv/bin/python -B evaluation/run_phase4_multilingual_text_eval.py
+          --mode auto
+          --database-url "$PHASE4_POSTGRES_URL"
+
+      - name: Run Phase 4 assisted evaluation on PostgreSQL
+        shell: bash
+        run: >-
+          backend/.venv/bin/python -B evaluation/run_phase4_multilingual_text_eval.py
+          --mode assisted
           --database-url "$PHASE4_POSTGRES_URL"
 
       - name: Run Phase 1 runtime safety policy evaluation
