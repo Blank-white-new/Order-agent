@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,6 +57,13 @@ class MenuVersion(Base):
         CheckConstraint("version_number > 0", name="version_positive"),
         CheckConstraint("status in ('DRAFT','PUBLISHED','ARCHIVED')", name="status_valid"),
         Index("ix_menu_versions_restaurant_status", "restaurant_id", "status"),
+        Index(
+            "uq_menu_versions_one_published_per_restaurant",
+            "restaurant_id",
+            unique=True,
+            sqlite_where=text("status = 'PUBLISHED'"),
+            postgresql_where=text("status = 'PUBLISHED'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -184,6 +192,7 @@ class ModifierGroup(Base):
     __tablename__ = "modifier_groups"
     __table_args__ = (
         UniqueConstraint("menu_version_id", "code", name="uq_modifier_groups_version_code"),
+        UniqueConstraint("id", "menu_version_id", name="uq_modifier_groups_id_version"),
         CheckConstraint("min_selections >= 0", name="min_nonnegative"),
         CheckConstraint("max_selections >= min_selections", name="max_gte_min"),
     )
@@ -217,17 +226,35 @@ class ModifierOption(Base):
 
 class MenuItemModifierGroup(Base):
     __tablename__ = "menu_item_modifier_groups"
-    __table_args__ = (UniqueConstraint("menu_item_id", "modifier_group_id", name="uq_item_modifier_group_pair"),)
+    __table_args__ = (
+        UniqueConstraint("menu_item_id", "modifier_group_id", name="uq_item_modifier_group_pair"),
+        ForeignKeyConstraint(
+            ["menu_item_id", "menu_version_id"],
+            ["menu_items.id", "menu_items.menu_version_id"],
+            name="fk_item_modifier_groups_item_version",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["modifier_group_id", "menu_version_id"],
+            ["modifier_groups.id", "modifier_groups.menu_version_id"],
+            name="fk_item_modifier_groups_group_version",
+            ondelete="CASCADE",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
-    modifier_group_id: Mapped[int] = mapped_column(ForeignKey("modifier_groups.id", ondelete="CASCADE"), nullable=False)
+    menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    modifier_group_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Allergen(Base):
     __tablename__ = "allergens"
-    __table_args__ = (UniqueConstraint("restaurant_id", "code", name="uq_allergens_restaurant_code"),)
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "code", name="uq_allergens_restaurant_code"),
+        UniqueConstraint("id", "restaurant_id", name="uq_allergens_id_restaurant"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
@@ -245,17 +272,30 @@ class MenuItemAllergen(Base):
             name="fk_item_allergens_item_version",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["allergen_id", "restaurant_id"],
+            ["allergens.id", "allergens.restaurant_id"],
+            name="fk_item_allergens_allergen_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["menu_version_id", "restaurant_id"],
+            ["menu_versions.id", "menu_versions.restaurant_id"],
+            name="fk_item_allergens_version_tenant",
+            ondelete="CASCADE",
+        ),
         CheckConstraint("declaration in ('CONTAINS','MAY_CONTAIN','UNKNOWN')", name="declaration_valid"),
         Index("ix_item_allergens_version", "menu_version_id", "menu_item_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    allergen_id: Mapped[int] = mapped_column(ForeignKey("allergens.id", ondelete="RESTRICT"), nullable=False)
+    allergen_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
     declaration: Mapped[str] = mapped_column(String(24), nullable=False)
     source: Mapped[str] = mapped_column(String(200), nullable=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="CASCADE"), nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class OpeningHours(Base):
@@ -281,6 +321,7 @@ class DeliveryZone(Base):
     __tablename__ = "delivery_zones"
     __table_args__ = (
         UniqueConstraint("branch_id", "code", name="uq_delivery_zones_branch_code"),
+        UniqueConstraint("id", "branch_id", name="uq_delivery_zones_id_branch"),
         CheckConstraint("fee_minor >= 0", name="fee_nonnegative"),
         CheckConstraint("minimum_order_minor >= 0", name="minimum_nonnegative"),
         Index("ix_delivery_zones_branch_active", "branch_id", "active"),
@@ -300,12 +341,32 @@ class BranchItemAvailability(Base):
     __tablename__ = "branch_item_availability"
     __table_args__ = (
         UniqueConstraint("branch_id", "menu_item_id", name="uq_branch_item_availability_pair"),
+        ForeignKeyConstraint(
+            ["branch_id", "restaurant_id"],
+            ["branches.id", "branches.restaurant_id"],
+            name="fk_branch_item_availability_branch_tenant",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["menu_item_id", "menu_version_id"],
+            ["menu_items.id", "menu_items.menu_version_id"],
+            name="fk_branch_item_availability_item_version",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["menu_version_id", "restaurant_id"],
+            ["menu_versions.id", "menu_versions.restaurant_id"],
+            name="fk_branch_item_availability_version_tenant",
+            ondelete="CASCADE",
+        ),
         Index("ix_branch_item_availability_lookup", "branch_id", "menu_item_id", "available"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
-    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
     available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sold_out_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reason_code: Mapped[str | None] = mapped_column(String(80))
@@ -315,7 +376,7 @@ class BranchItemAvailability(Base):
 class ConversationSession(Base):
     __tablename__ = "conversation_sessions"
     __table_args__ = (
-        UniqueConstraint("restaurant_id", "branch_id", "session_key", name="uq_sessions_tenant_key"),
+        UniqueConstraint("session_key", name="uq_sessions_global_key"),
         UniqueConstraint("id", "restaurant_id", "branch_id", name="uq_sessions_id_tenant"),
         ForeignKeyConstraint(
             ["branch_id", "restaurant_id"],
@@ -366,6 +427,7 @@ class Customer(Base):
     __tablename__ = "customers"
     __table_args__ = (
         UniqueConstraint("restaurant_id", "external_reference", name="uq_customers_restaurant_external"),
+        UniqueConstraint("id", "restaurant_id", name="uq_customers_id_restaurant"),
         Index("ix_customers_restaurant_synthetic", "restaurant_id", "is_synthetic"),
     )
 
@@ -383,10 +445,23 @@ class Order(Base):
     __tablename__ = "orders"
     __table_args__ = (
         UniqueConstraint("public_id", name="uq_orders_public_id"),
+        UniqueConstraint("id", "restaurant_id", name="uq_orders_id_restaurant"),
         ForeignKeyConstraint(
             ["branch_id", "restaurant_id"],
             ["branches.id", "branches.restaurant_id"],
             name="fk_orders_branch_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["customer_id", "restaurant_id"],
+            ["customers.id", "customers.restaurant_id"],
+            name="fk_orders_customer_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["delivery_zone_id", "branch_id"],
+            ["delivery_zones.id", "delivery_zones.branch_id"],
+            name="fk_orders_delivery_zone_branch",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -415,7 +490,7 @@ class Order(Base):
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="RESTRICT"), nullable=False)
     branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
     session_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"))
+    customer_id: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
     draft_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
@@ -423,7 +498,7 @@ class Order(Base):
     delivery_fee_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_minor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     fulfillment_type: Mapped[str] = mapped_column(String(24), nullable=False)
-    delivery_zone_id: Mapped[int | None] = mapped_column(ForeignKey("delivery_zones.id", ondelete="RESTRICT"))
+    delivery_zone_id: Mapped[int | None] = mapped_column(Integer)
     is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
@@ -432,6 +507,24 @@ class Order(Base):
 class OrderItem(Base):
     __tablename__ = "order_items"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["order_id", "restaurant_id"],
+            ["orders.id", "orders.restaurant_id"],
+            name="fk_order_items_order_tenant",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["menu_item_id", "menu_version_id"],
+            ["menu_items.id", "menu_items.menu_version_id"],
+            name="fk_order_items_item_version",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["menu_version_id", "restaurant_id"],
+            ["menu_versions.id", "menu_versions.restaurant_id"],
+            name="fk_order_items_version_tenant",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("unit_price_minor >= 0", name="unit_price_nonnegative"),
         CheckConstraint("quantity > 0", name="quantity_positive"),
         CheckConstraint("line_total_minor = unit_price_minor * quantity", name="line_total_matches"),
@@ -439,9 +532,10 @@ class OrderItem(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="RESTRICT"), nullable=False)
-    menu_version_id: Mapped[int] = mapped_column(ForeignKey("menu_versions.id", ondelete="RESTRICT"), nullable=False)
+    order_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    menu_version_id: Mapped[int] = mapped_column(Integer, nullable=False)
     item_code_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
     item_name_snapshot: Mapped[str] = mapped_column(String(200), nullable=False)
     unit_price_minor: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -488,13 +582,19 @@ class IdempotencyRecord(Base):
     __tablename__ = "idempotency_records"
     __table_args__ = (
         UniqueConstraint("restaurant_id", "branch_id", "scope", "idempotency_key", name="uq_idempotency_tenant_scope_key"),
+        ForeignKeyConstraint(
+            ["branch_id", "restaurant_id"],
+            ["branches.id", "branches.restaurant_id"],
+            name="fk_idempotency_branch_tenant",
+            ondelete="CASCADE",
+        ),
         Index("ix_idempotency_resource", "resource_type", "resource_id"),
         Index("ix_idempotency_expiry", "expires_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False)
-    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
     scope: Mapped[str] = mapped_column(String(80), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
