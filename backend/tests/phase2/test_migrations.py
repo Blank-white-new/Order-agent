@@ -39,6 +39,18 @@ def test_sqlite_empty_upgrade_downgrade_reupgrade_and_schema_match(tmp_path):
     upgraded.engine.dispose()
 
 
+def test_programmatic_migration_url_overrides_environment(monkeypatch, tmp_path):
+    environment_path = tmp_path / "environment.db"
+    requested_path = tmp_path / "requested.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{environment_path.as_posix()}")
+
+    context = make_context(f"sqlite:///{requested_path.as_posix()}", seed=False)
+    assert set(inspect(context.database.engine).get_table_names()) == EXPECTED_TABLES
+    assert requested_path.is_file()
+    assert not environment_path.exists()
+    context.database.engine.dispose()
+
+
 @pytest.mark.skipif(not os.getenv("PHASE2_POSTGRES_URL"), reason="PHASE2_POSTGRES_URL is provided by the PostgreSQL CI job")
 def test_postgresql_empty_upgrade_downgrade_reupgrade():
     database_url = os.environ["PHASE2_POSTGRES_URL"]
