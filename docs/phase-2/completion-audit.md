@@ -1,0 +1,33 @@
+# 阶段 2 完成性与数据完整性专项审计
+
+审计基线为 `83313439ce4d3e2382015ef497dd9ebfdb20c10f`（PR #11 原 8 个阶段 2 提交）。本审计不重写旧 revision/提交，不进入阶段 3。状态只使用 `VERIFIED`、`FIXED_AND_VERIFIED`、`DOCUMENTATION_ONLY`、`DEFERRED_WITH_REASON`、`FAILED`。
+
+`database_enforced` 只记录数据库真正拒绝非法写入的约束；Repository 查询条件不计为数据库保证。`service_enforced` 只记录事务或领域校验；字段存在本身不计为功能证据。
+
+| claim | evidence_file | evidence_test | database_enforced | service_enforced | status | notes |
+|---|---|---|---|---|---|---|
+| 24 张业务表 | `backend/app/db/models.py` | `test_migrations.py::test_sqlite_empty_upgrade_downgrade_reupgrade_and_schema_match` | SQLAlchemy metadata/head migration 均为 24 张业务表 | 否 | VERIFIED | `alembic_version` 不计入业务表。 |
+| 所有关键复合引用受保护 | `backend/app/db/models.py`; `backend/alembic/versions/20260717_0003_phase_2_integrity_audit.py` | `test_integrity_audit.py` 前 7 项非法写入；`test_migrations.py` metadata comparison | item/group version、availability tenant/version、allergen tenant/version、order customer/zone、OrderItem item/version/order tenant、idempotency branch tenant 均为复合 FK | Service 仍做 tenant/authoritative 查询校验 | FIXED_AND_VERIFIED | 原基线声明过宽；0003 增加数据库保护，不以 Repository 过滤替代。 |
+| 两家餐厅、四个分店 | `backend/app/services/seed_service.py` | `test_tenant_seed.py::test_seed_is_idempotent_and_contains_two_isolated_synthetic_tenants` | restaurant/branch 唯一和 FK | seed 幂等 | VERIFIED | 仅 synthetic fixtures；共 22 菜品。 |
+| 菜单版本化 | `backend/app/services/menu_management_service.py`; `backend/app/repositories/menu_repository.py`; `docs/phase-2/menu-versioning.md` | `test_menu_versioning.py`; `test_integrity_audit.py::test_concurrent_restaurant_wide_publication_has_one_winner_and_no_branch_gap` | 每 restaurant 最多一个 Published 的部分唯一索引；branch active menu tenant FK | restaurant-wide 原子发布、旧版归档、不可原地修改、竞态冲突 | FIXED_AND_VERIFIED | 选择方案 A；删除 `branch_ids`，不再静默忽略调用者输入。 |
+| 分店售罄隔离 | `backend/app/db/models.py`; `backend/app/repositories/menu_repository.py` | `test_operations_and_money.py::test_branch_sold_out_item_is_hidden_only_for_that_branch`; availability 非法写测试 | availability branch/restaurant + item/version + version/restaurant 复合 FK | 确认前重新检查 sold-out | FIXED_AND_VERIFIED | 原行为测试已存在，0003 补齐数据库 tenant/version 保护。 |
+| 历史订单快照 | `backend/app/services/order_persistence_service.py`; `backend/app/db/models.py` | `test_menu_versioning.py::test_historical_order_keeps_old_name_price_and_menu_version`; `test_operations_and_money.py::test_authoritative_integer_minor_prices_modifier_and_delivery_fee` | OrderItem item/version、version/restaurant、order/restaurant 复合 FK | 确认时复制权威名称、价格、modifier、allergen | FIXED_AND_VERIFIED | 后续菜单归档/改价不改写快照。 |
+| Session 重启恢复 | `backend/app/state/session_store.py`; `backend/app/repositories/session_repository.py` | `test_sessions_idempotency.py::test_session_draft_survives_new_engine_and_store` | session 持久表、contact 一对一、tenant FK | JSON/contact 恢复、closed/version 校验 | VERIFIED | 新 engine/store 后从数据库恢复。 |
+| Session 不可跨租户 | `backend/app/db/models.py`; `backend/app/state/session_store.py`; 0003 migration | session 重复 key 非法写、并发创建、`test_session_key_cannot_switch_restaurant_or_branch` | `session_key` 全局唯一；session branch/restaurant 复合 FK | `get_by_session_key` 后返回通用 `TENANT_CONTEXT_MISMATCH` | FIXED_AND_VERIFIED | 原 tenant-scoped unique 与模糊全局查询不一致；现为全局首次绑定且不泄露原租户信息。 |
+| Modifier required/min/max | `backend/app/services/modifier_validation_service.py`; `backend/app/repositories/menu_repository.py` | `test_integrity_audit.py` required/min/max/inactive/other-item/ambiguous/duplicate 用例 | item/group 同 version 复合 FK；group min/max check | required/min/max、归属、active、重复、名称消歧、权威加价集中校验 | FIXED_AND_VERIFIED | 原基线只验证选项名称可查到，不能证明 min/max 已执行。 |
+| 确认失效 | `backend/app/services/order_persistence_service.py` | `test_confirmation_lifecycle.py::test_invalidated_confirmation_is_stale_and_order_is_cancelled`; question/other-session tests | confirmation order+draft version/fingerprint unique | draft fingerprint、invalidated_at、`CONFIRMATION_STALE` | VERIFIED | 问句不会创建 confirmation。 |
+| 幂等并发 | `backend/app/services/order_persistence_service.py`; `backend/app/db/models.py` | `test_sessions_idempotency.py::test_concurrent_same_request_creates_one_order_and_one_confirmation`; idempotency tenant 非法写测试 | tenant+scope+key unique；branch/restaurant 复合 FK | fingerprint replay/conflict 与并发回读 | FIXED_AND_VERIFIED | 0003 补齐 idempotency branch/restaurant DB 保护。 |
+| merchant accepted 防伪 | `backend/app/services/order_lifecycle_service.py`; `backend/app/services/order_persistence_service.py` | `test_confirmation_lifecycle.py::test_merchant_states_exist_only_for_explicit_synthetic_fixtures`; `test_confirmation_binds_draft_and_never_claims_merchant_acceptance` | order status check | fixture gate；正常路径仅 `CUSTOMER_CONFIRMED` + `NOT_INTEGRATED` | VERIFIED | HTTP 200、本地 SIM ID、pending/unknown 均不表示 accepted。 |
+| SQLite migration | 0001/0002/`20260717_0003` | `test_migrations.py` 空库、0002 downgrade/re-upgrade、冲突拒绝、metadata comparison | migration 实际创建约束/索引 | 非 development 不自动迁移 | FIXED_AND_VERIFIED | 0003 不自动删除冲突行；本地 SQLite 已实跑。 |
+| PostgreSQL migration | 0001/0002/`20260717_0003`; `.github/workflows/ci.yml` | `test_postgresql_empty_upgrade_downgrade_reupgrade`; 完整 phase2 套件 | 与 SQLite 同一 metadata，PostgreSQL 部分唯一索引/复合 FK | PostgreSQL 事务与并发发布路径 | FIXED_AND_VERIFIED | CI run #20 PostgreSQL 17.5 job success：76 passed、0 skipped；空库、0002/head 循环、并发发布和依赖审计通过。 |
+| 本机与 CI 测试数 | `scripts/check_all.ps1`; `.github/workflows/ci.yml` | backend/Phase 1/V3/Vitest/typecheck/build/audit 命令 | 不适用 | 离线环境 guard | VERIFIED | 本机/Windows backend 908 passed + 1 PostgreSQL-only skip；PostgreSQL 76 passed；Phase 1 140/140；V3 57/57；Vitest 69/69；审计均 0 漏洞。CI 证据 run #20。 |
+| 无真实资料 | `backend/app/services/seed_service.py`; `backend/app/services/customer_service.py` | `test_api_simulation.py`; `test_non_synthetic_order_state_is_rejected` | synthetic 标记字段和关系约束 | `SIMULATION_DATA_ONLY=true` 写入门禁；contact 分表且不进普通事件 | VERIFIED | fixture 名称/地址/电话均 synthetic；未接入真实服务或 live LLM。 |
+| 工作区干净 | Git working tree / remote branch | `git status --short`; local/remote SHA 对比 | 不适用 | 不适用 | VERIFIED | 恢复检查基线干净且 stash 为空；审计提交推送后再次验证 local HEAD=remote、无未提交/未跟踪文件。 |
+
+## 修复前失败项
+
+基线 `8331343` 在专项审计中实际失败的声明包括：所有关键复合引用均受数据库保护、Modifier min/max 已执行、session 唯一语义确定、`branch_ids` 表达部分分店发布、并发发布有数据库唯一保护。上述问题均以代码、0003 migration 和负面/并发测试修复；不能仅靠修改报告转为通过。
+
+## 阶段 3 以后范围
+
+真实电话/短信、POS、支付、真实库存、商家权威接受、人工接管运行时、真实餐厅后台、真实顾客资料、生产加密与法定保留策略、branch-specific 菜单指派仍属于后续阶段。本审计未增加任何这些能力或权限。
