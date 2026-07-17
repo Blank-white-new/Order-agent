@@ -18,8 +18,8 @@ from app.services.seed_service import seed_phase2_simulation_data
 
 def main() -> int:
     database = create_database(DatabaseSettings.from_env())
-    if database.settings.app_env != "development" or not database.settings.simulation_data_only:
-        raise RuntimeError("Phase 2 seed is restricted to development simulation environments.")
+    if database.settings.app_env not in {"development", "test"} or not database.settings.simulation_data_only:
+        raise RuntimeError("Phase 2 seed is restricted to development/test simulation environments.")
     summary = seed_phase2_simulation_data(lambda: SqlAlchemyUnitOfWork(database.session_factory))
     print(json.dumps(summary.as_dict(), ensure_ascii=False, sort_keys=True))
     return 0

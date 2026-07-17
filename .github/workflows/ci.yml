@@ -167,6 +167,10 @@ jobs:
         shell: bash
         run: backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
 
+      - name: Seed synthetic PostgreSQL fixtures
+        shell: bash
+        run: backend/.venv/bin/python -B scripts/seed_phase2_simulation_data.py
+
       - name: Run PostgreSQL repositories, isolation, versioning, and idempotency tests
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase2
