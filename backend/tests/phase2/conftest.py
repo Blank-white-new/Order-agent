@@ -34,6 +34,7 @@ class Phase2Context:
 def migrate(database_url: str, revision: str = "head") -> None:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.attributes["skip_logging_config"] = True
+    config.attributes["database_url"] = database_url
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     command.upgrade(config, revision)
 
@@ -41,6 +42,7 @@ def migrate(database_url: str, revision: str = "head") -> None:
 def downgrade(database_url: str, revision: str = "base") -> None:
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
     config.attributes["skip_logging_config"] = True
+    config.attributes["database_url"] = database_url
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     command.downgrade(config, revision)
 

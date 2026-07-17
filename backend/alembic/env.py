@@ -14,7 +14,7 @@ config = context.config
 if config.config_file_name is not None and not config.attributes.get("skip_logging_config", False):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-database_url = os.getenv("DATABASE_URL")
+database_url = config.attributes.get("database_url") or os.getenv("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
