@@ -116,3 +116,38 @@ def modifier_duplicate() -> DomainError:
         "The same modifier option cannot be selected more than once.",
         HTTPStatus.UNPROCESSABLE_ENTITY,
     )
+
+
+def safety_session_not_found() -> DomainError:
+    return DomainError("SAFETY_SESSION_NOT_FOUND", "The requested safety context was not found.", HTTPStatus.NOT_FOUND)
+
+
+def handoff_not_found() -> DomainError:
+    return DomainError("HANDOFF_NOT_FOUND", "The simulated handoff case was not found.", HTTPStatus.NOT_FOUND)
+
+
+def invalid_handoff_transition(current: str, target: str) -> DomainError:
+    return DomainError(
+        "INVALID_HANDOFF_TRANSITION",
+        f"The simulated handoff cannot transition from {current} to {target}.",
+    )
+
+
+def simulation_controls_disabled() -> DomainError:
+    return DomainError(
+        "SIMULATION_CONTROLS_DISABLED",
+        "Simulation controls are not available in this environment.",
+        HTTPStatus.NOT_FOUND,
+    )
+
+
+def unsafe_audit_payload() -> DomainError:
+    return DomainError(
+        "UNSAFE_AUDIT_PAYLOAD",
+        "The audit payload contains a prohibited field.",
+        HTTPStatus.UNPROCESSABLE_ENTITY,
+    )
+
+
+def safety_hold_active() -> DomainError:
+    return DomainError("SAFETY_HOLD_ACTIVE", "The order is blocked by an active safety decision.")

@@ -30,6 +30,18 @@ class OrderRepository:
             )
         )
 
+    def get_latest_for_session(self, session_id: int, restaurant_id: int, branch_id: int) -> Order | None:
+        return self.session.scalar(
+            select(Order)
+            .where(
+                Order.session_id == session_id,
+                Order.restaurant_id == restaurant_id,
+                Order.branch_id == branch_id,
+            )
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(1)
+        )
+
     def list_items(self, order_id: int) -> list[OrderItem]:
         return list(self.session.scalars(select(OrderItem).where(OrderItem.order_id == order_id).order_by(OrderItem.id)))
 
