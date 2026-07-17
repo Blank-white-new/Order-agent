@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.db.models import Order, OrderEvent
 from app.domain.enums import ActorType, OrderStatus
-from app.domain.errors import invalid_order_transition
+from app.domain.errors import invalid_order_transition, safety_hold_active
 
 
 ALLOWED_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
@@ -36,6 +36,12 @@ class OrderLifecycleService:
         merchant_fixture: bool = False,
     ) -> Order:
         target_status = OrderStatus(target)
+        if order.safety_hold and target_status in {
+            OrderStatus.SUBMISSION_STARTED,
+            OrderStatus.MERCHANT_PENDING,
+            OrderStatus.MERCHANT_ACCEPTED,
+        }:
+            raise safety_hold_active()
         if target_status in {OrderStatus.MERCHANT_PENDING, OrderStatus.MERCHANT_ACCEPTED, OrderStatus.MERCHANT_REJECTED}:
             if not merchant_fixture or not order.is_synthetic:
                 raise invalid_order_transition(order.status, target_status.value)

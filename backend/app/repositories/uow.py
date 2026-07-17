@@ -8,6 +8,7 @@ from app.repositories.menu_repository import MenuRepository
 from app.repositories.operations_repository import OperationsRepository
 from app.repositories.order_repository import IdempotencyRepository, OrderRepository
 from app.repositories.session_repository import ConversationSessionRepository
+from app.repositories.safety_repository import HandoffRepository, SafetyRepository
 from app.repositories.tenant_repository import TenantRepository
 
 
@@ -25,6 +26,8 @@ class SqlAlchemyUnitOfWork:
         self.orders = OrderRepository(self.session)
         self.idempotency = IdempotencyRepository(self.session)
         self.operations = OperationsRepository(self.session)
+        self.safety = SafetyRepository(self.session)
+        self.handoffs = HandoffRepository(self.session)
         return self
 
     def __exit__(

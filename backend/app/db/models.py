@@ -446,6 +446,7 @@ class Order(Base):
     __table_args__ = (
         UniqueConstraint("public_id", name="uq_orders_public_id"),
         UniqueConstraint("id", "restaurant_id", name="uq_orders_id_restaurant"),
+        UniqueConstraint("id", "restaurant_id", "branch_id", name="uq_orders_id_tenant"),
         ForeignKeyConstraint(
             ["branch_id", "restaurant_id"],
             ["branches.id", "branches.restaurant_id"],
@@ -500,6 +501,8 @@ class Order(Base):
     fulfillment_type: Mapped[str] = mapped_column(String(24), nullable=False)
     delivery_zone_id: Mapped[int | None] = mapped_column(Integer)
     is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    safety_hold: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    safety_hold_reason: Mapped[str | None] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
@@ -603,3 +606,190 @@ class IdempotencyRecord(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SafetySessionCounter(Base):
+    __tablename__ = "safety_session_counters"
+    __table_args__ = (
+        UniqueConstraint("session_id", name="uq_safety_counters_session"),
+        ForeignKeyConstraint(
+            ["session_id", "restaurant_id", "branch_id"],
+            ["conversation_sessions.id", "conversation_sessions.restaurant_id", "conversation_sessions.branch_id"],
+            name="fk_safety_counters_session_tenant",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("consecutive_low_confidence >= 0", name="low_confidence_nonnegative"),
+        CheckConstraint("consecutive_misunderstandings >= 0", name="misunderstandings_nonnegative"),
+        CheckConstraint("consecutive_corrections >= 0", name="corrections_nonnegative"),
+        CheckConstraint("confirmation_failures >= 0", name="confirmation_failures_nonnegative"),
+        CheckConstraint("is_synthetic = true", name="synthetic_only"),
+        Index("ix_safety_counters_tenant", "restaurant_id", "branch_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    consecutive_low_confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consecutive_misunderstandings: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consecutive_corrections: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    confirmation_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class SafetyDecisionRecord(Base):
+    __tablename__ = "safety_decision_records"
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_safety_decisions_public_id"),
+        ForeignKeyConstraint(
+            ["session_id", "restaurant_id", "branch_id"],
+            ["conversation_sessions.id", "conversation_sessions.restaurant_id", "conversation_sessions.branch_id"],
+            name="fk_safety_decisions_session_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["order_id", "restaurant_id", "branch_id"],
+            ["orders.id", "orders.restaurant_id", "orders.branch_id"],
+            name="fk_safety_decisions_order_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("classification in ('AUTO_DRAFT','CONFIRM','HANDOFF','REFUSE')", name="classification_valid"),
+        CheckConstraint(
+            "reason_code is null or reason_code in ('EXPLICIT_HUMAN_REQUEST','SEVERE_ALLERGY',"
+            "'CROSS_CONTAMINATION','REPEATED_MISUNDERSTANDING','AMBIGUOUS_ITEM','AMBIGUOUS_QUANTITY',"
+            "'UNVERIFIED_ADDRESS','PRICE_UNAVAILABLE','MENU_DATA_MISSING','COMPLAINT','REFUND_REQUEST',"
+            "'PAYMENT_DISPUTE','MERCHANT_REJECTED','MERCHANT_TIMEOUT','SYSTEM_FAILURE','LANGUAGE_UNSUPPORTED',"
+            "'ABUSE_OR_SECURITY','REGULATED_ITEM','CROSS_TENANT_ACCESS','UNAUTHORIZED_ORDER_ACCESS',"
+            "'FORGE_MERCHANT_ACCEPTANCE','BYPASS_CONFIRMATION','CARD_DATA_STORAGE',"
+            "'UNSUPPORTED_SAFETY_GUARANTEE','INTERNAL_SECRET_EXTRACTION','SECURITY_ATTACK')",
+            name="reason_valid",
+        ),
+        CheckConstraint(
+            "(classification in ('HANDOFF','REFUSE') and reason_code is not null) or "
+            "(classification in ('AUTO_DRAFT','CONFIRM') and reason_code is null)",
+            name="classification_reason_consistent",
+        ),
+        CheckConstraint("is_synthetic = true", name="synthetic_only"),
+        Index("ix_safety_decisions_session_created", "session_id", "created_at"),
+        Index("ix_safety_decisions_tenant_class", "restaurant_id", "branch_id", "classification"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    order_id: Mapped[int | None] = mapped_column(Integer)
+    classification: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    explanation_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    confidence_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    required_confirmations_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    risk_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    blocked_actions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    metric_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class HandoffCase(Base):
+    __tablename__ = "handoff_cases"
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_handoff_cases_public_id"),
+        ForeignKeyConstraint(
+            ["session_id", "restaurant_id", "branch_id"],
+            ["conversation_sessions.id", "conversation_sessions.restaurant_id", "conversation_sessions.branch_id"],
+            name="fk_handoff_cases_session_tenant",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["order_id", "restaurant_id", "branch_id"],
+            ["orders.id", "orders.restaurant_id", "orders.branch_id"],
+            name="fk_handoff_cases_order_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "status in ('NOT_REQUIRED','REQUESTED','PENDING','SIMULATED_AGENT_ASSIGNED',"
+            "'SIMULATED_AGENT_CONNECTED','RESOLVED','FAILED','CANCELLED')",
+            name="status_valid",
+        ),
+        CheckConstraint(
+            "reason_code in ('EXPLICIT_HUMAN_REQUEST','SEVERE_ALLERGY','CROSS_CONTAMINATION',"
+            "'REPEATED_MISUNDERSTANDING','AMBIGUOUS_ITEM','AMBIGUOUS_QUANTITY','UNVERIFIED_ADDRESS',"
+            "'PRICE_UNAVAILABLE','MENU_DATA_MISSING','COMPLAINT','REFUND_REQUEST','PAYMENT_DISPUTE',"
+            "'MERCHANT_REJECTED','MERCHANT_TIMEOUT','SYSTEM_FAILURE','LANGUAGE_UNSUPPORTED',"
+            "'ABUSE_OR_SECURITY','REGULATED_ITEM')",
+            name="reason_valid",
+        ),
+        CheckConstraint("decision_classification = 'HANDOFF'", name="classification_handoff"),
+        CheckConstraint("priority in ('LOW','NORMAL','HIGH','CRITICAL')", name="priority_valid"),
+        CheckConstraint("summary_version > 0", name="summary_version_positive"),
+        CheckConstraint(
+            "failure_code is null or failure_code in ('NO_AGENT_AVAILABLE','QUEUE_TIMEOUT','ASSIGNMENT_FAILED',"
+            "'CONNECTION_FAILED','CASE_CANCELLED','SYSTEM_ERROR')",
+            name="failure_code_valid",
+        ),
+        CheckConstraint("is_synthetic = true", name="synthetic_only"),
+        Index("ix_handoff_cases_tenant_status", "restaurant_id", "branch_id", "status"),
+        Index(
+            "uq_handoff_cases_active_session",
+            "session_id",
+            unique=True,
+            sqlite_where=text(
+                "status in ('REQUESTED','PENDING','SIMULATED_AGENT_ASSIGNED','SIMULATED_AGENT_CONNECTED')"
+            ),
+            postgresql_where=text(
+                "status in ('REQUESTED','PENDING','SIMULATED_AGENT_ASSIGNED','SIMULATED_AGENT_CONNECTED')"
+            ),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    order_id: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="REQUESTED")
+    reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    priority: Mapped[str] = mapped_column(String(16), nullable=False, default="NORMAL")
+    decision_classification: Mapped[str] = mapped_column(String(24), nullable=False, default="HANDOFF")
+    risk_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    blocked_actions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    summary_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    summary_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    failure_code: Mapped[str | None] = mapped_column(String(80))
+    resolution_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class HandoffEvent(Base):
+    __tablename__ = "handoff_events"
+    __table_args__ = (
+        UniqueConstraint("handoff_case_id", "sequence_number", name="uq_handoff_events_sequence"),
+        CheckConstraint("sequence_number > 0", name="sequence_positive"),
+        CheckConstraint(
+            "actor_type in ('CUSTOMER','ORCHESTRATOR','SIMULATION_PROVIDER','SYSTEM')",
+            name="actor_type_valid",
+        ),
+        Index("ix_handoff_events_case_occurred", "handoff_case_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    handoff_case_id: Mapped[int] = mapped_column(ForeignKey("handoff_cases.id", ondelete="CASCADE"), nullable=False)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
