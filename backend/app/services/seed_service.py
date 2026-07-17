@@ -179,6 +179,7 @@ def seed_phase2_simulation_data(uow_factory, config: LoadedMenuConfig | None = N
                         MenuItemAllergen(
                             menu_item_id=item.id,
                             allergen_id=allergens[allergen_name].id,
+                            restaurant_id=restaurant.id,
                             declaration="CONTAINS",
                             source="synthetic-menu-import",
                             verified_at=datetime.now(timezone.utc),
@@ -198,7 +199,14 @@ def seed_phase2_simulation_data(uow_factory, config: LoadedMenuConfig | None = N
                     )
                     uow.menus.add(group)
                     uow.flush()
-                    uow.menus.add(MenuItemModifierGroup(menu_item_id=item.id, modifier_group_id=group.id, sort_order=0))
+                    uow.menus.add(
+                        MenuItemModifierGroup(
+                            menu_item_id=item.id,
+                            modifier_group_id=group.id,
+                            menu_version_id=version.id,
+                            sort_order=0,
+                        )
+                    )
                     for option_index, option_name in enumerate(source_item.options):
                         uow.menus.add(
                             ModifierOption(
@@ -240,7 +248,9 @@ def seed_phase2_simulation_data(uow_factory, config: LoadedMenuConfig | None = N
                     uow.menus.add(
                         BranchItemAvailability(
                             branch_id=branch.id,
+                            restaurant_id=restaurant.id,
                             menu_item_id=item.id,
+                            menu_version_id=version.id,
                             available=not sold_out,
                             reason_code="SYNTHETIC_SOLD_OUT" if sold_out else None,
                         )
