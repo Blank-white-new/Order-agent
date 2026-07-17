@@ -6,6 +6,9 @@ export type HandoffView = {
   reasonCode: string;
   failureCode: string | null;
   simulationNotice: string;
+  mayContinueDraft: boolean | null;
+  requiresNewConfirmation: boolean | null;
+  safetyHoldActive: boolean | null;
 };
 
 async function action(
@@ -29,6 +32,9 @@ async function action(
     reasonCode: stringValue(body.reasonCode) ?? "SYSTEM_FAILURE",
     failureCode: stringValue(body.failureCode),
     simulationNotice: stringValue(body.simulationNotice) ?? "模拟人工接管，不是真实人工",
+    mayContinueDraft: booleanValue(body.mayContinueDraft),
+    requiresNewConfirmation: booleanValue(body.requiresNewConfirmation),
+    safetyHoldActive: booleanValue(body.safetyHoldActive),
   };
 }
 
@@ -51,6 +57,14 @@ export function simulateFail(publicId: string, sessionId: string): Promise<Hando
   return action(publicId, sessionId, "simulate-fail", { failureCode: "SYSTEM_ERROR" });
 }
 
+export function cancelHandoff(publicId: string, sessionId: string): Promise<HandoffView> {
+  return action(publicId, sessionId, "cancel");
+}
+
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function booleanValue(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }

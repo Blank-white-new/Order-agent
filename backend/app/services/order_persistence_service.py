@@ -23,6 +23,7 @@ from app.domain.errors import (
     database_write_failed,
     idempotency_conflict,
     item_unavailable,
+    safety_hold_active,
     session_version_conflict,
     simulation_data_required,
     tenant_context_mismatch,
@@ -71,7 +72,7 @@ class OrderPersistenceService:
         if self.simulation_data_only and (not tenant.is_simulation or not state.is_synthetic):
             raise simulation_data_required()
         request = self._authoritative_request(tenant, state, delivery_zone_code)
-        fingerprint = _fingerprint(request)
+        fingerprint = _fingerprint({"draftVersion": state.draft_version, "request": request})
         key = idempotency_key or f"confirm:{session_key}:{state.draft_version}"
         try:
             return self._confirm_transaction(tenant, session_key, state, key, fingerprint, request, source)
@@ -174,34 +175,68 @@ class OrderPersistenceService:
             if state.persistence_version not in {0, session_row.version}:
                 raise session_version_conflict()
 
-            public_id = "SIM-" + uuid.uuid4().hex[:16].upper()
-            order = Order(
-                public_id=public_id,
-                restaurant_id=tenant.restaurant_id,
-                branch_id=tenant.branch_id,
-                session_id=session_row.id,
-                customer_id=None,
-                status=OrderStatus.DRAFT.value,
-                draft_version=state.draft_version,
-                currency=request["currency"],
-                subtotal_minor=request["subtotal_minor"],
-                delivery_fee_minor=request["delivery_fee_minor"],
-                total_minor=request["total_minor"],
-                fulfillment_type=request["fulfillment_type"],
-                delivery_zone_id=request["delivery_zone_id"],
-                is_synthetic=True,
+            latest_order = uow.orders.get_latest_for_session(
+                session_row.id,
+                tenant.restaurant_id,
+                tenant.branch_id,
+                for_update=True,
             )
-            uow.orders.add(order)
-            uow.flush()
-            uow.orders.add(
-                OrderEvent(
-                    order_id=order.id,
-                    sequence_number=1,
-                    event_type="ORDER_DRAFT_CREATED",
-                    payload_json={"draftVersion": state.draft_version, "synthetic": True},
-                    actor_type=ActorType.SYSTEM.value,
+            if latest_order is not None and latest_order.safety_hold:
+                raise safety_hold_active()
+            order = (
+                latest_order
+                if latest_order is not None
+                and latest_order.status == OrderStatus.DRAFT.value
+                and latest_order.draft_version == state.draft_version
+                else None
+            )
+            if order is None:
+                public_id = "SIM-" + uuid.uuid4().hex[:16].upper()
+                order = Order(
+                    public_id=public_id,
+                    restaurant_id=tenant.restaurant_id,
+                    branch_id=tenant.branch_id,
+                    session_id=session_row.id,
+                    customer_id=None,
+                    status=OrderStatus.DRAFT.value,
+                    draft_version=state.draft_version,
+                    currency=request["currency"],
+                    subtotal_minor=request["subtotal_minor"],
+                    delivery_fee_minor=request["delivery_fee_minor"],
+                    total_minor=request["total_minor"],
+                    fulfillment_type=request["fulfillment_type"],
+                    delivery_zone_id=request["delivery_zone_id"],
+                    is_synthetic=True,
                 )
-            )
+                uow.orders.add(order)
+                uow.flush()
+                uow.orders.add(
+                    OrderEvent(
+                        order_id=order.id,
+                        sequence_number=1,
+                        event_type="ORDER_DRAFT_CREATED",
+                        payload_json={"draftVersion": state.draft_version, "synthetic": True},
+                        actor_type=ActorType.SYSTEM.value,
+                    )
+                )
+            else:
+                public_id = order.public_id
+                order.currency = request["currency"]
+                order.subtotal_minor = request["subtotal_minor"]
+                order.delivery_fee_minor = request["delivery_fee_minor"]
+                order.total_minor = request["total_minor"]
+                order.fulfillment_type = request["fulfillment_type"]
+                order.delivery_zone_id = request["delivery_zone_id"]
+                uow.orders.delete_items(order.id)
+                uow.orders.add(
+                    OrderEvent(
+                        order_id=order.id,
+                        sequence_number=uow.orders.next_event_sequence(order.id),
+                        event_type="ORDER_DRAFT_REVALIDATED",
+                        payload_json={"draftVersion": state.draft_version, "synthetic": True},
+                        actor_type=ActorType.SYSTEM.value,
+                    )
+                )
             for item in request["items"]:
                 uow.orders.add(
                     OrderItemModel(

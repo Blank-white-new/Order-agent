@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -60,14 +60,34 @@ class HandoffRepository:
             statement = statement.with_for_update()
         return self.session.scalar(statement)
 
-    def get_scoped(self, public_id: str, restaurant_id: int, branch_id: int) -> HandoffCase | None:
-        return self.session.scalar(
-            select(HandoffCase).where(
-                HandoffCase.public_id == public_id,
-                HandoffCase.restaurant_id == restaurant_id,
-                HandoffCase.branch_id == branch_id,
-            )
+    def get_scoped(
+        self,
+        public_id: str,
+        restaurant_id: int,
+        branch_id: int,
+        *,
+        for_update: bool = False,
+    ) -> HandoffCase | None:
+        statement = select(HandoffCase).where(
+            HandoffCase.public_id == public_id,
+            HandoffCase.restaurant_id == restaurant_id,
+            HandoffCase.branch_id == branch_id,
         )
+        if for_update:
+            statement = statement.with_for_update()
+        return self.session.scalar(statement)
+
+    def claim_cancellation(self, case_id: int) -> bool:
+        result = self.session.execute(
+            update(HandoffCase)
+            .where(
+                HandoffCase.id == case_id,
+                HandoffCase.status.in_(ACTIVE_HANDOFF_STATUSES),
+            )
+            .values(status="CANCELLED", failure_code="CASE_CANCELLED")
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount == 1
 
     def next_event_sequence(self, case_id: int) -> int:
         current = self.session.scalar(
