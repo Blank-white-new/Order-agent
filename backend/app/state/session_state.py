@@ -71,6 +71,12 @@ class SessionState(BaseModel):
     safety_blocked_actions: list[str] = Field(default_factory=list)
     confirmed_fields: list[str] = Field(default_factory=list)
     unconfirmed_fields: list[str] = Field(default_factory=list)
+    requested_locale: str | None = None
+    detected_locale: str = "zh-CN"
+    dominant_locale: str = "zh-CN"
+    response_locale: str = "zh-CN"
+    locale_locked: bool = False
+    mixed_language: bool = False
 
     def serializable(self) -> dict[str, Any]:
         return dump_model(self)

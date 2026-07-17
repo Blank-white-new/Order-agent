@@ -1,0 +1,29 @@
+{
+  "locale": "zh-CN",
+  "messages": {
+    "address_confirmation": "已记录合成配送地址；下单前仍会确认。",
+    "clarification_required": "我还不能唯一确定你的意思，请补充关键信息。",
+    "customer_confirmation": "请确认当前订单内容。",
+    "customer_confirmed_not_accepted": "顾客确认已记录在本地模拟系统；尚未发送给真实餐厅，也不代表商家已接受。",
+    "fulfillment_delivery": "已设为配送；配送费仍以服务层结果为准。",
+    "fulfillment_pickup": "已设为自取。",
+    "handoff_failed": "模拟接管未完成；安全限制仍然有效，订单不会自动提交。",
+    "item_added": "已把 {quantity} 份 {item} 加入草稿；下单前仍需确认。",
+    "item_ambiguous": "找到多个菜品候选，请明确选择一个。",
+    "item_not_found": "当前发布菜单中找不到这个菜品，请明确菜名或 item code。",
+    "item_removed": "已从草稿移除 {item}。",
+    "item_unavailable": "这个菜品在当前分店不可用，未修改订单。",
+    "language_switched": "已切换为普通话回复；订单和安全限制保持不变。",
+    "language_unsupported": "暂不支持这种文本语言，已进入模拟接管流程；这不是真实人工。",
+    "menu_query": "已按当前发布菜单查询；菜品、价格和可用状态来自服务层。",
+    "merchant_not_integrated": "当前没有接入真实餐厅。",
+    "order_changed": "已更新 {item}；下单前仍需确认最新版本。",
+    "order_summary": "这是当前本地模拟订单摘要；最终提交前仍需确认。",
+    "phone_confirmation": "已记录合成联系电话；下单前仍会确认。",
+    "quantity_clarification": "数量不明确或超出安全阈值，请给出一个合理的正整数。",
+    "safety_handoff": "检测到需要模拟接管的安全情形（{reason}）；这不是真实人工，订单已冻结且不会自动提交。",
+    "safety_refuse": "根据安全规则无法执行此操作（{reason}）；你仍可处理自己的模拟订单。",
+    "simulated_human_warning": "这是模拟接管，不是真人服务。",
+    "welcome": "你好！可用普通话、粤语书面表达、香港英语或混合文本点餐。"
+  }
+}

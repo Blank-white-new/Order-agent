@@ -1,0 +1,29 @@
+{
+  "locale": "en-HK",
+  "messages": {
+    "address_confirmation": "The synthetic delivery address is recorded and will still require confirmation before ordering.",
+    "clarification_required": "I cannot determine one safe interpretation yet. Please clarify the key details.",
+    "customer_confirmation": "Please confirm the current order.",
+    "customer_confirmed_not_accepted": "Customer confirmation is recorded in the local simulation. It has not been sent to a real restaurant and does not mean merchant acceptance.",
+    "fulfillment_delivery": "Fulfilment is set to delivery. The service layer remains authoritative for the delivery fee.",
+    "fulfillment_pickup": "Fulfilment is set to pickup.",
+    "handoff_failed": "The simulated handoff did not complete. Safety restrictions remain and the order will not be submitted automatically.",
+    "item_added": "Added {quantity} portion(s) of {item} to the draft. Final confirmation is still required.",
+    "item_ambiguous": "There is more than one matching menu item. Please choose one explicitly.",
+    "item_not_found": "That item is not in the current published menu. Please give an exact name or item code.",
+    "item_removed": "Removed {item} from the draft.",
+    "item_unavailable": "That item is unavailable at the current branch, so the order was not changed.",
+    "language_switched": "Replies are now in English. The order and all safety restrictions are unchanged.",
+    "language_unsupported": "That text language is not supported. A simulated handoff has been opened; this is not a real person.",
+    "menu_query": "The current published menu was checked. Items, prices and availability come from the service layer.",
+    "merchant_not_integrated": "No real restaurant is connected.",
+    "order_changed": "Updated {item}. The latest draft version still requires confirmation.",
+    "order_summary": "This is the current local simulated order summary. Final confirmation is still required.",
+    "phone_confirmation": "The synthetic contact number is recorded and will still require confirmation before ordering.",
+    "quantity_clarification": "The quantity is unclear or above the safety threshold. Please give one reasonable positive integer.",
+    "safety_handoff": "A safety condition requires simulated handoff ({reason}). This is not a real person; the order is frozen and will not be submitted automatically.",
+    "safety_refuse": "Safety policy prevents this operation ({reason}). You may still manage your own simulated order.",
+    "simulated_human_warning": "This is a simulated handoff, not a real person.",
+    "welcome": "Hello. You may order using Mandarin text, written Cantonese, Hong Kong English, or mixed-language text."
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "locale": "yue-Hant-HK",
+  "messages": {
+    "address_confirmation": "已記低合成外賣地址；落單前仲要確認。",
+    "clarification_required": "我仲未可以唯一確定你嘅意思，請補充關鍵資料。",
+    "customer_confirmation": "請確認而家張單。",
+    "customer_confirmed_not_accepted": "客人確認已記錄喺本地模擬系統；未送去真實餐廳，亦唔代表商戶已接受。",
+    "fulfillment_delivery": "已改做外賣；送貨費仍以服務層結果為準。",
+    "fulfillment_pickup": "已改做自取。",
+    "handoff_failed": "模擬接管未完成；安全限制仍然有效，張單唔會自動提交。",
+    "item_added": "已加 {quantity} 份 {item} 入草稿；落單前仲要確認。",
+    "item_ambiguous": "搵到多個菜式候選，請講清楚揀邊一個。",
+    "item_not_found": "目前已發布餐牌搵唔到呢個菜式，請講清楚菜名或者 item code。",
+    "item_removed": "已由草稿刪走 {item}。",
+    "item_unavailable": "呢個菜式喺目前分店未能供應，張單冇改動。",
+    "language_switched": "已轉用廣東話書面回覆；張單同安全限制都冇變。",
+    "language_unsupported": "暫時未支援呢種文字語言，已進入模擬接管；呢個唔係真人。",
+    "menu_query": "已按目前發布餐牌查詢；菜式、價錢同供應狀態來自服務層。",
+    "merchant_not_integrated": "目前未接入真實餐廳。",
+    "order_changed": "已更新 {item}；落單前仲要確認最新版本。",
+    "order_summary": "呢個係目前本地模擬訂單摘要；最後提交前仲要確認。",
+    "phone_confirmation": "已記低合成聯絡電話；落單前仲要確認。",
+    "quantity_clarification": "數量唔清楚或者超過安全上限，請提供一個合理正整數。",
+    "safety_handoff": "偵測到需要模擬接管嘅安全情況（{reason}）；呢個唔係真人，張單已凍結亦唔會自動提交。",
+    "safety_refuse": "根據安全規則唔可以做呢個操作（{reason}）；你仍然可以處理自己嘅模擬訂單。",
+    "simulated_human_warning": "呢個係模擬接管，唔係真人服務。",
+    "welcome": "你好！可以用普通話、廣東話書面語、香港英語或者混合文字落單。"
+  }
+}

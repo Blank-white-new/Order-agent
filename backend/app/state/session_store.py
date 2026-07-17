@@ -80,7 +80,10 @@ class PersistentSessionStore:
             raise tenant_context_mismatch()
         if existing.status == "CLOSED":
             raise session_closed()
-        state = SessionState(**dict(existing.state_json or {}))
+        state_payload = dict(existing.state_json or {})
+        if "response_locale" not in state_payload:
+            state_payload["response_locale"] = existing.locale
+        state = SessionState(**state_payload)
         state.restaurant_code = tenant.restaurant_code
         state.branch_code = tenant.branch_code
         state.persistence_version = existing.version
@@ -107,6 +110,7 @@ class PersistentSessionStore:
                 raise session_closed()
             expected_version = state.persistence_version
             state_json = state_json_without_contact(state, persistence_version=expected_version + 1)
+            existing.locale = state.response_locale
             uow.sessions.save_contact(existing.id, **contact_from_state(state))
             saved = uow.sessions.save_optimistic(existing, expected_version, state_json)
             if not saved:
