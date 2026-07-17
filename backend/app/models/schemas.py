@@ -63,6 +63,9 @@ class ChatRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("confidenceMetadata", "confidence_metadata"),
     )
+    locale: str | None = None
+    locale_hint: str | None = Field(default=None, validation_alias=AliasChoices("localeHint", "locale_hint"))
+    locale_locked: bool | None = Field(default=None, validation_alias=AliasChoices("localeLocked", "locale_locked"))
 
 
 class ResetRequest(BaseModel):
