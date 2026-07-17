@@ -58,7 +58,7 @@ def test_chat_api_shape_stays_compatible():
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {
+    assert {
         "session_id",
         "response",
         "state",
@@ -67,7 +67,10 @@ def test_chat_api_shape_stays_compatible():
         "merchantStatus",
         "submitted",
         "submittedDeprecated",
-    }
+    }.issubset(body)
+    assert body["detectedLocale"] == "zh-CN"
+    assert body["responseLocale"] == "zh-CN"
+    assert body["mixedLanguage"] is False
     assert body["lifecycleStatus"] == "DRAFT"
     assert body["merchantStatus"] == "NOT_INTEGRATED"
     assert body["submittedDeprecated"] is True
