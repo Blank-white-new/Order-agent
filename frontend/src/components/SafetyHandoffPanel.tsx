@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { HandoffView, simulateAssign, simulateConnect, simulateFail, simulateResolve } from "../api/handoffApi";
+import {
+  cancelHandoff,
+  HandoffView,
+  simulateAssign,
+  simulateConnect,
+  simulateFail,
+  simulateResolve,
+} from "../api/handoffApi";
 import { OrderStateView } from "../types/order";
 
 type Props = {
@@ -13,11 +20,13 @@ const DEVELOPMENT_CONTROLS = import.meta.env.DEV || import.meta.env.MODE === "te
 export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) {
   const [status, setStatus] = useState(state.handoffStatus);
   const [failureCode, setFailureCode] = useState<string | null>(null);
+  const [cancellation, setCancellation] = useState<HandoffView | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setStatus(state.handoffStatus);
+    setCancellation(null);
   }, [state.handoffStatus, state.handoffPublicId]);
 
   async function run(operation: (publicId: string, sessionId: string) => Promise<HandoffView>) {
@@ -30,6 +39,7 @@ export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) 
       const result = await operation(state.handoffPublicId, sessionId);
       setStatus(result.status);
       setFailureCode(result.failureCode);
+      setCancellation(result.status === "CANCELLED" ? result : null);
       onStatusChange?.(result.status);
     } catch {
       setError("模拟接管操作失败；订单仍保持冻结且未提交。请稍后重试。");
@@ -40,6 +50,9 @@ export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) 
 
   const handoff = state.safetyClassification === "HANDOFF";
   const refused = state.safetyClassification === "REFUSE";
+  const explicitCancellation = status === "CANCELLED"
+    && (cancellation?.mayContinueDraft ?? state.safetyReasonCode === "EXPLICIT_HUMAN_REQUEST");
+  const mandatoryCancellation = status === "CANCELLED" && !explicitCancellation;
   return (
     <section className="panel safety-panel" aria-labelledby="safety-panel-title">
       <div className="panel-heading">
@@ -66,6 +79,19 @@ export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) 
           <FieldList title="未确认字段" values={state.unconfirmedFields} empty="无" />
           <FieldList title="禁止动作" values={state.safetyBlockedActions} empty="外部提交与支付" />
           {failureCode ? <p role="status">失败代码：{failureCode}；草稿仍保留。</p> : null}
+          {explicitCancellation ? (
+            <div role="status" aria-label="主动请求取消结果">
+              <p>模拟人工接管已取消</p>
+              <p>订单草稿仍保留</p>
+              <p>需要重新确认后才能继续</p>
+            </div>
+          ) : null}
+          {mandatoryCancellation ? (
+            <div role="status" aria-label="强制风险取消结果">
+              <p>模拟接管已取消，但安全限制仍然有效</p>
+              <p>订单不会自动提交</p>
+            </div>
+          ) : null}
           {error ? <p role="alert">{error}</p> : null}
           {DEVELOPMENT_CONTROLS && state.handoffPublicId ? (
             <div className="simulation-controls" aria-label="模拟人工接管开发控制">
@@ -73,6 +99,7 @@ export function SafetyHandoffPanel({ sessionId, state, onStatusChange }: Props) 
               <button type="button" onClick={() => run(simulateConnect)} disabled={pending || status !== "SIMULATED_AGENT_ASSIGNED"}>模拟连接</button>
               <button type="button" onClick={() => run(simulateResolve)} disabled={pending || status !== "SIMULATED_AGENT_CONNECTED"}>模拟解决</button>
               <button type="button" onClick={() => run(simulateFail)} disabled={pending || !isActive(status)}>模拟失败</button>
+              <button type="button" onClick={() => run(cancelHandoff)} disabled={pending || !isActive(status)}>取消模拟接管</button>
             </div>
           ) : null}
         </div>

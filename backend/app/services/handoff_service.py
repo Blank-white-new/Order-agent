@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -8,18 +9,27 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import HandoffCase, HandoffEvent, OrderEvent
 from app.domain.enums import (
+    ActorType,
     DecisionClass,
     HandoffActorType,
     HandoffFailureCode,
     HandoffReasonCode,
     HandoffStatus,
+    OrderStatus,
 )
-from app.domain.errors import database_write_failed, handoff_not_found, invalid_handoff_transition, safety_session_not_found
+from app.domain.errors import (
+    database_write_failed,
+    handoff_not_found,
+    invalid_handoff_transition,
+    safety_session_not_found,
+    session_version_conflict,
+)
 from app.domain.safety import SafetyDecision
 from app.services.handoff_provider import HandoffProvider, HandoffProviderResult
 from app.services.handoff_summary_service import HandoffSummaryService
 from app.services.safety_audit import log_safety_event, validate_safe_payload
 from app.services.tenant_service import TenantService
+from app.state.session_persistence import state_json_without_contact
 from app.state.session_state import SessionState
 
 
@@ -58,6 +68,34 @@ HIGH_REASONS = {
     HandoffReasonCode.REGULATED_ITEM.value,
     HandoffReasonCode.SYSTEM_FAILURE.value,
 }
+
+
+@dataclass(frozen=True)
+class HandoffCancellationResult:
+    case_status: str
+    may_continue_draft: bool
+    safety_hold_cleared: bool
+    confirmation_remains_invalid: bool
+    requires_new_confirmation: bool
+    safety_hold_active: bool
+    draft_version: int
+    lifecycle_status: str
+    persistence_version: int
+    idempotent_replay: bool = False
+
+    def serializable(self) -> dict[str, Any]:
+        return {
+            "caseStatus": self.case_status,
+            "mayContinueDraft": self.may_continue_draft,
+            "safetyHoldCleared": self.safety_hold_cleared,
+            "confirmationRemainsInvalid": self.confirmation_remains_invalid,
+            "requiresNewConfirmation": self.requires_new_confirmation,
+            "safetyHoldActive": self.safety_hold_active,
+            "draftVersion": self.draft_version,
+            "lifecycleStatus": self.lifecycle_status,
+            "persistenceVersion": self.persistence_version,
+            "idempotentReplay": self.idempotent_replay,
+        }
 
 
 class HandoffService:
@@ -204,10 +242,174 @@ class HandoffService:
     ) -> dict[str, Any]:
         tenant = self.tenant_service.resolve(restaurant_code, branch_code)
         with self.uow_factory() as uow:
-            case = self._get_scoped(uow, public_id, tenant, session_key)
-            result = self.provider.cancel_handoff(case)
-            self._apply_transition(uow, case, result, HandoffActorType.CUSTOMER)
-        return self.get(public_id, tenant.restaurant_code, tenant.branch_code, session_key)
+            case = self._get_scoped(uow, public_id, tenant, session_key, for_update=True)
+            session = (
+                uow.sessions.get(
+                    session_key,
+                    tenant.restaurant_id,
+                    tenant.branch_id,
+                    for_update=True,
+                )
+                if session_key is not None
+                else uow.sessions.get_by_id(
+                    case.session_id,
+                    tenant.restaurant_id,
+                    tenant.branch_id,
+                    for_update=True,
+                )
+            )
+            if session is None or session.id != case.session_id:
+                raise handoff_not_found()
+            if case.status == HandoffStatus.CANCELLED.value:
+                cancellation = self._current_cancellation_result(uow, case, session)
+            else:
+                result = self.provider.cancel_handoff(case)
+                if not uow.handoffs.claim_cancellation(case.id):
+                    assert uow.session is not None
+                    uow.session.refresh(case)
+                    if case.status != HandoffStatus.CANCELLED.value:
+                        raise invalid_handoff_transition(case.status, HandoffStatus.CANCELLED.value)
+                    cancellation = self._current_cancellation_result(uow, case, session)
+                else:
+                    self._apply_transition(uow, case, result, HandoffActorType.CUSTOMER)
+                    cancellation = self._apply_cancellation_effects(uow, case, session)
+        serialized = self.get(public_id, tenant.restaurant_code, tenant.branch_code, session_key)
+        serialized.update(cancellation.serializable())
+        return serialized
+
+    def _apply_cancellation_effects(self, uow, case: HandoffCase, session) -> HandoffCancellationResult:
+        state = SessionState(**dict(session.state_json or {}))
+        order = (
+            uow.orders.get(case.order_id, case.restaurant_id, case.branch_id)
+            if case.order_id is not None
+            else None
+        )
+        explicit_request = case.reason_code == HandoffReasonCode.EXPLICIT_HUMAN_REQUEST.value
+        previous_order_status = order.status if order is not None else None
+        previous_draft_version = order.draft_version if order is not None else state.draft_version
+        previous_safety_hold = bool(order.safety_hold) if order is not None else False
+        confirmation = (
+            uow.orders.get_confirmation(order.id, order.draft_version)
+            if order is not None
+            else None
+        )
+        if confirmation is not None and confirmation.invalidated_at is None:
+            confirmation.invalidated_at = datetime.now(timezone.utc)
+
+        should_advance_version = bool(confirmation is not None or state.confirmation_valid or state.submitted)
+        if order is not None:
+            if should_advance_version:
+                order.draft_version = max(order.draft_version + 1, state.draft_version)
+            else:
+                order.draft_version = max(order.draft_version, state.draft_version)
+            if order.status == OrderStatus.CUSTOMER_CONFIRMED.value:
+                order.status = OrderStatus.DRAFT.value
+
+        safety_hold_cleared = False
+        if order is not None:
+            if (
+                explicit_request
+                and order.safety_hold
+                and order.safety_hold_reason == HandoffReasonCode.EXPLICIT_HUMAN_REQUEST.value
+            ):
+                order.safety_hold = False
+                order.safety_hold_reason = None
+                safety_hold_cleared = True
+            elif not explicit_request:
+                order.safety_hold = True
+                order.safety_hold_reason = case.reason_code
+
+        if order is not None:
+            state.draft_version = max(state.draft_version, order.draft_version)
+        elif should_advance_version:
+            state.draft_version += 1
+        state.confirmation_valid = False
+        state.submitted = False
+        state.submitted_order_id = None
+        state.lifecycle_status = OrderStatus.DRAFT.value
+        state.stage = "ordering"
+        state.handoff_public_id = case.public_id
+        state.handoff_status = HandoffStatus.CANCELLED.value
+        state.safety_classification = DecisionClass.HANDOFF.value
+        state.safety_reason_code = case.reason_code
+        state.safety_blocked_actions = [] if explicit_request else list(case.blocked_actions_json)
+        state.confirmed_fields = []
+        state.unconfirmed_fields = sorted(set(state.unconfirmed_fields) | {"final_order"})
+
+        expected_version = session.version
+        state.persistence_version = expected_version + 1
+        if not uow.sessions.save_optimistic(
+            session,
+            expected_version,
+            state_json_without_contact(state, persistence_version=state.persistence_version),
+        ):
+            raise session_version_conflict()
+
+        safety_hold_active = bool(order.safety_hold) if order is not None else not explicit_request
+        may_continue_draft = explicit_request and not safety_hold_active
+        if order is not None:
+            uow.orders.add(
+                OrderEvent(
+                    order_id=order.id,
+                    sequence_number=uow.orders.next_event_sequence(order.id),
+                    event_type=(
+                        "ORDER_HANDOFF_CANCELLED_DRAFT_REQUIRES_CONFIRMATION"
+                        if may_continue_draft
+                        else "ORDER_HANDOFF_CANCELLED_SAFETY_HOLD_RETAINED"
+                    ),
+                    payload_json={
+                        "reasonCode": case.reason_code,
+                        "previousStatus": previous_order_status,
+                        "status": order.status,
+                        "previousDraftVersion": previous_draft_version,
+                        "draftVersion": order.draft_version,
+                        "previousSafetyHold": previous_safety_hold,
+                        "safetyHoldActive": safety_hold_active,
+                        "requiresNewConfirmation": True,
+                    },
+                    actor_type=ActorType.CUSTOMER.value,
+                )
+            )
+        return HandoffCancellationResult(
+            case_status=HandoffStatus.CANCELLED.value,
+            may_continue_draft=may_continue_draft,
+            safety_hold_cleared=safety_hold_cleared,
+            confirmation_remains_invalid=True,
+            requires_new_confirmation=True,
+            safety_hold_active=safety_hold_active,
+            draft_version=state.draft_version,
+            lifecycle_status=state.lifecycle_status,
+            persistence_version=state.persistence_version,
+        )
+
+    @staticmethod
+    def _current_cancellation_result(uow, case: HandoffCase, session) -> HandoffCancellationResult:
+        state = SessionState(**dict(session.state_json or {}))
+        order = (
+            uow.orders.get(case.order_id, case.restaurant_id, case.branch_id)
+            if case.order_id is not None
+            else None
+        )
+        explicit_request = case.reason_code == HandoffReasonCode.EXPLICIT_HUMAN_REQUEST.value
+        safety_hold_active = bool(order.safety_hold) if order is not None else not explicit_request
+        confirmation_remains_invalid = not state.confirmation_valid and not state.submitted
+        may_continue_draft = (
+            explicit_request
+            and not safety_hold_active
+            and state.lifecycle_status == OrderStatus.DRAFT.value
+        )
+        return HandoffCancellationResult(
+            case_status=HandoffStatus.CANCELLED.value,
+            may_continue_draft=may_continue_draft,
+            safety_hold_cleared=explicit_request and order is not None and not safety_hold_active,
+            confirmation_remains_invalid=confirmation_remains_invalid,
+            requires_new_confirmation=confirmation_remains_invalid,
+            safety_hold_active=safety_hold_active,
+            draft_version=state.draft_version,
+            lifecycle_status=state.lifecycle_status,
+            persistence_version=session.version,
+            idempotent_replay=True,
+        )
 
     def _provider_transition(
         self,
@@ -384,8 +586,20 @@ class HandoffService:
         )
 
     @staticmethod
-    def _get_scoped(uow, public_id: str, tenant, session_key: str | None = None) -> HandoffCase:
-        case = uow.handoffs.get_scoped(public_id, tenant.restaurant_id, tenant.branch_id)
+    def _get_scoped(
+        uow,
+        public_id: str,
+        tenant,
+        session_key: str | None = None,
+        *,
+        for_update: bool = False,
+    ) -> HandoffCase:
+        case = uow.handoffs.get_scoped(
+            public_id,
+            tenant.restaurant_id,
+            tenant.branch_id,
+            for_update=for_update,
+        )
         if case is None:
             raise handoff_not_found()
         if session_key is not None:

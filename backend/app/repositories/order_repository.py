@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import IdempotencyRecord, Order, OrderConfirmation, OrderEvent, OrderItem
@@ -30,8 +30,15 @@ class OrderRepository:
             )
         )
 
-    def get_latest_for_session(self, session_id: int, restaurant_id: int, branch_id: int) -> Order | None:
-        return self.session.scalar(
+    def get_latest_for_session(
+        self,
+        session_id: int,
+        restaurant_id: int,
+        branch_id: int,
+        *,
+        for_update: bool = False,
+    ) -> Order | None:
+        statement = (
             select(Order)
             .where(
                 Order.session_id == session_id,
@@ -41,9 +48,15 @@ class OrderRepository:
             .order_by(Order.created_at.desc(), Order.id.desc())
             .limit(1)
         )
+        if for_update:
+            statement = statement.with_for_update()
+        return self.session.scalar(statement)
 
     def list_items(self, order_id: int) -> list[OrderItem]:
         return list(self.session.scalars(select(OrderItem).where(OrderItem.order_id == order_id).order_by(OrderItem.id)))
+
+    def delete_items(self, order_id: int) -> None:
+        self.session.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
 
     def get_confirmation(self, order_id: int, draft_version: int) -> OrderConfirmation | None:
         return self.session.scalar(

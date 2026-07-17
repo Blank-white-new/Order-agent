@@ -225,12 +225,17 @@ class TextEntryService:
                 branch_code,
                 session_id,
             )
-            state.handoff_status = handoff["status"]
-            self._store_set(session_id, state, restaurant_code, branch_code)
+            self._apply_cancellation_state(state, handoff)
+            if handoff["idempotentReplay"] and not handoff["requiresNewConfirmation"]:
+                response = "模拟接管此前已取消；当前订单状态未被更改。"
+            elif handoff["mayContinueDraft"]:
+                response = "模拟人工接管已取消。订单草稿仍保留。需要重新确认后才能继续。"
+            else:
+                response = "模拟接管已取消，但安全限制仍然有效。订单不会自动提交。"
             return self._guarded_result(
                 session_id,
                 state,
-                "模拟人工接管已取消；订单草稿仍保留，未提交也未取消。",
+                response,
                 {"safety": {"classification": state.safety_classification, "handoff": handoff}},
             )
 
@@ -333,6 +338,24 @@ class TextEntryService:
         summary = handoff.get("summary") or {}
         state.confirmed_fields = list(summary.get("confirmedFields") or [])
         state.unconfirmed_fields = list(summary.get("unconfirmedFields") or [])
+
+    @staticmethod
+    def _apply_cancellation_state(state, handoff: dict[str, Any]) -> None:
+        if handoff["idempotentReplay"] and not handoff["requiresNewConfirmation"]:
+            return
+        state.handoff_status = handoff["status"]
+        state.confirmation_valid = False
+        state.submitted = False
+        state.submitted_order_id = None
+        state.lifecycle_status = handoff["lifecycleStatus"]
+        state.stage = "ordering"
+        state.draft_version = handoff["draftVersion"]
+        state.persistence_version = handoff["persistenceVersion"]
+        state.confirmed_fields = []
+        if "final_order" not in state.unconfirmed_fields:
+            state.unconfirmed_fields.append("final_order")
+        if handoff["mayContinueDraft"]:
+            state.safety_blocked_actions = []
 
     @staticmethod
     def _invalidate_confirmation_for_handoff(state) -> None:

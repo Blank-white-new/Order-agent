@@ -13,14 +13,39 @@ class ConversationSessionRepository:
     def get_by_session_key(self, session_key: str) -> ConversationSession | None:
         return self.session.scalar(select(ConversationSession).where(ConversationSession.session_key == session_key))
 
-    def get(self, session_key: str, restaurant_id: int, branch_id: int) -> ConversationSession | None:
-        return self.session.scalar(
-            select(ConversationSession).where(
-                ConversationSession.session_key == session_key,
-                ConversationSession.restaurant_id == restaurant_id,
-                ConversationSession.branch_id == branch_id,
-            )
+    def get(
+        self,
+        session_key: str,
+        restaurant_id: int,
+        branch_id: int,
+        *,
+        for_update: bool = False,
+    ) -> ConversationSession | None:
+        statement = select(ConversationSession).where(
+            ConversationSession.session_key == session_key,
+            ConversationSession.restaurant_id == restaurant_id,
+            ConversationSession.branch_id == branch_id,
         )
+        if for_update:
+            statement = statement.with_for_update()
+        return self.session.scalar(statement)
+
+    def get_by_id(
+        self,
+        session_id: int,
+        restaurant_id: int,
+        branch_id: int,
+        *,
+        for_update: bool = False,
+    ) -> ConversationSession | None:
+        statement = select(ConversationSession).where(
+            ConversationSession.id == session_id,
+            ConversationSession.restaurant_id == restaurant_id,
+            ConversationSession.branch_id == branch_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        return self.session.scalar(statement)
 
     def add(self, entity: ConversationSession) -> None:
         self.session.add(entity)
