@@ -21,6 +21,8 @@ env:
   ALLOW_LIVE_LLM: "false"
   VOICE_ENABLED: "false"
   TTS_ENABLED: "false"
+  SIMULATION_DATA_ONLY: "true"
+  SIMULATION_HANDOFF_CONTROLS_ENABLED: "true"
   PYTHONUTF8: "1"
 
 jobs:
@@ -98,6 +100,10 @@ jobs:
           --dataset evaluation\dialogues_v3.jsonl
           --fail-on-regression
 
+      - name: Run Phase 1 runtime safety policy evaluation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase1_runtime_policy_eval.py
+
       - name: Audit Python dependencies
         shell: pwsh
         run: |
@@ -122,6 +128,7 @@ jobs:
       DEFAULT_BRANCH_CODE: central
       DATABASE_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
       PHASE2_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
+      PHASE3_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
     services:
       postgres:
         image: postgres:17.5-alpine
@@ -174,6 +181,14 @@ jobs:
       - name: Run PostgreSQL repositories, isolation, versioning, and idempotency tests
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase2
+
+      - name: Run PostgreSQL Phase 3 safety, handoff, concurrency, and tenant-negative tests
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase3
+
+      - name: Run Phase 1 runtime safety policy evaluation
+        shell: bash
+        run: backend/.venv/bin/python -B evaluation/run_phase1_runtime_policy_eval.py
 
       - name: Smoke test PostgreSQL downgrade and re-upgrade
         shell: bash
