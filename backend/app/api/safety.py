@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.domain.enums import HandoffFailureCode, HandoffReasonCode
 from app.domain.errors import simulation_controls_disabled
@@ -18,30 +18,100 @@ from app.runtime import (
 
 router = APIRouter()
 
+SafeCode = Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,79}$")]
+SafeFieldName = Annotated[str, StringConstraints(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,79}$")]
+
 
 class TenantSessionRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    session_id: str = Field(validation_alias=AliasChoices("sessionId", "session_id"))
-    restaurant_id: str | None = Field(
-        default=None, validation_alias=AliasChoices("restaurantId", "restaurant_id")
+    session_id: str = Field(
+        min_length=1,
+        max_length=128,
+        validation_alias=AliasChoices("sessionId", "session_id"),
     )
-    branch_id: str | None = Field(default=None, validation_alias=AliasChoices("branchId", "branch_id"))
+    restaurant_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=80,
+        validation_alias=AliasChoices("restaurantId", "restaurant_id"),
+    )
+    branch_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=80,
+        validation_alias=AliasChoices("branchId", "branch_id"),
+    )
+
+
+class ConfidenceMetadataRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    intent_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("intentConfidence", "intent_confidence"),
+    )
+    item_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("itemConfidence", "item_confidence"),
+    )
+    quantity_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("quantityConfidence", "quantity_confidence"),
+    )
+    modifier_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("modifierConfidence", "modifier_confidence"),
+    )
+    address_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("addressConfidence", "address_confidence"),
+    )
+    phone_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("phoneConfidence", "phone_confidence"),
+    )
+    overall_confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        validation_alias=AliasChoices("overallConfidence", "overall_confidence"),
+    )
+    contradictory_fields: list[SafeFieldName] = Field(
+        default_factory=list,
+        max_length=7,
+        validation_alias=AliasChoices("contradictoryFields", "contradictory_fields"),
+    )
+
+    def to_domain(self) -> ConfidenceMetadata:
+        return ConfidenceMetadata.from_mapping(self.model_dump(exclude_none=True))
 
 
 class SafetyEvaluateRequest(TenantSessionRequest):
-    signals: list[str] = Field(default_factory=list, max_length=32)
+    signals: list[SafeCode] = Field(default_factory=list, max_length=32)
     requested_action: str = Field(
         default="DRAFT_OPERATION",
         validation_alias=AliasChoices("requestedAction", "requested_action"),
         max_length=80,
     )
-    required_confirmations: list[str] = Field(
+    required_confirmations: list[SafeFieldName] = Field(
         default_factory=list,
         validation_alias=AliasChoices("requiredConfirmations", "required_confirmations"),
         max_length=16,
     )
-    confidence_metadata: dict[str, Any] | None = Field(
+    confidence_metadata: ConfidenceMetadataRequest | None = Field(
         default=None,
         validation_alias=AliasChoices("confidenceMetadata", "confidence_metadata"),
     )
@@ -57,13 +127,8 @@ class HandoffCreateRequest(TenantSessionRequest):
     )
 
 
-class HandoffActionRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-    restaurant_id: str | None = Field(
-        default=None, validation_alias=AliasChoices("restaurantId", "restaurant_id")
-    )
-    branch_id: str | None = Field(default=None, validation_alias=AliasChoices("branchId", "branch_id"))
+class HandoffActionRequest(TenantSessionRequest):
+    pass
 
 
 class HandoffFailRequest(HandoffActionRequest):
@@ -91,6 +156,7 @@ def _require_controls() -> None:
 
 @router.post("/safety/evaluate")
 def evaluate_safety(request: SafetyEvaluateRequest) -> dict[str, Any]:
+    _require_controls()
     state = store.get(request.session_id, request.restaurant_id, request.branch_id)
     record = safety_audit_service.evaluate_and_record(
         session_key=request.session_id,
@@ -100,7 +166,11 @@ def evaluate_safety(request: SafetyEvaluateRequest) -> dict[str, Any]:
             signals=frozenset(request.signals),
             requested_action=request.requested_action,
             required_confirmations=tuple(request.required_confirmations),
-            confidence=ConfidenceMetadata.from_mapping(request.confidence_metadata),
+            confidence=(
+                request.confidence_metadata.to_domain()
+                if request.confidence_metadata
+                else ConfidenceMetadata()
+            ),
             deterministic_input=request.deterministic_input,
         ),
     )
@@ -139,22 +209,34 @@ def create_handoff(request: HandoffCreateRequest) -> dict[str, Any]:
 @router.get("/handoffs/{public_id}")
 def get_handoff(
     public_id: str,
+    session_id: str,
     restaurant_id: str | None = None,
     branch_id: str | None = None,
 ) -> dict[str, Any]:
-    return handoff_service.get(public_id, restaurant_id, branch_id)
+    _require_controls()
+    return handoff_service.get(public_id, restaurant_id, branch_id, session_id)
 
 
 @router.post("/handoffs/{public_id}/simulate-assign")
 def simulate_assign(public_id: str, request: HandoffActionRequest) -> dict[str, Any]:
     _require_controls()
-    return handoff_service.simulate_assign(public_id, request.restaurant_id, request.branch_id)
+    return handoff_service.simulate_assign(
+        public_id,
+        request.restaurant_id,
+        request.branch_id,
+        request.session_id,
+    )
 
 
 @router.post("/handoffs/{public_id}/simulate-connect")
 def simulate_connect(public_id: str, request: HandoffActionRequest) -> dict[str, Any]:
     _require_controls()
-    return handoff_service.simulate_connect(public_id, request.restaurant_id, request.branch_id)
+    return handoff_service.simulate_connect(
+        public_id,
+        request.restaurant_id,
+        request.branch_id,
+        request.session_id,
+    )
 
 
 @router.post("/handoffs/{public_id}/simulate-resolve")
@@ -165,6 +247,7 @@ def simulate_resolve(public_id: str, request: HandoffResolveRequest) -> dict[str
         {"resolutionCode": request.resolution_code, "draftChanged": request.draft_changed},
         request.restaurant_id,
         request.branch_id,
+        request.session_id,
     )
 
 
@@ -176,10 +259,16 @@ def simulate_fail(public_id: str, request: HandoffFailRequest) -> dict[str, Any]
         request.failure_code,
         request.restaurant_id,
         request.branch_id,
+        request.session_id,
     )
 
 
 @router.post("/handoffs/{public_id}/cancel")
 def cancel_handoff(public_id: str, request: HandoffActionRequest) -> dict[str, Any]:
     _require_controls()
-    return handoff_service.cancel(public_id, request.restaurant_id, request.branch_id)
+    return handoff_service.cancel(
+        public_id,
+        request.restaurant_id,
+        request.branch_id,
+        request.session_id,
+    )
