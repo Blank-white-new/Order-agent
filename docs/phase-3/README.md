@@ -24,6 +24,14 @@ The core implements Phase 1 `REQ-001`, `REQ-005` through `REQ-016`, `REQ-018` th
 
 Phase 2 remains authoritative for tenants, published menus, prices, modifiers, allergen declarations, delivery fees, session versions, confirmation fingerprints, order snapshots, and lifecycle events. Phase 3 adds a separate safety hold; a simulated handoff resolution never means `MERCHANT_ACCEPTED`.
 
+The cancellation closeout uses the existing Phase 3 schema. Revision `20260717_0004` remains the migration head; no empty `20260717_0005` migration is created.
+
+## Cancelling a simulated handoff
+
+Cancelling `EXPLICIT_HUMAN_REQUEST` cancels only the simulated queue. The existing draft and items remain, a hold caused only by that reason is cleared, and a previously confirmed local order returns to `DRAFT`. The old confirmation stays invalid, its draft version cannot be replayed, menu/price/availability are checked again, and the customer must explicitly reconfirm. Reconfirmation reuses that local order rather than creating a duplicate and never means merchant acceptance.
+
+Every other HANDOFF reason is mandatory for cancellation purposes. Cancelling its simulated case records `CANCELLED` but retains the current reason and safety hold. “Continue myself” cannot bypass the guard, and neither confirmation nor submission is allowed. A failed simulated handoff also retains the draft, invalid confirmation, and hold; it does not automatically send the order, promise a callback, or create a real-human connection.
+
 ## Non-goals
 
 - Real human-agent availability, staffing, SLA, or connection

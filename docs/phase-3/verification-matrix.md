@@ -15,6 +15,10 @@
 | Orchestrator safety hold | API/Orchestrator tests | handoff blocks submission; refuse has no order mutation |
 | Development-only controls | API and Vitest tests | production hidden |
 | Accessible truthful UI | `SafetyHandoffPanel.test.tsx` | state text, simulation warning, no real-human claim |
+| Explicit-request cancellation preserves draft and requires reconfirmation | `test_handoff_cancellation.py`, API and Vitest tests | same order; old confirmation cannot replay |
+| Mandatory-risk cancellation keeps safety hold | severe-allergy, cross-contamination, and abuse/security parameterized tests | continue/confirm/submit remain blocked |
+| Concurrent cancellation is idempotent | service concurrency test and PostgreSQL CI | one terminal transition/event/version advance |
+| Cancellation never produces merchant acceptance | lifecycle/event assertions and Vitest wording guards | zero fake acceptance and duplicate order |
 | Phase 1 runtime policy | `run_phase1_runtime_policy_eval.py` | runnable classification 100% |
 | Existing dialogue behavior | full backend, Phase 1 catalog, V3 runner | no regression |
 | Offline/dependency guard | `pip check`, `pip-audit`, npm audit, offline env | zero high dependency findings; no live LLM |
@@ -38,13 +42,14 @@ The evaluator reads all 140 unchanged Phase 1 scenarios. It sends their structur
 
 ## Local verification result
 
-The final pre-push Windows run on 2026-07-17 produced:
+The cancellation-closeout local Windows run on 2026-07-17 produced:
 
-- backend: 982 passed, 1 skipped; Phase 3 adds 74 tests without removing Phase 2 coverage;
-- frontend: 75 passed across 8 files; typecheck and production build passed;
+- backend: 996 passed, 1 skipped; Phase 3 has 88 passing tests without removing prior coverage;
+- frontend: 77 passed across 8 files; typecheck and production build passed;
 - Phase 1 catalog: 140/140 unchanged;
 - runtime policy: 140/140 classifications, 58/58 handoff reasons, 35/35 refusals, with every forbidden-outcome counter at zero;
 - V3: 57/57, false mutation 0, confirmation bypass 0, live LLM trigger 0;
+- cancellation lifecycle: old confirmation replay 0, mandatory hold incorrectly cleared 0, duplicate order 0, and cancellation-produced merchant acceptance 0;
 - SQLite: empty upgrade, Phase 2-head upgrade, downgrade, re-upgrade, and metadata 0-diff passed;
 - `pip check`, `pip-audit`, and npm high-severity audit: no broken requirements or known findings.
 

@@ -95,6 +95,37 @@ def test_handoff_api_runs_only_simulated_sequence_and_is_tenant_scoped():
     assert wrong_session.json()["error"]["code"] == "HANDOFF_NOT_FOUND"
 
 
+def test_handoff_cancel_api_returns_authoritative_safe_result_and_requires_owner():
+    session = _sid("api-cancel")
+    state = safety_api.store.get(session)
+    state.phone = "+852 5555 0101"
+    state.official_delivery_address = "Synthetic Tower, 1 Test Road"
+    safety_api.store.set(session, state)
+    created = client.post(
+        "/api/handoffs",
+        json={"sessionId": session, "reasonCode": "EXPLICIT_HUMAN_REQUEST"},
+    ).json()
+
+    missing_owner = client.post(f"/api/handoffs/{created['handoffId']}/cancel", json={})
+    assert missing_owner.status_code == 422
+    cancelled = client.post(
+        f"/api/handoffs/{created['handoffId']}/cancel",
+        json={"sessionId": session},
+    )
+
+    assert cancelled.status_code == 200
+    body = cancelled.json()
+    assert body["status"] == "CANCELLED"
+    assert body["caseStatus"] == "CANCELLED"
+    assert body["mayContinueDraft"] is True
+    assert body["requiresNewConfirmation"] is True
+    assert body["safetyHoldActive"] is False
+    serialized = str(body)
+    assert "+852 5555 0101" not in serialized
+    assert "Synthetic Tower" not in serialized
+    assert "transcript" not in serialized.casefold()
+
+
 def test_simulation_control_endpoints_are_hidden_in_production(monkeypatch):
     session = _sid("production")
     created = client.post(
@@ -115,7 +146,11 @@ def test_simulation_control_endpoints_are_hidden_in_production(monkeypatch):
         f"/api/handoffs/{created['handoffId']}",
         params={"session_id": session},
     )
-    for response in (create_response, evaluate_response, get_response):
+    cancel_response = client.post(
+        f"/api/handoffs/{created['handoffId']}/cancel",
+        json={"sessionId": session},
+    )
+    for response in (create_response, evaluate_response, get_response, cancel_response):
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "SIMULATION_CONTROLS_DISABLED"
 
@@ -159,3 +194,25 @@ def test_active_mandatory_handoff_cannot_be_bypassed_and_cancel_does_not_cancel_
     assert cancelled["state"]["handoff_status"] == "CANCELLED"
     assert cancelled["state"]["current_order"] == initial["state"]["current_order"]
     assert cancelled["state"]["lifecycle_status"] != "CANCELLED"
+    assert cancelled["response"] == "模拟接管已取消，但安全限制仍然有效。订单不会自动提交。"
+
+
+def test_explicit_handoff_chat_cancellation_reuses_order_after_reconfirmation():
+    session = _sid("explicit-chat-cancel")
+    client.post("/api/chat", json={"session_id": session, "message": "鸡腿饭"})
+    client.post("/api/chat", json={"session_id": session, "message": "改成自取"})
+    confirmed = client.post("/api/chat", json={"session_id": session, "message": "确认订单"}).json()
+    original_order_id = confirmed["state"]["submitted_order_id"]
+
+    handed_off = client.post("/api/chat", json={"session_id": session, "message": "我要人工"}).json()
+    assert handed_off["state"]["safety_reason_code"] == "EXPLICIT_HUMAN_REQUEST"
+    cancelled = client.post("/api/chat", json={"session_id": session, "message": "取消人工接管"}).json()
+
+    assert cancelled["response"] == "模拟人工接管已取消。订单草稿仍保留。需要重新确认后才能继续。"
+    assert cancelled["state"]["submitted"] is False
+    assert cancelled["state"]["confirmation_valid"] is False
+    assert cancelled["state"]["lifecycle_status"] == "DRAFT"
+    reconfirmed = client.post("/api/chat", json={"session_id": session, "message": "确认订单"}).json()
+    assert reconfirmed["state"]["submitted_order_id"] == original_order_id
+    assert reconfirmed["state"]["lifecycle_status"] == "CUSTOMER_CONFIRMED"
+    assert reconfirmed["state"]["merchant_status"] == "NOT_INTEGRATED"
