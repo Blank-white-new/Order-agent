@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 4 multilingual text evaluation scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenario_id", "locale", "input", "expected_detected_locale",
+    "expected_response_locale", "expected_intent", "expected_entities",
+    "expected_classification", "expected_handoff_reason", "expected_refusal_reason",
+    "expected_mutation", "forbidden_outcomes", "setup_inputs", "restaurant_code",
+    "branch_code", "tags"
+  ],
+  "properties": {
+    "scenario_id": {"type": "string", "pattern": "^P4-(ZH|YUE|EN|MIX)-[0-9]{3}$"},
+    "locale": {"enum": ["zh-CN", "yue-Hant-HK", "en-HK", "mixed"]},
+    "input": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "expected_detected_locale": {"enum": ["zh-CN", "yue-Hant-HK", "en-HK", "mixed", "und"]},
+    "expected_response_locale": {"enum": ["zh-CN", "yue-Hant-HK", "en-HK"]},
+    "expected_intent": {"type": "string"},
+    "expected_entities": {"type": "object"},
+    "expected_classification": {"enum": ["AUTO_DRAFT", "CONFIRM", "HANDOFF", "REFUSE"]},
+    "expected_handoff_reason": {"type": ["string", "null"]},
+    "expected_refusal_reason": {"type": ["string", "null"]},
+    "expected_mutation": {"type": "boolean"},
+    "forbidden_outcomes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "setup_inputs": {"type": "array", "items": {"type": "string"}},
+    "restaurant_code": {"type": "string"},
+    "branch_code": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+  }
+}
