@@ -22,6 +22,14 @@ try {
   }
   Write-Host "[OK] Phase 1 scenario catalog" -ForegroundColor Green
 
+  Write-Host ""
+  Write-Host "==> Phase 1 runtime safety policy" -ForegroundColor Cyan
+  & $Python -B (Join-Path $ProjectRoot "evaluation\run_phase1_runtime_policy_eval.py")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Phase 1 runtime safety policy evaluation failed with exit code $LASTEXITCODE"
+  }
+  Write-Host "[OK] Phase 1 runtime safety policy" -ForegroundColor Green
+
   & (Join-Path $ScriptsDir "check_backend.ps1")
   & (Join-Path $ScriptsDir "check_frontend.ps1") -Build:$Build
 
