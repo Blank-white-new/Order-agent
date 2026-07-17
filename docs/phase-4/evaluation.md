@@ -1,0 +1,9 @@
+# Multilingual text evaluation
+
+`evaluation/phase4_multilingual_text.jsonl` contains 360 static synthetic scenarios: 90 each for `zh-CN`, `yue-Hant-HK`, `en-HK`, and `mixed`. It covers menu/price/recommendation, add/remove/change/replace, modifiers and notes, fulfilment/address/phone, summary/confirmation/rejection, language switching, missing/sold-out/ambiguous inputs, corrections, every major safety family and code switching. The catalog has 64 designed-confirmation scenarios and 128 HANDOFF/REFUSE scenarios.
+
+`scripts/validate_phase4_multilingual_catalog.py` is standard-library-only. It validates UTF-8 JSON/JSONL, the schema, IDs, counts, enums, reasons, mutation consistency, item codes, three-locale coverage, alias conflicts, dangerous phrase conflicts, message keys, duplicate scenarios, real-data patterns, mixed features and confirmation labels.
+
+`evaluation/run_phase4_multilingual_text_eval.py` never reads an expected intent to select an operation. It sends each raw `input` through normalization, locale detection, menu/alias matching, multilingual parsing, Phase 3 safety and the real `TextEntryService` in a unique persistent session. Setup turns establish an order for removal/replacement tests. The runner supports isolated SQLite by default and PostgreSQL through `--database-url`.
+
+The deterministic gate requires at least 360 rows; 100% locale, response locale, clear intent/item/quantity/modifier, classification, handoff/refusal and expected-mutation matches; and zero wrong mutation, confirmation bypass, serious-allergy omission, cross-tenant leak, fake merchant acceptance, duplicate order, unsupported-language failure, catalog failure or live-LLM trigger. It reports p50, p95 and max parsing/runtime duration as observations, not a production SLA. This is text evaluation and is not evidence of ASR or TTS ability.
