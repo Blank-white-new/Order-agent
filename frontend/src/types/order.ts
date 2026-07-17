@@ -23,6 +23,14 @@ export type OrderStateView = {
   submittedOrderId: string | null;
   lifecycleStatus: string;
   merchantStatus: string;
+  safetyClassification: string;
+  safetyReasonCode: string | null;
+  safetyDecisionId: string | null;
+  handoffPublicId: string | null;
+  handoffStatus: string;
+  safetyBlockedActions: string[];
+  confirmedFields: string[];
+  unconfirmedFields: string[];
 };
 
 export type MenuItemView = {
@@ -58,6 +66,14 @@ export function normalizeOrderState(raw: unknown): OrderStateView {
     submittedOrderId: optionalString(state.submitted_order_id),
     lifecycleStatus: optionalString(state.lifecycle_status) ?? (submitted ? "CUSTOMER_CONFIRMED" : "DRAFT"),
     merchantStatus: optionalString(state.merchant_status) ?? "NOT_INTEGRATED",
+    safetyClassification: optionalString(state.safety_classification) ?? "AUTO_DRAFT",
+    safetyReasonCode: optionalString(state.safety_reason_code),
+    safetyDecisionId: optionalString(state.safety_decision_id),
+    handoffPublicId: optionalString(state.handoff_public_id),
+    handoffStatus: optionalString(state.handoff_status) ?? "NOT_REQUIRED",
+    safetyBlockedActions: stringList(state.safety_blocked_actions),
+    confirmedFields: stringList(state.confirmed_fields),
+    unconfirmedFields: stringList(state.unconfirmed_fields),
   };
 }
 

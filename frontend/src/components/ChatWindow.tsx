@@ -8,6 +8,7 @@ import { MessageBubble } from "./MessageBubble";
 import { NextStepHint } from "./NextStepHint";
 import { OrderSummary } from "./OrderSummary";
 import { VoiceControls } from "./VoiceControls";
+import { SafetyHandoffPanel } from "./SafetyHandoffPanel";
 
 type Message = {
   id: string;
@@ -157,6 +158,10 @@ export function ChatWindow() {
       </section>
       <aside className="support-panel" aria-label="订单辅助信息">
         <NextStepHint state={orderState} />
+        <SafetyHandoffPanel
+          state={orderState}
+          onStatusChange={(handoffStatus) => setOrderState((current) => ({ ...current, handoffStatus }))}
+        />
         <OrderSummary state={orderState} />
         <MenuPanel onPickItem={fillInputFromMenu} />
       </aside>
