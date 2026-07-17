@@ -59,6 +59,10 @@ class ChatRequest(BaseModel):
     restaurant_id: str | None = Field(default=None, validation_alias=AliasChoices("restaurantId", "restaurant_id"))
     branch_id: str | None = Field(default=None, validation_alias=AliasChoices("branchId", "branch_id"))
     idempotency_key: str | None = Field(default=None, validation_alias=AliasChoices("idempotencyKey", "idempotency_key"))
+    confidence_metadata: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("confidenceMetadata", "confidence_metadata"),
+    )
 
 
 class ResetRequest(BaseModel):

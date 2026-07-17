@@ -17,6 +17,7 @@ async def chat(request: ChatRequest) -> dict:
         restaurant_code=request.restaurant_id,
         branch_code=request.branch_id,
         idempotency_key=request.idempotency_key,
+        confidence_metadata=request.confidence_metadata,
     )
     return {
         "session_id": request.session_id,
