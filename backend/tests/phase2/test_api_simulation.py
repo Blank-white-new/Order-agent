@@ -94,5 +94,7 @@ def test_menu_api_accepts_tenant_headers_and_returns_minor_units():
 
 
 def test_database_safe_label_never_contains_url_or_credentials(phase2):
-    assert phase2.settings.safe_database_label == "sqlite"
+    expected_label = "sqlite" if phase2.settings.is_sqlite else "postgresql+psycopg"
+    assert phase2.settings.safe_database_label == expected_label
     assert phase2.settings.database_url not in phase2.settings.safe_database_label
+    assert "://" not in phase2.settings.safe_database_label
