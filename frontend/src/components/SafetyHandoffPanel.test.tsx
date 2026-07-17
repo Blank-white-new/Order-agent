@@ -99,6 +99,68 @@ describe("SafetyHandoffPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "模拟失败" }));
     expect(await screen.findByText(/NO_AGENT_AVAILABLE/)).toHaveTextContent("草稿仍保留");
   });
+
+  test("explicit-request cancellation preserves draft and requires reconfirmation in text", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(okJson({
+      handoffId: "SIM-HO-EXPLICIT",
+      status: "CANCELLED",
+      reasonCode: "EXPLICIT_HUMAN_REQUEST",
+      failureCode: "CASE_CANCELLED",
+      mayContinueDraft: true,
+      requiresNewConfirmation: true,
+      safetyHoldActive: false,
+    }))));
+    render(
+      <SafetyHandoffPanel
+        sessionId="explicit-cancel-ui"
+        state={normalizeOrderState({
+          safety_classification: "HANDOFF",
+          safety_reason_code: "EXPLICIT_HUMAN_REQUEST",
+          handoff_public_id: "SIM-HO-EXPLICIT",
+          handoff_status: "PENDING",
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "取消模拟接管" }));
+
+    expect(await screen.findByText("模拟人工接管已取消")).toBeInTheDocument();
+    expect(screen.getByText("订单草稿仍保留")).toBeInTheDocument();
+    expect(screen.getByText("需要重新确认后才能继续")).toBeInTheDocument();
+    expect(screen.queryByText("订单已成功")).not.toBeInTheDocument();
+    expect(screen.queryByText("餐厅已接受")).not.toBeInTheDocument();
+    expect(screen.queryByText("真人已连接")).not.toBeInTheDocument();
+    expect(screen.queryByText("可以直接提交")).not.toBeInTheDocument();
+  });
+
+  test("mandatory-risk cancellation keeps a visible safety block", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(okJson({
+      handoffId: "SIM-HO-MANDATORY",
+      status: "CANCELLED",
+      reasonCode: "SEVERE_ALLERGY",
+      failureCode: "CASE_CANCELLED",
+      mayContinueDraft: false,
+      requiresNewConfirmation: true,
+      safetyHoldActive: true,
+    }))));
+    render(
+      <SafetyHandoffPanel
+        sessionId="mandatory-cancel-ui"
+        state={normalizeOrderState({
+          safety_classification: "HANDOFF",
+          safety_reason_code: "SEVERE_ALLERGY",
+          handoff_public_id: "SIM-HO-MANDATORY",
+          handoff_status: "PENDING",
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "取消模拟接管" }));
+
+    expect(await screen.findByText("模拟接管已取消，但安全限制仍然有效")).toBeInTheDocument();
+    expect(screen.getByText("订单不会自动提交")).toBeInTheDocument();
+    expect(screen.queryByText("可以直接提交")).not.toBeInTheDocument();
+  });
 });
 
 function okJson(body: unknown) {
