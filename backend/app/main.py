@@ -8,6 +8,7 @@ from app.api.chat import router as chat_router
 from app.api.menu import router as menu_router
 from app.api.voice import router as voice_router
 from app.api.safety import router as safety_router
+from app.api.speech import router as speech_router
 from app.runtime import text_entry_service, voice_runtime
 from app.agents.voice_gateway_agent import VoiceGatewayAgent
 from app.voice.status import evaluate_voice_status
@@ -63,3 +64,4 @@ app.include_router(menu_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(voice_router, prefix="/api")
 app.include_router(safety_router, prefix="/api")
+app.include_router(speech_router, prefix="/api")
