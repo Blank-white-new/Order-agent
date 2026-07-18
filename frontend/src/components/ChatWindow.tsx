@@ -10,6 +10,7 @@ import { OrderSummary } from "./OrderSummary";
 import { VoiceControls } from "./VoiceControls";
 import { SafetyHandoffPanel } from "./SafetyHandoffPanel";
 import { ConcreteLocale, LocalePreference, localeLabel, ui } from "../i18n";
+import { SpeechReplayPanel } from "./SpeechReplayPanel";
 
 type Message = {
   id: string;
@@ -208,6 +209,9 @@ export function ChatWindow() {
         </form>
       </section>
       <aside className="support-panel" aria-label={labels.supportPanel}>
+        {import.meta.env.DEV ? (
+          <SpeechReplayPanel sessionId={sessionId} onOrderStateChange={setOrderState} />
+        ) : null}
         {requiredConfirmations.length ? (
           <section className="panel clarification-panel" role="status" aria-labelledby="clarification-title">
             <h2 id="clarification-title">{labels.clarification}</h2>

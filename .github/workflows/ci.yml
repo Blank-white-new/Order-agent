@@ -21,6 +21,10 @@ env:
   ALLOW_LIVE_LLM: "false"
   VOICE_ENABLED: "false"
   TTS_ENABLED: "false"
+  SPEECH_ASR_PROVIDER: disabled
+  SPEECH_TTS_PROVIDER: disabled
+  SPEECH_SIMULATION_ENABLED: "false"
+  SPEECH_AUDIO_RETENTION_ENABLED: "false"
   SIMULATION_DATA_ONLY: "true"
   SIMULATION_HANDOFF_CONTROLS_ENABLED: "true"
   PYTHONUTF8: "1"
@@ -29,7 +33,11 @@ jobs:
   windows-baseline:
     name: Windows reproducible baseline
     runs-on: windows-latest
-    timeout-minutes: 30
+    # Phase 5 intentionally retains the complete Phase 0-4 regression and adds
+    # offline audio/provider evaluations. GitHub's Windows runner takes about
+    # twice as long as the local reproducible baseline, so keep a bounded but
+    # realistic job budget.
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -124,10 +132,63 @@ jobs:
         shell: pwsh
         run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase4_multilingual_text_eval.py
 
+      - name: Phase 5 audio catalog validation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B scripts\validate_phase5_audio_catalog.py
+
+      - name: Phase 5 audio validator and Replay provider tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+          backend\tests\phase5\test_audio_validator.py
+          backend\tests\phase5\test_replay_providers.py
+
+      - name: Phase 5 speech pipeline and API tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+          backend\tests\phase5\test_speech_pipeline.py
+          backend\tests\phase5\test_api_contract.py
+
+      - name: Phase 5 empty-candidate, fixture-missing log, and Replay Provider network scope tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+          backend\tests\phase5\test_evaluator_independence.py
+
+      - name: Phase 5 persistence schema and tenant isolation tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+          backend\tests\phase5\test_speech_audit_repository.py
+          backend\tests\phase5\test_database_guards.py
+          backend\tests\phase5\test_api_contract.py
+
+      - name: Phase 5 complete test suite on SQLite
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider backend\tests\phase5
+
+      - name: Phase 5 speech pipeline evaluation on SQLite
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase5_speech_pipeline_eval.py
+
+      - name: Phase 5 TTS pipeline evaluation
+        shell: pwsh
+        run: .\backend\.venv\Scripts\python.exe -B evaluation\run_phase5_tts_pipeline_eval.py
+
       - name: Frontend multilingual Vitest
         shell: pwsh
         working-directory: frontend
         run: npm test -- --run src/components/MultilingualText.test.tsx --cache=false
+
+      - name: Phase 5 frontend simulation tests
+        shell: pwsh
+        working-directory: frontend
+        run: >-
+          npm test -- --run
+          src/api/speechApi.test.ts
+          src/components/SpeechReplayPanel.test.tsx
+          --cache=false
 
       - name: Run V3 dialogue regression evaluation
         shell: pwsh
@@ -167,6 +228,7 @@ jobs:
       PHASE2_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
       PHASE3_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
       PHASE4_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
+      PHASE5_POSTGRES_URL: postgresql+psycopg://phase2_ci:phase2_ci_synthetic_password@127.0.0.1:5432/order_agent_phase2_ci
     services:
       postgres:
         image: postgres:17.5-alpine
@@ -211,6 +273,13 @@ jobs:
       - name: Upgrade an empty PostgreSQL database
         shell: bash
         run: backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
+
+      - name: Phase 5 PostgreSQL migration cycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend/.venv/bin/python -m alembic -c backend/alembic.ini downgrade 20260718_0005
+          backend/.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
 
       - name: Seed synthetic PostgreSQL fixtures
         shell: bash
@@ -257,6 +326,28 @@ jobs:
           backend/.venv/bin/python -B evaluation/run_phase4_multilingual_text_eval.py
           --mode assisted
           --database-url "$PHASE4_POSTGRES_URL"
+
+      - name: Phase 5 speech audit, tenant-negative, confirmation, and idempotency tests on PostgreSQL
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5
+
+      - name: Phase 5 empty-candidate, fixture-missing log, and Replay Provider network scope tests on PostgreSQL
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5/test_evaluator_independence.py
+
+      - name: Phase 5 persistence schema and tenant isolation tests on PostgreSQL
+        shell: bash
+        run: >-
+          backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider
+          backend/tests/phase5/test_speech_audit_repository.py
+          backend/tests/phase5/test_database_guards.py
+          backend/tests/phase5/test_api_contract.py
+
+      - name: Phase 5 speech pipeline evaluation on PostgreSQL
+        shell: bash
+        run: >-
+          backend/.venv/bin/python -B evaluation/run_phase5_speech_pipeline_eval.py
+          --database-url "$PHASE5_POSTGRES_URL"
 
       - name: Run Phase 1 runtime safety policy evaluation
         shell: bash

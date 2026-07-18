@@ -843,3 +843,62 @@ class HandoffEvent(Base):
     actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class SpeechTurnRecord(Base):
+    __tablename__ = "speech_turn_records"
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_speech_turns_public_id"),
+        ForeignKeyConstraint(
+            ["session_id", "restaurant_id", "branch_id"],
+            ["conversation_sessions.id", "conversation_sessions.restaurant_id", "conversation_sessions.branch_id"],
+            name="fk_speech_turns_session_tenant",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["order_id", "restaurant_id", "branch_id"],
+            ["orders.id", "orders.restaurant_id", "orders.branch_id"],
+            name="fk_speech_turns_order_tenant",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("direction in ('INPUT','OUTPUT')", name="direction_valid"),
+        CheckConstraint(
+            "provider_mode in ('DISABLED','REPLAY','LOCAL','LIVE')",
+            name="provider_mode_valid",
+        ),
+        CheckConstraint(
+            "outcome in ('SUCCESS','NO_SPEECH','LOW_CONFIDENCE','TRUNCATED','PROVIDER_TIMEOUT',"
+            "'PROVIDER_ERROR','UNSUPPORTED_LANGUAGE','VALIDATION_ERROR')",
+            name="outcome_valid",
+        ),
+        CheckConstraint("duration_ms is null or duration_ms >= 0", name="duration_nonnegative"),
+        CheckConstraint("sample_rate_hz > 0", name="sample_rate_positive"),
+        CheckConstraint("length(audio_sha256) = 64", name="audio_sha256_length"),
+        CheckConstraint("is_synthetic = true", name="synthetic_only"),
+        Index("ix_speech_turns_session_created", "session_id", "created_at"),
+        Index("ix_speech_turns_tenant_outcome", "restaurant_id", "branch_id", "outcome"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    public_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    restaurant_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    branch_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    order_id: Mapped[int | None] = mapped_column(Integer)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    audio_encoding: Mapped[str] = mapped_column(String(32), nullable=False)
+    sample_rate_hz: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    audio_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    fixture_id: Mapped[str | None] = mapped_column(String(160))
+    detected_locale: Mapped[str | None] = mapped_column(String(32))
+    response_locale: Mapped[str | None] = mapped_column(String(32))
+    confidence_bucket: Mapped[str | None] = mapped_column(String(24))
+    decision_classification: Mapped[str | None] = mapped_column(String(24))
+    reason_code: Mapped[str | None] = mapped_column(String(80))
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    trace_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

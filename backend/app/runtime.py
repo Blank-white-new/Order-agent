@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.agents.orchestrator import OrchestratorAgent
 from app.db.bootstrap import get_runtime_database
 from app.repositories.uow import SqlAlchemyUnitOfWork
@@ -17,6 +19,13 @@ from app.i18n.menu_lexicon import MenuLexiconService
 from app.i18n.message_catalog import MessageCatalog
 from app.i18n.response_renderer import ResponseRenderer
 from app.i18n.multilingual_text_service import MultilingualTextService
+from app.speech.audio_validator import AudioValidator
+from app.speech.config import SpeechSettings
+from app.speech.provider_registry import SpeechProviderRegistry
+from app.speech.replay_asr_provider import ReplayAsrProvider
+from app.speech.replay_tts_provider import ReplayTtsProvider
+from app.speech.speech_audit_service import SpeechAuditService
+from app.speech.speech_pipeline_service import SpeechPipelineService
 
 
 database = get_runtime_database()
@@ -60,3 +69,33 @@ text_entry_service = TextEntryService(
     multilingual_text_service=multilingual_text_service,
 )
 voice_runtime = create_voice_runtime()
+
+repository_root = Path(__file__).resolve().parents[2]
+speech_settings = SpeechSettings.from_env(
+    app_env=database.settings.app_env,
+    simulation_data_only=database.settings.simulation_data_only,
+)
+speech_validator = AudioValidator(speech_settings)
+speech_registry = SpeechProviderRegistry(
+    speech_settings,
+    asr_providers=(
+        ReplayAsrProvider(
+            repository_root / "evaluation" / "audio" / "manifests" / "phase5_asr_manifest.jsonl",
+            repository_root,
+        ),
+    ),
+    tts_providers=(
+        ReplayTtsProvider(
+            repository_root / "evaluation" / "audio" / "manifests" / "phase5_tts_manifest.jsonl",
+            repository_root,
+        ),
+    ),
+)
+speech_audit_service = SpeechAuditService(uow_factory, tenant_service)
+speech_pipeline_service = SpeechPipelineService(
+    settings=speech_settings,
+    registry=speech_registry,
+    text_entry_service=text_entry_service,
+    validator=speech_validator,
+    audit_service=speech_audit_service,
+)

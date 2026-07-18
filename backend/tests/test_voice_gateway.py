@@ -321,22 +321,26 @@ def test_duplicate_utterance_does_not_call_text_entry_or_tts_again():
 
 def test_tts_runs_in_background_and_mutes_session():
     text_entry = FakeTextEntryService()
-    tts = SlowTTS(delay=0.2)
+    tts = BlockingTTS()
     gateway = make_gateway(text_entry, tts)
 
-    async def run() -> tuple[list[dict], float, dict]:
+    async def run() -> tuple[list[dict], dict, dict]:
         enable_tts_for(gateway, "s1", "u1")
-        start = time.perf_counter()
         events = await gateway.on_final_transcript("s1", "u1", "来一份黑椒牛肉饭")
-        duration = time.perf_counter() - start
+        assert tts.started.wait(timeout=1)
+        active_status = gateway.tts_status()
+        assert active_status["speaking"] is True
+        assert active_status["jobsFinished"] == 0
+        assert gateway.session_controller.get_session("s1").muted is True
+        tts.release.set()
         await gateway.wait_for_tts_tasks()
-        return events, duration, gateway.tts_status()
+        return events, active_status, gateway.tts_status()
 
-    events, duration, status = asyncio.run(run())
+    events, active_status, status = asyncio.run(run())
 
-    assert duration < 0.1
     assert events[-1]["type"] == "tts_status"
     assert events[-1]["queued"] is True
+    assert active_status["lastSuccess"] is None
     assert status["lastSuccess"] is True
     assert status["lastError"] is None
     assert gateway.session_controller.get_session("s1").muted is False

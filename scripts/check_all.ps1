@@ -46,6 +46,30 @@ try {
   }
   Write-Host "[OK] Phase 4 multilingual text evaluation" -ForegroundColor Green
 
+  Write-Host ""
+  Write-Host "==> Phase 5 synthetic audio catalog" -ForegroundColor Cyan
+  & $Python -B (Join-Path $ScriptsDir "validate_phase5_audio_catalog.py")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Phase 5 audio catalog validation failed with exit code $LASTEXITCODE"
+  }
+  Write-Host "[OK] Phase 5 synthetic audio catalog" -ForegroundColor Green
+
+  Write-Host ""
+  Write-Host "==> Phase 5 Replay speech pipeline evaluation" -ForegroundColor Cyan
+  & $Python -B (Join-Path $ProjectRoot "evaluation\run_phase5_speech_pipeline_eval.py")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Phase 5 speech pipeline evaluation failed with exit code $LASTEXITCODE"
+  }
+  Write-Host "[OK] Phase 5 Replay speech pipeline evaluation" -ForegroundColor Green
+
+  Write-Host ""
+  Write-Host "==> Phase 5 Replay TTS evaluation" -ForegroundColor Cyan
+  & $Python -B (Join-Path $ProjectRoot "evaluation\run_phase5_tts_pipeline_eval.py")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Phase 5 TTS evaluation failed with exit code $LASTEXITCODE"
+  }
+  Write-Host "[OK] Phase 5 Replay TTS evaluation" -ForegroundColor Green
+
   & (Join-Path $ScriptsDir "check_backend.ps1")
   & (Join-Path $ScriptsDir "check_frontend.ps1") -Build:$Build
 
