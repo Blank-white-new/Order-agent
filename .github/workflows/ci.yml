@@ -150,7 +150,7 @@ jobs:
           backend\tests\phase5\test_speech_pipeline.py
           backend\tests\phase5\test_api_contract.py
 
-      - name: Phase 5 metric denominator and Provider invocation tests
+      - name: Phase 5 empty-candidate, fixture-missing log, and Replay Provider network scope tests
         shell: pwsh
         run: >-
           .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
@@ -331,7 +331,7 @@ jobs:
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5
 
-      - name: Phase 5 metric denominator and Provider invocation tests on PostgreSQL
+      - name: Phase 5 empty-candidate, fixture-missing log, and Replay Provider network scope tests on PostgreSQL
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5/test_evaluator_independence.py
 

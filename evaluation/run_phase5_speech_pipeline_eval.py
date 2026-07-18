@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import os
+import re
 import socket
 import sys
 import tempfile
@@ -101,7 +102,7 @@ METRIC_NAMES = (
     "replay_provider_invocation",
     "provider_not_invoked",
     "provider_failure_invocation",
-    "network_invocation",
+    "replay_provider_network_entry_point",
     "database_order",
     "database_confirmation",
     "database_idempotency",
@@ -118,7 +119,8 @@ METRIC_NAMES = (
     "temporary_audio_file",
     "audio_retention_configuration",
     "full_transcript_log",
-    "no_transcript_failure_log",
+    "no_transcript_candidate_log",
+    "fixture_not_found_log_structure",
     "sensitive_field_log",
     "live_llm",
 )
@@ -147,8 +149,8 @@ class Metric:
         }
 
 
-class NetworkInvocationGuard:
-    """Block common Python network entry points and count every attempted call."""
+class ReplayProviderNetworkInvocationGuard:
+    """Block and count controlled network entries reached from Replay Providers only."""
 
     def __init__(self) -> None:
         self.counts: Counter[str] = Counter()
@@ -162,12 +164,14 @@ class NetworkInvocationGuard:
             )
             if provider_origin:
                 self.counts[name] += 1
-                raise AssertionError(f"network invocation is forbidden: {name}")
+                raise AssertionError(
+                    f"Replay Provider-origin network invocation is forbidden: {name}"
+                )
             return original(*args, **kwargs)
 
         return blocked
 
-    def __enter__(self) -> "NetworkInvocationGuard":
+    def __enter__(self) -> "ReplayProviderNetworkInvocationGuard":
         self._originals = {
             "socket.create_connection": socket.create_connection,
             "socket.socket.connect": socket.socket.connect,
@@ -202,6 +206,14 @@ class NetworkInvocationGuard:
         return sum(self.counts.values())
 
 
+def replay_provider_network_result_fields(
+    guard: ReplayProviderNetworkInvocationGuard,
+) -> dict[str, int]:
+    """Return narrowly scoped, user-visible Replay Provider network evidence."""
+
+    return {"replay_provider_origin_network_invocations": guard.total}
+
+
 def new_metrics() -> dict[str, Metric]:
     return {name: Metric() for name in METRIC_NAMES}
 
@@ -213,6 +225,14 @@ def load_rows() -> list[dict]:
 def load_manifest_transcripts() -> dict[str, str]:
     return {
         row["fixtureId"]: str(row.get("transcript") or "")
+        for line in ASR_MANIFEST.read_text(encoding="utf-8").splitlines()
+        if (row := json.loads(line)).get("fixtureId")
+    }
+
+
+def load_manifest_fixture_ids() -> set[str]:
+    return {
+        str(row["fixtureId"])
         for line in ASR_MANIFEST.read_text(encoding="utf-8").splitlines()
         if (row := json.loads(line)).get("fixtureId")
     }
@@ -371,11 +391,20 @@ def record_logging_metrics(
     row: dict,
     result,
     scenario_log: str,
+    scenario_trace: dict | None,
     manifest_transcript: str | None,
+    all_manifest_transcripts: set[str],
+    all_manifest_fixture_ids: set[str],
+    audio: AudioInput | None = None,
+    actual_error_code: str | None = None,
+    actual_mutation: bool | None = None,
+    database_record_counts: tuple[int, int, int] | None = None,
+    audit_record_safe: bool | None = None,
 ) -> None:
+    transcript_envelope_absent = result is None or result.transcript is None
     actual_transcript = (
         result.transcript.transcript
-        if result is not None and result.transcript is not None
+        if not transcript_envelope_absent
         else None
     )
     if actual_transcript:
@@ -386,9 +415,87 @@ def record_logging_metrics(
         for value in (row.get("expectedTranscript"), manifest_transcript)
         if isinstance(value, str) and value
     }
-    metrics["no_transcript_failure_log"].add(
-        all(candidate not in scenario_log for candidate in candidates)
+    if candidates:
+        metrics["no_transcript_candidate_log"].add(
+            all(candidate not in scenario_log for candidate in candidates)
+        )
+        return
+
+    if not (
+        row.get("semanticCategory") == "fixture_not_found"
+        or actual_error_code == "SPEECH_FIXTURE_NOT_FOUND"
+    ):
+        return
+
+    serialized_trace = json.dumps(
+        scenario_trace or {}, ensure_ascii=False, sort_keys=True, default=str
     )
+    observable = f"{scenario_log}\n{serialized_trace}"
+    folded_observable = observable.casefold()
+    current_fixture_id = str(row.get("fixtureId") or "")
+    other_fixture_ids = all_manifest_fixture_ids - {current_fixture_id}
+    forbidden_tokens = {
+        "transcriptenvelope",
+        '"transcript"',
+        "'transcript'",
+        "transcript=",
+        "full_transcript",
+        "transcript_text",
+        "audio_payload",
+        "audio_blob",
+        "raw_audio",
+        '"fixtureid"',
+        '"audiopath"',
+    }
+    forbidden_paths = {
+        str(PROJECT_ROOT),
+        PROJECT_ROOT.as_posix(),
+        str(ASR_MANIFEST),
+        ASR_MANIFEST.as_posix(),
+        ASR_MANIFEST.name,
+    }
+    encoded_audio = (
+        base64.b64encode(audio.payload).decode("ascii") if audio is not None else ""
+    )
+    absolute_path_leaked = re.search(
+        r'(?:[A-Za-z]:[\\/]|(?:^|["\s])/(?:[^/\s"]+/)+)', observable
+    )
+    log_words = {word.casefold() for word in re.findall(r"[A-Za-z_]+", scenario_log)}
+    allowed_log_words = {
+        "speech_fixture_not_found",
+        "provider",
+        "provider_mode",
+        "replay",
+        "outcome",
+        "validation_error",
+        "reason_code",
+        "direction",
+        "input",
+        "synthetic",
+        "true",
+    }
+    structure_safe = (
+        transcript_envelope_absent
+        and actual_error_code == "SPEECH_FIXTURE_NOT_FOUND"
+        and not any(token in folded_observable for token in forbidden_tokens)
+        and not any(
+            path and path.casefold() in folded_observable for path in forbidden_paths
+        )
+        and not any(
+            transcript and transcript in observable
+            for transcript in all_manifest_transcripts
+        )
+        and not any(
+            fixture_id and fixture_id in observable for fixture_id in other_fixture_ids
+        )
+        and (not encoded_audio or encoded_audio not in observable)
+        and absolute_path_leaked is None
+        and log_words <= allowed_log_words
+        and actual_mutation is False
+        and database_record_counts == (0, 0, 0)
+        and audit_record_safe is True
+    )
+    metrics["fixture_not_found_log_structure"].add(structure_safe)
 
 
 def apply_audit_schema_metrics(metrics: dict[str, Metric], engine) -> None:
@@ -691,6 +798,10 @@ def evaluate_tenant_isolation(
 def evaluate(database_url: str | None = None) -> dict:
     rows = load_rows()
     manifest_transcripts = load_manifest_transcripts()
+    all_manifest_transcripts = {
+        transcript for transcript in manifest_transcripts.values() if transcript
+    }
+    all_manifest_fixture_ids = load_manifest_fixture_ids()
     metrics = new_metrics()
     temporary_before = temporary_artifact_snapshot()
     temporary_database = None
@@ -719,7 +830,7 @@ def evaluate(database_url: str | None = None) -> dict:
     handler = logging.StreamHandler(captured_logs)
     logging.getLogger().addHandler(handler)
     run_id = uuid4().hex[:10]
-    network_guard = NetworkInvocationGuard()
+    network_guard = ReplayProviderNetworkInvocationGuard()
     try:
         apply_audit_schema_metrics(metrics, context.database.engine)
         apply_retention_configuration_metrics(metrics, context.speech_settings)
@@ -803,13 +914,6 @@ def evaluate(database_url: str | None = None) -> dict:
                 if invocation is not None:
                     asr_latencies.append((time.perf_counter() - started) * 1000)
 
-                record_logging_metrics(
-                    metrics,
-                    row=row,
-                    result=result,
-                    scenario_log=scenario_log,
-                    manifest_transcript=manifest_transcripts.get(row["fixtureId"]),
-                )
                 after = context.store.get(session_key, *tenant_codes).serializable()
                 actual_mutation = business_fingerprint(before) != business_fingerprint(after)
                 trace = result.text_result.get("trace", {}) if result and result.text_result else {}
@@ -914,6 +1018,32 @@ def evaluate(database_url: str | None = None) -> dict:
                     len(audit_records) == 1
                     and audit_record_excludes_raw_audio(audit_records[0], audio)
                 )
+                audit_record_safe = (
+                    len(audit_records) == 1
+                    and audit_record_excludes_raw_audio(audit_records[0], audio)
+                    and audit_records[0].reason_code == error_code
+                    and audit_records[0].outcome == actual_outcome
+                    and audit_records[0].order_id is None
+                )
+                record_logging_metrics(
+                    metrics,
+                    row=row,
+                    result=result,
+                    scenario_log=scenario_log,
+                    scenario_trace=trace,
+                    manifest_transcript=manifest_transcripts.get(row["fixtureId"]),
+                    all_manifest_transcripts=all_manifest_transcripts,
+                    all_manifest_fixture_ids=all_manifest_fixture_ids,
+                    audio=audio,
+                    actual_error_code=error_code,
+                    actual_mutation=actual_mutation,
+                    database_record_counts=(
+                        order_count,
+                        confirmation_count,
+                        idempotency_count,
+                    ),
+                    audit_record_safe=audit_record_safe,
+                )
                 llm_triggered = bool(
                     trace.get("llmFallback", {}).get("triggered")
                     or trace.get("fallbackProvider") == "live"
@@ -1013,7 +1143,9 @@ def evaluate(database_url: str | None = None) -> dict:
             temporary_database.cleanup()
 
     for name in NETWORK_ENTRY_POINTS:
-        metrics["network_invocation"].add(network_guard.counts[name] == 0)
+        metrics["replay_provider_network_entry_point"].add(
+            network_guard.counts[name] == 0
+        )
     temporary_audio_file_leak_failures = apply_temporary_artifact_metrics(
         metrics, temporary_before, temporary_artifact_snapshot()
     )
@@ -1026,6 +1158,14 @@ def evaluate(database_url: str | None = None) -> dict:
     )
     full_transcript_log_failures = (
         metrics["full_transcript_log"].checks - metrics["full_transcript_log"].matches
+    )
+    no_transcript_candidate_log_failures = (
+        metrics["no_transcript_candidate_log"].checks
+        - metrics["no_transcript_candidate_log"].matches
+    )
+    fixture_not_found_log_structure_failures = (
+        metrics["fixture_not_found_log_structure"].checks
+        - metrics["fixture_not_found_log_structure"].matches
     )
     sensitive_field_log_failures = (
         metrics["sensitive_field_log"].checks - metrics["sensitive_field_log"].matches
@@ -1048,9 +1188,13 @@ def evaluate(database_url: str | None = None) -> dict:
         "raw_audio_database_failures": raw_audio_database_failures,
         "temporary_audio_file_leak_failures": temporary_audio_file_leak_failures,
         "full_transcript_log_failures": full_transcript_log_failures,
+        "no_transcript_candidate_log_failures": no_transcript_candidate_log_failures,
+        "fixture_not_found_log_structure_failures": (
+            fixture_not_found_log_structure_failures
+        ),
         "sensitive_field_log_failures": sensitive_field_log_failures,
         "live_provider_invocations": live_provider_invocations,
-        "network_invocations": network_guard.total,
+        **replay_provider_network_result_fields(network_guard),
         "live_llm_triggers": live_llm_triggers,
         "latency": {
             "audioValidation": latency(validation_latencies),
@@ -1081,9 +1225,11 @@ def passes(result: dict) -> bool:
         "raw_audio_database_failures",
         "temporary_audio_file_leak_failures",
         "full_transcript_log_failures",
+        "no_transcript_candidate_log_failures",
+        "fixture_not_found_log_structure_failures",
         "sensitive_field_log_failures",
         "live_provider_invocations",
-        "network_invocations",
+        "replay_provider_origin_network_invocations",
         "live_llm_triggers",
     )
     return metric_success and not result["problems"] and all(

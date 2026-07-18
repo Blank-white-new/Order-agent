@@ -27,6 +27,12 @@
 
 因此“有一条审计记录”只证明 audit metadata 已写入，不能作为“没有 raw audio retention”的证据；后者必须由 schema、数据库列类型和实际内容独立证明。
 
+## 无 transcript 失败日志
+
+日志检查不再把 56 条失败场景合并。52 条存在 expected 或 manifest transcript 候选的场景只检查这些真实候选没有进入日志；4 条 fixture-not-found 没有候选 transcript，使用独立结构检查验证没有 transcript payload、其他 manifest transcript/fixture ID、manifest JSON/路径、仓库绝对路径或完整音频/Base64，同时验证订单、active confirmation、idempotency 均未创建，并只允许一条白名单字段失败审计。空候选集合本身不构成成功证据。
+
+网络守卫同样是限域证据：它只阻断和统计 Replay ASR/TTS Provider 调用栈触达的四个受控 Python 网络入口，不是全进程网络审计，也不覆盖数据库连接、CI 平台或依赖安装。
+
 ## 临时文件
 
 评测只快照以下限定范围，不扫描或删除用户的其他临时文件：

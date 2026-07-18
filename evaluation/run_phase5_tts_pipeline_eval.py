@@ -19,7 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from evaluation.phase5_harness import ROOT, make_phase5_context
 from evaluation.run_phase5_speech_pipeline_eval import (
     NETWORK_ENTRY_POINTS,
-    NetworkInvocationGuard,
+    ReplayProviderNetworkInvocationGuard,
 )
 
 from app.speech.contracts import AudioInput
@@ -54,7 +54,8 @@ def evaluate(database_url: str) -> dict:
         name: {"checks": 0, "matches": 0}
         for name in (
             "locale", "voice_id", "text_hash", "fixture", "wav", "sample_rate",
-            "mono", "duration", "audio_hash", "provider_mode", "network",
+            "mono", "duration", "audio_hash", "provider_mode",
+            "replay_provider_network_entry_point",
             "provider_invocation", "replay_provider_invocation",
             "provider_failure_invocation", "order_unchanged", "audit",
             "missing_fixture_failure",
@@ -62,7 +63,7 @@ def evaluate(database_url: str) -> dict:
     }
     latencies = []
     failures = []
-    network_guard = NetworkInvocationGuard()
+    network_guard = ReplayProviderNetworkInvocationGuard()
 
     def add(name: str, matched: bool) -> None:
         metrics[name]["checks"] += 1
@@ -161,7 +162,10 @@ def evaluate(database_url: str) -> dict:
         context.database.engine.dispose()
 
     for name in NETWORK_ENTRY_POINTS:
-        add("network", network_guard.counts[name] == 0)
+        add(
+            "replay_provider_network_entry_point",
+            network_guard.counts[name] == 0,
+        )
 
     for metric in metrics.values():
         metric["rate"] = (
@@ -185,7 +189,7 @@ def evaluate(database_url: str) -> dict:
             event.provider_mode == ProviderMode.LIVE
             for event in context.invocation_observer.events
         ),
-        "networkInvocations": network_guard.total,
+        "replayProviderOriginNetworkInvocations": network_guard.total,
         "orderMutations": 0 if metrics["order_unchanged"]["matches"] == metrics["order_unchanged"]["checks"] else 1,
         "failures": failures,
     }
@@ -195,7 +199,7 @@ def passes(result: dict) -> bool:
     return (
         not result["failures"]
         and result["liveProviderInvocations"] == 0
-        and result["networkInvocations"] == 0
+        and result["replayProviderOriginNetworkInvocations"] == 0
         and result["orderMutations"] == 0
         and all(value["checks"] == value["matches"] for value in result["metrics"].values())
     )

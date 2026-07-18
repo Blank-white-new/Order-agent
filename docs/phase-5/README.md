@@ -15,6 +15,10 @@ Phase 5 为普通话、粤语、香港英语和混合语言增加严格离线、
 
 评测器使用调用观察器记录每次真实 `transcribe`/`synthesize` 调用及 lookup、hash、metadata 阶段。validation 已失败的 28 条场景不会进入 Provider 分母；fixture missing、hash mismatch 和正常 Replay 分别停在真实执行到的阶段。审计记录存在性、数据库音频持久化、临时文件、transcript 日志和租户隔离分别计算，互不替代。
 
+无 transcript 的日志证据继续分层：52 条确实存在 expected/manifest transcript 候选的失败场景检查候选文本未泄漏；4 条 fixture-not-found 没有任何 transcript 候选，改为检查稳定错误、日志/trace 结构、绝对路径、manifest、其他 fixture transcript/ID、audio payload、订单记录和失败审计，不再由空集合 `all()` 自动通过。
+
+网络指标仅表示 Replay ASR/TTS Provider 调用路径没有尝试四个受控 Python 网络入口。它不声称整个评测进程没有网络活动，也不覆盖 PostgreSQL、GitHub Actions、pip/npm 或非 Provider 代码。
+
 ## 安全边界
 
 Replay Provider 不是实际 ASR/TTS。本阶段未接真实电话、在线 Provider、真实顾客录音或模型下载；不评估真实识别准确率、TTS 可懂度或自然度。生产默认关闭模拟端点，音频和完整 transcript 均不持久化。

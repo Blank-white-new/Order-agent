@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import http.client
 import json
 import socket
@@ -18,13 +19,15 @@ from app.speech.formats import AudioEncoding, ProviderMode
 from app.speech.invocation_observer import ProviderInvocation, ProviderInvocationObserver
 from evaluation.run_phase5_speech_pipeline_eval import (
     Metric,
-    NetworkInvocationGuard,
+    ReplayProviderNetworkInvocationGuard,
     apply_audit_schema_metrics,
     apply_temporary_artifact_metrics,
     audit_record_excludes_raw_audio,
+    business_fingerprint,
     new_metrics,
     record_logging_metrics,
     record_provider_metrics,
+    replay_provider_network_result_fields,
     temporary_artifact_snapshot,
 )
 
@@ -217,10 +220,14 @@ def test_transcript_log_denominator_uses_actual_transcript():
         row={"expectedTranscript": None},
         result=result,
         scenario_log="safe summary only",
+        scenario_trace={},
         manifest_transcript="manifest text is irrelevant",
+        all_manifest_transcripts={"manifest text is irrelevant"},
+        all_manifest_fixture_ids=set(),
     )
     assert metrics["full_transcript_log"].checks == 1
-    assert metrics["no_transcript_failure_log"].checks == 0
+    assert metrics["no_transcript_candidate_log"].checks == 0
+    assert metrics["fixture_not_found_log_structure"].checks == 0
 
 
 def test_poisoned_expected_transcript_does_not_change_log_scan_object():
@@ -231,9 +238,127 @@ def test_poisoned_expected_transcript_does_not_change_log_scan_object():
         row={"expectedTranscript": "POISONED EXPECTED TRANSCRIPT"},
         result=result,
         scenario_log="POISONED EXPECTED TRANSCRIPT",
+        scenario_trace={},
         manifest_transcript="manifest transcript",
+        all_manifest_transcripts={"manifest transcript"},
+        all_manifest_fixture_ids=set(),
     )
     assert metrics["full_transcript_log"].matches == 1
+
+
+def record_fixture_not_found_logging(
+    metrics: dict[str, Metric],
+    *,
+    scenario_log: str,
+    scenario_trace: dict | None = None,
+    all_manifest_transcripts: set[str] | None = None,
+) -> None:
+    value = row_by_category("fixture_not_found")
+    record_logging_metrics(
+        metrics,
+        row=value,
+        result=None,
+        scenario_log=scenario_log,
+        scenario_trace=scenario_trace or {},
+        manifest_transcript=None,
+        all_manifest_transcripts=all_manifest_transcripts or set(),
+        all_manifest_fixture_ids={"audio-reviewed-001"},
+        audio=audio(value),
+        actual_error_code="SPEECH_FIXTURE_NOT_FOUND",
+        actual_mutation=False,
+        database_record_counts=(0, 0, 0),
+        audit_record_safe=True,
+    )
+
+
+def test_empty_no_transcript_candidates_do_not_count_as_candidate_log_success():
+    metrics = new_metrics()
+    record_logging_metrics(
+        metrics,
+        row={"semanticCategory": "provider_error", "expectedTranscript": None},
+        result=None,
+        scenario_log="",
+        scenario_trace={},
+        manifest_transcript=None,
+        all_manifest_transcripts=set(),
+        all_manifest_fixture_ids=set(),
+    )
+    assert metrics["no_transcript_candidate_log"].checks == 0
+    assert metrics["no_transcript_candidate_log"].matches == 0
+    assert metrics["fixture_not_found_log_structure"].checks == 0
+
+
+def test_fixture_not_found_uses_structure_metric_not_candidate_metric():
+    metrics = new_metrics()
+    record_fixture_not_found_logging(
+        metrics,
+        scenario_log=(
+            "SPEECH_FIXTURE_NOT_FOUND provider=replay outcome=VALIDATION_ERROR"
+        ),
+    )
+    assert metrics["no_transcript_candidate_log"].checks == 0
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 1
+
+
+def test_fixture_not_found_log_with_other_manifest_transcript_fails():
+    metrics = new_metrics()
+    leaked = "another reviewed transcript"
+    record_fixture_not_found_logging(
+        metrics,
+        scenario_log=leaked,
+        all_manifest_transcripts={leaked},
+    )
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 0
+
+
+def test_fixture_not_found_log_with_absolute_path_fails():
+    metrics = new_metrics()
+    record_fixture_not_found_logging(
+        metrics,
+        scenario_log=r"C:\synthetic\repository\phase5_asr_manifest.jsonl",
+    )
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 0
+
+
+@pytest.mark.parametrize(
+    "leaked_log",
+    [
+        '{"fixtureId":"audio-reviewed-001","audioPath":"fixture.wav"}',
+        "audio_payload=encoded-synthetic-audio",
+    ],
+)
+def test_fixture_not_found_log_rejects_manifest_or_audio_payload_structure(
+    leaked_log,
+):
+    metrics = new_metrics()
+    record_fixture_not_found_logging(metrics, scenario_log=leaked_log)
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 0
+
+
+def test_fixture_not_found_log_with_full_audio_base64_fails():
+    metrics = new_metrics()
+    value = row_by_category("fixture_not_found")
+    encoded_audio = base64.b64encode(audio(value).payload).decode("ascii")
+    record_fixture_not_found_logging(metrics, scenario_log=encoded_audio)
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 0
+
+
+def test_fixture_not_found_allowed_log_structure_passes():
+    metrics = new_metrics()
+    record_fixture_not_found_logging(
+        metrics,
+        scenario_log=(
+            "SPEECH_FIXTURE_NOT_FOUND provider=replay outcome=VALIDATION_ERROR "
+            "direction=INPUT synthetic=true"
+        ),
+    )
+    assert metrics["fixture_not_found_log_structure"].checks == 1
+    assert metrics["fixture_not_found_log_structure"].matches == 1
 
 
 def test_audit_record_existence_is_separate_from_raw_audio_retention(phase5):
@@ -330,6 +455,20 @@ def test_live_provider_count_comes_from_invocation_observer():
     assert sum(event.provider_mode == ProviderMode.LIVE for event in observer.events) == 1
 
 
+def test_network_metric_serialization_is_replay_provider_scoped():
+    guard = ReplayProviderNetworkInvocationGuard()
+    result = {
+        "metrics": {
+            name: metric.serializable() for name, metric in new_metrics().items()
+        },
+        **replay_provider_network_result_fields(guard),
+    }
+    assert "replay_provider_network_entry_point" in result["metrics"]
+    assert "network_invocation" not in result["metrics"]
+    assert result["replay_provider_origin_network_invocations"] == 0
+    assert "network_invocations" not in result
+
+
 @pytest.mark.parametrize(
     "entry_point",
     [
@@ -342,6 +481,13 @@ def test_live_provider_count_comes_from_invocation_observer():
 def test_network_count_comes_from_patched_entry_points(
     phase5, monkeypatch, entry_point
 ):
+    value = row()
+    session_key = f"phase5-network-scope-{uuid4().hex}"
+    before = phase5.text_entry.ensure_session_context(
+        session_key,
+        restaurant_code=value["restaurantCode"],
+        branch_code=value["branchCode"],
+    ).serializable()
     provider = phase5.registry.get_asr()
     original = provider._transcribe
 
@@ -357,11 +503,27 @@ def test_network_count_comes_from_patched_entry_points(
         return original(request, invocation)
 
     monkeypatch.setattr(provider, "_transcribe", attempted_network)
-    guard = NetworkInvocationGuard()
+    observer_snapshot = phase5.invocation_observer.snapshot()
+    guard = ReplayProviderNetworkInvocationGuard()
     with guard:
-        result, error, _events = execute_observed(phase5, row())
-    assert error is None
+        result = asyncio.run(
+            phase5.pipeline.handle_audio_message(
+                session_id=session_key,
+                restaurant_code=value["restaurantCode"],
+                branch_code=value["branchCode"],
+                audio=audio(value),
+            )
+        )
+    events = phase5.invocation_observer.events_since(observer_snapshot)
+    after = phase5.store.get(
+        session_key, value["restaurantCode"], value["branchCode"]
+    ).serializable()
     assert result.error_code == "SPEECH_PROVIDER_FAILURE"
+    assert len(events) == 1
+    assert events[0].provider_mode == ProviderMode.REPLAY
+    assert events[0].success is False
+    assert events[0].error_code == "SPEECH_PROVIDER_FAILURE"
+    assert business_fingerprint(before) == business_fingerprint(after)
     assert guard.total == 1
     assert guard.counts[entry_point] == 1
 
