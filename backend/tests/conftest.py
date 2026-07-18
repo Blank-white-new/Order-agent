@@ -31,6 +31,10 @@ def _force_offline_llm_environment() -> None:
     os.environ["VOICE_ENABLED"] = "false"
     os.environ["TTS_ENABLED"] = "false"
     os.environ["SIMULATION_DATA_ONLY"] = "true"
+    os.environ["SPEECH_ASR_PROVIDER"] = "disabled"
+    os.environ["SPEECH_TTS_PROVIDER"] = "disabled"
+    os.environ["SPEECH_SIMULATION_ENABLED"] = "false"
+    os.environ["SPEECH_AUDIO_RETENTION_ENABLED"] = "false"
     os.environ["BACKEND_ENV_FILE"] = _OFFLINE_ENV_FILE
     for name in _LLM_CONNECTION_ENV_VARS:
         os.environ.pop(name, None)
@@ -53,6 +57,10 @@ def force_offline_llm_for_tests(monkeypatch):
     monkeypatch.setenv("VOICE_ENABLED", "false")
     monkeypatch.setenv("TTS_ENABLED", "false")
     monkeypatch.setenv("SIMULATION_DATA_ONLY", "true")
+    monkeypatch.setenv("SPEECH_ASR_PROVIDER", "disabled")
+    monkeypatch.setenv("SPEECH_TTS_PROVIDER", "disabled")
+    monkeypatch.setenv("SPEECH_SIMULATION_ENABLED", "false")
+    monkeypatch.setenv("SPEECH_AUDIO_RETENTION_ENABLED", "false")
     monkeypatch.setenv("BACKEND_ENV_FILE", _OFFLINE_ENV_FILE)
     for name in _LLM_CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
