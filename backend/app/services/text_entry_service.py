@@ -80,6 +80,16 @@ class TextEntryService:
         self.safety_signal_detector = safety_signal_detector or SafetySignalDetector()
         self.multilingual_text_service = multilingual_text_service
 
+    def ensure_session_context(
+        self,
+        session_id: str,
+        *,
+        restaurant_code: str | None = None,
+        branch_code: str | None = None,
+    ):
+        """Resolve tenant binding and return a detached read snapshot."""
+        return self._store_get(session_id, restaurant_code, branch_code).clone()
+
     async def handle_text_message(
         self,
         session_id: str,
@@ -107,6 +117,112 @@ class TextEntryService:
                 locale_hint,
                 locale_locked,
             )
+
+    async def handle_non_text_input_failure(
+        self,
+        session_id: str,
+        failure_code: str,
+        *,
+        restaurant_code: str | None = None,
+        branch_code: str | None = None,
+        confidence_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Route speech/input failures through the existing safety owner.
+
+        This entry point never accepts a transcript and never calls the
+        Orchestrator.  It exists so I/O adapters cannot write order or Handoff
+        state directly while no-speech and provider failures still advance the
+        Phase 3 safety counters.
+        """
+        lock = self.lock_manager.get_lock(session_id)
+        async with lock:
+            return await asyncio.to_thread(
+                self._handle_non_text_input_failure_sync,
+                session_id,
+                failure_code,
+                restaurant_code,
+                branch_code,
+                confidence_metadata,
+            )
+
+    def _handle_non_text_input_failure_sync(
+        self,
+        session_id: str,
+        failure_code: str,
+        restaurant_code: str | None,
+        branch_code: str | None,
+        confidence_metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        allowed = {
+            "NO_SPEECH_DETECTED",
+            "SPEECH_TIMEOUT",
+            "SPEECH_PROVIDER_FAILURE",
+            "SPEECH_LANGUAGE_UNSUPPORTED",
+            "AUDIO_TRUNCATED",
+        }
+        if failure_code not in allowed:
+            raise ValueError("unsupported non-text input failure")
+        state = self._store_get(session_id, restaurant_code, branch_code)
+        signals = ("LANGUAGE_UNSUPPORTED",) if failure_code == "SPEECH_LANGUAGE_UNSUPPORTED" else ()
+        confidence = confidence_metadata or {"overall_confidence": 0.0}
+        guarded = None
+        if self.safety_audit_service and self.handoff_service:
+            guarded = self._handle_safety_preflight(
+                session_id=session_id,
+                text="",
+                state=state,
+                restaurant_code=restaurant_code,
+                branch_code=branch_code,
+                confidence_metadata=confidence,
+                extra_signals=signals,
+            )
+        if guarded is None:
+            guarded = self._guarded_result(
+                session_id,
+                state,
+                self._non_text_failure_response(state.response_locale, failure_code),
+                {
+                    "selectedAgent": "TextEntryService",
+                    "selectedHandler": "non_text_input_failure",
+                    "finalIntent": "clarify",
+                    "fallbackUsed": False,
+                    "stateMutationAllowed": False,
+                    "stateMutationRejectedReason": failure_code,
+                },
+            )
+        else:
+            guarded["response"] = self._non_text_failure_response(
+                state.response_locale,
+                failure_code,
+                handoff=state.safety_classification == DecisionClass.HANDOFF.value,
+            )
+            guarded.setdefault("trace", {})["inputFailureCode"] = failure_code
+        if state.safety_classification != DecisionClass.HANDOFF.value:
+            self._store_set(session_id, state, restaurant_code, branch_code)
+        guarded["state"] = state.serializable()
+        guarded["detected_locale"] = state.detected_locale
+        guarded["dominant_locale"] = state.dominant_locale
+        guarded["response_locale"] = state.response_locale
+        guarded["mixed_language"] = state.mixed_language
+        guarded["required_confirmations"] = list(state.unconfirmed_fields)
+        return guarded
+
+    @staticmethod
+    def _non_text_failure_response(locale: str, code: str, *, handoff: bool = False) -> str:
+        if handoff:
+            return {
+                "yue-Hant-HK": "已進入模擬人工接管（唔係真人）；訂單唔會自動提交。",
+                "en-HK": "A simulated handoff is required (not a real person); the order will not be submitted.",
+            }.get(locale, "已进入模拟人工接管（不是真人）；订单不会自动提交。")
+        if code == "SPEECH_LANGUAGE_UNSUPPORTED":
+            return {
+                "yue-Hant-HK": "呢個語言暫時唔支援，已保留草稿並進入安全處理。",
+                "en-HK": "That language is not supported; the draft is preserved for safe handling.",
+            }.get(locale, "暂不支持该语言；草稿已保留并进入安全处理。")
+        return {
+            "yue-Hant-HK": "我未能安全取得語音內容，請用合成 fixture 再試一次。",
+            "en-HK": "I could not safely obtain the speech content. Please retry with a synthetic fixture.",
+        }.get(locale, "未能安全取得语音内容，请使用合成 fixture 重试。")
 
     def _handle_text_message_sync(
         self,
