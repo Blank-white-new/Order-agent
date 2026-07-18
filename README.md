@@ -36,6 +36,7 @@
 - [阶段 1：产品范围、风险边界和验收指标](docs/phase-1/README.md)
 - [阶段 2：统一业务模型和持久化](docs/phase-2/README.md)
 - [阶段 4：普通话、粤语、香港英语与混合语言文本系统](docs/phase-4/README.md) — 确定性文本解析、版本化三语菜单和 360 条离线文本评测；不代表 ASR、TTS 或电话能力。
+- [阶段 5：语音 Provider 契约与离线合成音频评测](docs/phase-5/README.md) — 仅验证 Replay ASR/TTS、音频安全和既有文本/订单管线，不代表真实语音或电话能力。
 - [当前能力与稳定基线](docs/current-capabilities.md)
 - [本地开发与干净环境安装](docs/local-development.md)
 - [系统架构](docs/architecture.md)

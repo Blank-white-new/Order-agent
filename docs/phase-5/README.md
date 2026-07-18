@@ -1,0 +1,52 @@
+# Phase 5：语音 Provider 契约与离线评测
+
+Phase 5 为普通话、粤语、香港英语和混合语言增加一条严格离线、可审计的合成语音入口。它验证音频容器、Provider 契约、错误处理、TextEntryService 集成、Phase 3 SafetyDecision 和订单数据库语义，不代表真实 ASR/TTS 能力。
+
+## 已实现
+
+- 单声道 PCM S16LE 与 WAV/PCM S16LE 的严格校验和无损提取；
+- 集中式 ASR/TTS Provider Registry，默认关闭且 fail closed；
+- 基于 fixture ID、音频 SHA-256 和人工审阅清单的 Replay ASR；
+- 基于文本 SHA-256 和固定合成波形的 Replay TTS；
+- 唯一音频入口 `SpeechPipelineService`，成功转写只进入 `TextEntryService`；
+- 仅保存白名单元数据的 `speech_turn_records` 审计表；
+- development/test 专用 API 和开发态前端回放面板；
+- 240 条离线音频场景，以及独立的 ASR/TTS 评测。
+
+## 安全边界
+
+Replay Provider 不是实际 ASR/TTS。本阶段未接真实电话、真实在线 Provider、真实顾客录音或模型下载；不评估真实识别准确率、TTS 可懂度或自然度。生产默认关闭模拟端点，音频和完整 transcript 均不持久化。
+
+订单语义链路固定为：
+
+```text
+AudioValidator -> AudioNormalizer -> ReplayAsrProvider
+-> TextEntryService -> Phase 4 canonical parsing
+-> Phase 3 SafetyDecision -> Orchestrator -> order persistence
+```
+
+TTS 只读取已经形成的权威回复；TTS 失败不得回滚或推进订单。任何下单仍必须明确确认，Replay transcript 也不能绕过确认。
+
+## 验证
+
+```powershell
+.\backend\.venv\Scripts\python.exe scripts\validate_phase5_audio_catalog.py
+.\backend\.venv\Scripts\python.exe evaluation\run_phase5_speech_pipeline_eval.py
+.\backend\.venv\Scripts\python.exe evaluation\run_phase5_tts_pipeline_eval.py
+.\scripts\check_all.ps1 -Build
+```
+
+详细说明：
+
+- [语音架构](speech-architecture.md)
+- [Provider 契约](provider-contracts.md)
+- [音频格式](audio-formats.md)
+- [音频安全](audio-security.md)
+- [ASR confidence 策略](asr-confidence-policy.md)
+- [Replay Provider](replay-provider.md)
+- [TTS 管线](tts-pipeline.md)
+- [数据保留](data-retention.md)
+- [离线评测](evaluation.md)
+- [验收矩阵](verification-matrix.md)
+
+Phase 6 的进入条件是先完成法律、隐私、威胁建模和 Provider 沙箱评审，再考虑电话媒体管线或真实 Provider；本 PR 不提前实现这些能力。
