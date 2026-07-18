@@ -30,5 +30,10 @@ models/tts/*
 *.pcm
 *.mp3
 audio/
+
+# Phase 5 contains small, deterministic synthetic tone fixtures. They carry no
+# real speech and are required for offline hash/container evaluation.
+!evaluation/audio/
+!evaluation/audio/**
 *.onnx
 *.bin

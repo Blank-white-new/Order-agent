@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 5 synthetic speech pipeline scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenarioId",
+    "fixtureId",
+    "audioPath",
+    "sha256",
+    "locale",
+    "restaurantCode",
+    "branchCode",
+    "providerMode",
+    "contentType",
+    "encoding",
+    "sampleRateHz",
+    "channels",
+    "sampleWidthBytes",
+    "expectedTranscript",
+    "expectedDetectedLocale",
+    "expectedIntent",
+    "expectedClassification",
+    "expectedMutation",
+    "expectedItemCode",
+    "expectedQuantity",
+    "expectedHandoffReason",
+    "expectedRefusalReason",
+    "expectedSpeechOutcome",
+    "expectedErrorCode",
+    "expectedDatabaseOrderCount",
+    "setupInputs",
+    "semanticCategory",
+    "forbiddenOutcomes",
+    "synthetic"
+  ],
+  "properties": {
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^P5-(ZH|YUE|EN|MIX)-[0-9]{3}$"
+    },
+    "fixtureId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "audioPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locale": {
+      "enum": [
+        "zh-CN",
+        "yue-Hant-HK",
+        "en-HK",
+        "mixed"
+      ]
+    },
+    "restaurantCode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branchCode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "providerMode": {
+      "const": "REPLAY"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "encoding": {
+      "enum": [
+        "PCM_S16LE",
+        "WAV_PCM_S16LE"
+      ]
+    },
+    "sampleRateHz": {
+      "type": "integer"
+    },
+    "channels": {
+      "type": "integer"
+    },
+    "sampleWidthBytes": {
+      "type": "integer"
+    },
+    "expectedTranscript": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedDetectedLocale": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedIntent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedClassification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedMutation": {
+      "type": "boolean"
+    },
+    "expectedItemCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedQuantity": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "expectedHandoffReason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedRefusalReason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedSpeechOutcome": {
+      "type": "string"
+    },
+    "expectedErrorCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expectedDatabaseOrderCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "setupInputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semanticCategory": {
+      "type": "string"
+    },
+    "forbiddenOutcomes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "synthetic": {
+      "const": true
+    }
+  }
+}
