@@ -33,6 +33,7 @@ from app.services.tenant_service import TenantService  # noqa: E402
 from app.services.text_entry_service import TextEntryService  # noqa: E402
 from app.speech.audio_validator import AudioValidator  # noqa: E402
 from app.speech.config import SpeechSettings  # noqa: E402
+from app.speech.invocation_observer import ProviderInvocationObserver  # noqa: E402
 from app.speech.provider_registry import SpeechProviderRegistry  # noqa: E402
 from app.speech.replay_asr_provider import ReplayAsrProvider  # noqa: E402
 from app.speech.replay_tts_provider import ReplayTtsProvider  # noqa: E402
@@ -53,6 +54,7 @@ class Phase5Context:
     registry: SpeechProviderRegistry
     validator: AudioValidator
     pipeline: SpeechPipelineService
+    invocation_observer: ProviderInvocationObserver
 
 
 def migrate(database_url: str, revision: str = "head") -> None:
@@ -128,18 +130,21 @@ def make_phase5_context(database_url: str) -> Phase5Context:
         audio_retention_enabled=False,
     )
     validator = AudioValidator(speech_settings)
+    invocation_observer = ProviderInvocationObserver()
     registry = SpeechProviderRegistry(
         speech_settings,
         asr_providers=(
             ReplayAsrProvider(
                 ROOT / "evaluation" / "audio" / "manifests" / "phase5_asr_manifest.jsonl",
                 ROOT,
+                invocation_observer,
             ),
         ),
         tts_providers=(
             ReplayTtsProvider(
                 ROOT / "evaluation" / "audio" / "manifests" / "phase5_tts_manifest.jsonl",
                 ROOT,
+                invocation_observer,
             ),
         ),
     )
@@ -161,4 +166,5 @@ def make_phase5_context(database_url: str) -> Phase5Context:
         registry=registry,
         validator=validator,
         pipeline=pipeline,
+        invocation_observer=invocation_observer,
     )

@@ -11,14 +11,21 @@ from app.speech.contracts import (
 )
 from app.speech.errors import speech_error
 from app.speech.formats import AudioEncoding, ProviderMode
+from app.speech.invocation_observer import ProviderInvocation, ProviderInvocationObserver
 from app.speech.manifest import load_jsonl, safe_repository_path
 
 
 class ReplayAsrProvider:
     """Offline fixture replay.  This class performs no speech recognition."""
 
-    def __init__(self, manifest_path: Path, repository_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        manifest_path: Path,
+        repository_root: Path | None = None,
+        invocation_observer: ProviderInvocationObserver | None = None,
+    ) -> None:
         self._repository_root = (repository_root or manifest_path.resolve().parents[3]).resolve()
+        self._invocation_observer = invocation_observer
         self._entries = {
             str(row.get("fixtureId")): row
             for row in load_jsonl(manifest_path)
@@ -69,14 +76,42 @@ class ReplayAsrProvider:
         )
 
     def transcribe(self, request: SpeechRecognitionRequest) -> TranscriptEnvelope:
+        capabilities = self.capabilities()
+        invocation = ProviderInvocation(
+            provider_name=self.name,
+            provider_mode=capabilities.provider_mode,
+            requires_network=capabilities.requires_network,
+            operation="transcribe",
+            fixture_id=request.audio.fixture_id,
+        )
+        try:
+            result = self._transcribe(request, invocation)
+            invocation.success = True
+            return result
+        except Exception as exc:
+            invocation.error_code = getattr(exc, "code", "SPEECH_PROVIDER_FAILURE")
+            raise
+        finally:
+            if self._invocation_observer is not None:
+                self._invocation_observer.record(invocation)
+
+    def _transcribe(
+        self,
+        request: SpeechRecognitionRequest,
+        invocation: ProviderInvocation,
+    ) -> TranscriptEnvelope:
         fixture_id = request.audio.fixture_id
         if not request.audio.synthetic or not fixture_id:
             raise speech_error("SPEECH_FIXTURE_NOT_FOUND")
+        invocation.fixture_lookup_performed = True
         entry = self._entries.get(fixture_id)
+        invocation.fixture_found = entry is not None
         if entry is None:
             raise speech_error("SPEECH_FIXTURE_NOT_FOUND")
         actual_hash = hashlib.sha256(request.audio.payload).hexdigest()
-        if actual_hash != str(entry.get("sha256", "")).casefold():
+        invocation.hash_comparison_performed = True
+        invocation.hash_matched = actual_hash == str(entry.get("sha256", "")).casefold()
+        if not invocation.hash_matched:
             raise speech_error("SPEECH_FIXTURE_HASH_MISMATCH")
         expected_metadata = (
             str(entry.get("contentType", "")).casefold(),
@@ -92,7 +127,9 @@ class ReplayAsrProvider:
             request.audio.channels,
             request.audio.sample_width_bytes,
         )
-        if actual_metadata != expected_metadata:
+        invocation.metadata_comparison_performed = True
+        invocation.metadata_matched = actual_metadata == expected_metadata
+        if not invocation.metadata_matched:
             raise speech_error("SPEECH_FIXTURE_HASH_MISMATCH")
 
         outcome = str(entry.get("outcome", "SUCCESS")).upper()

@@ -143,12 +143,25 @@ jobs:
           backend\tests\phase5\test_audio_validator.py
           backend\tests\phase5\test_replay_providers.py
 
-      - name: Phase 5 speech pipeline and evaluator independence tests
+      - name: Phase 5 speech pipeline and API tests
         shell: pwsh
         run: >-
           .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
           backend\tests\phase5\test_speech_pipeline.py
+          backend\tests\phase5\test_api_contract.py
+
+      - name: Phase 5 metric denominator and Provider invocation tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
           backend\tests\phase5\test_evaluator_independence.py
+
+      - name: Phase 5 persistence schema and tenant isolation tests
+        shell: pwsh
+        run: >-
+          .\backend\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
+          backend\tests\phase5\test_speech_audit_repository.py
+          backend\tests\phase5\test_database_guards.py
           backend\tests\phase5\test_api_contract.py
 
       - name: Phase 5 complete test suite on SQLite
@@ -317,6 +330,18 @@ jobs:
       - name: Phase 5 speech audit, tenant-negative, confirmation, and idempotency tests on PostgreSQL
         shell: bash
         run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5
+
+      - name: Phase 5 metric denominator and Provider invocation tests on PostgreSQL
+        shell: bash
+        run: backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider backend/tests/phase5/test_evaluator_independence.py
+
+      - name: Phase 5 persistence schema and tenant isolation tests on PostgreSQL
+        shell: bash
+        run: >-
+          backend/.venv/bin/python -B -m pytest -q -p no:cacheprovider
+          backend/tests/phase5/test_speech_audit_repository.py
+          backend/tests/phase5/test_database_guards.py
+          backend/tests/phase5/test_api_contract.py
 
       - name: Phase 5 speech pipeline evaluation on PostgreSQL
         shell: bash

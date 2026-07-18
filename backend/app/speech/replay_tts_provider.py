@@ -6,14 +6,21 @@ from pathlib import Path
 from app.speech.contracts import SynthesisEnvelope, SynthesisRequest, TtsCapabilities
 from app.speech.errors import speech_error
 from app.speech.formats import AudioEncoding, ProviderMode
+from app.speech.invocation_observer import ProviderInvocation, ProviderInvocationObserver
 from app.speech.manifest import load_jsonl, safe_repository_path
 
 
 class ReplayTtsProvider:
     """Returns pre-reviewed synthetic WAV fixtures; it does not synthesize speech."""
 
-    def __init__(self, manifest_path: Path, repository_root: Path) -> None:
+    def __init__(
+        self,
+        manifest_path: Path,
+        repository_root: Path,
+        invocation_observer: ProviderInvocationObserver | None = None,
+    ) -> None:
         self.repository_root = repository_root.resolve()
+        self._invocation_observer = invocation_observer
         self._entries: dict[tuple[str, str, str, str, int], dict] = {}
         for row in load_jsonl(manifest_path):
             key = (
@@ -44,6 +51,25 @@ class ReplayTtsProvider:
         )
 
     def synthesize(self, request: SynthesisRequest) -> SynthesisEnvelope:
+        capabilities = self.capabilities()
+        invocation = ProviderInvocation(
+            provider_name=self.name,
+            provider_mode=capabilities.provider_mode,
+            requires_network=capabilities.requires_network,
+            operation="synthesize",
+        )
+        try:
+            result = self._synthesize(request)
+            invocation.success = True
+            return result
+        except Exception as exc:
+            invocation.error_code = getattr(exc, "code", "SPEECH_PROVIDER_FAILURE")
+            raise
+        finally:
+            if self._invocation_observer is not None:
+                self._invocation_observer.record(invocation)
+
+    def _synthesize(self, request: SynthesisRequest) -> SynthesisEnvelope:
         if not request.synthetic or not request.text.strip():
             raise speech_error("TTS_FIXTURE_NOT_FOUND")
         text_hash = hashlib.sha256(request.text.encode("utf-8")).hexdigest()
