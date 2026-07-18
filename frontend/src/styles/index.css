@@ -736,6 +736,60 @@ pre {
   cursor: not-allowed;
 }
 
+.speech-replay-panel {
+  border: 2px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.speech-replay-warning {
+  color: #92400e;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.speech-replay-panel select,
+.speech-replay-panel input[type="file"] {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.speech-replay-actions {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.speech-replay-actions button,
+.speech-upload {
+  border: 1px solid #f59e0b;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  background: #ffffff;
+  color: #92400e;
+  cursor: pointer;
+}
+
+.speech-replay-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.speech-replay-result {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.speech-replay-result dt {
+  color: var(--muted);
+}
+
+.speech-replay-result dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     padding: 14px;
