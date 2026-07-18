@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 import app.api.speech as speech_api
+from app.db.models import IdempotencyRecord, Order, OrderConfirmation, SpeechTurnRecord
 from app.main import app
 from app.speech.config import SpeechSettings
+from evaluation.run_phase5_speech_pipeline_eval import temporary_artifact_snapshot
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -51,6 +55,14 @@ def enable(phase5, monkeypatch):
     monkeypatch.setattr(speech_api, "speech_settings", phase5.speech_settings)
     monkeypatch.setattr(speech_api, "speech_registry", phase5.registry)
     monkeypatch.setattr(speech_api, "speech_pipeline_service", phase5.pipeline)
+
+
+def database_row_counts(phase5) -> tuple[int, int, int, int]:
+    with phase5.uow_factory() as uow:
+        return tuple(
+            int(uow.session.scalar(select(func.count(model.id))) or 0)
+            for model in (Order, OrderConfirmation, IdempotencyRecord, SpeechTurnRecord)
+        )
 
 
 def test_production_and_default_disabled_are_not_exposed(monkeypatch):
@@ -130,6 +142,84 @@ def test_api_rejects_empty_forged_mime_and_cross_tenant_session(phase5, monkeypa
     rejected = client.post("/api/speech/respond", content=payload, headers=headers(other, session))
     assert rejected.status_code == 409
     assert rejected.json()["error"]["code"] == "TENANT_CONTEXT_MISMATCH"
+
+
+def test_cross_tenant_api_rebinding_is_stable_non_leaking_and_read_only(
+    phase5, monkeypatch
+):
+    enable(phase5, monkeypatch)
+    client = TestClient(app)
+    value = scenario_by_category("confirm")
+    payload = (ROOT / value["audioPath"]).read_bytes()
+    session_key = f"phase5-api-tenant-a-{uuid4().hex}"
+    for setup in value["setupInputs"]:
+        asyncio.run(
+            phase5.text_entry.handle_text_message(
+                session_key,
+                setup,
+                restaurant_code=value["restaurantCode"],
+                branch_code=value["branchCode"],
+            )
+        )
+    created = client.post(
+        "/api/speech/respond",
+        content=payload,
+        headers=headers(value, session_key),
+    )
+    assert created.status_code == 200
+    tenant_a = phase5.tenant_service.resolve(
+        value["restaurantCode"], value["branchCode"]
+    )
+    with phase5.uow_factory() as uow:
+        session = uow.sessions.get(
+            session_key, tenant_a.restaurant_id, tenant_a.branch_id
+        )
+        audit = uow.speech.list_scoped(
+            session.id, tenant_a.restaurant_id, tenant_a.branch_id
+        )[0]
+        order = uow.orders.get_latest_for_session(
+            session.id, tenant_a.restaurant_id, tenant_a.branch_id
+        )
+        forbidden_values = {
+            session_key,
+            value["fixtureId"],
+            audit.public_id,
+            order.public_id,
+        }
+    rebound_headers = {
+        **headers(value, session_key),
+        "X-Restaurant-Code": "hk-sim-restaurant-b",
+        "X-Branch-Code": "harbor",
+    }
+    before = database_row_counts(phase5)
+    error_codes = []
+    for endpoint in ("respond", "transcribe"):
+        observer_snapshot = phase5.invocation_observer.snapshot()
+        rejected = client.post(
+            f"/api/speech/{endpoint}",
+            content=payload,
+            headers=rebound_headers,
+        )
+        assert rejected.status_code == 409
+        error_codes.append(rejected.json()["error"]["code"])
+        assert not phase5.invocation_observer.events_since(observer_snapshot)
+        assert all(value not in rejected.text for value in forbidden_values)
+        assert database_row_counts(phase5) == before
+    assert error_codes == ["TENANT_CONTEXT_MISMATCH", "TENANT_CONTEXT_MISMATCH"]
+
+
+def test_audio_upload_request_does_not_create_temporary_files(phase5, monkeypatch):
+    enable(phase5, monkeypatch)
+    value = scenario()
+    before = temporary_artifact_snapshot()
+    response = TestClient(app).post(
+        "/api/speech/respond",
+        content=(ROOT / value["audioPath"]).read_bytes(),
+        headers=headers(value, f"phase5-api-memory-only-{uuid4().hex}"),
+    )
+    after = temporary_artifact_snapshot()
+    assert response.status_code == 200
+    assert after == before
 
 
 def test_api_rejects_oversize_malformed_silence_and_hash_mismatch(phase5, monkeypatch):

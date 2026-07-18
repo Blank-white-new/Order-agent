@@ -1,17 +1,33 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import inspect
+import pytest
+from sqlalchemy import LargeBinary, inspect
 
+from app.db.base import Base
+from app.speech.config import SpeechSettings
 from app.speech.contracts import AudioInput
 from app.speech.formats import AudioEncoding
 
 
 ROOT = Path(__file__).resolve().parents[3]
+FORBIDDEN_COLUMNS = {
+    "raw_audio",
+    "audio_payload",
+    "audio_blob",
+    "full_transcript",
+    "transcript_text",
+    "full_address",
+    "full_phone",
+    "provider_secret",
+    "voiceprint",
+    "speaker_embedding",
+}
 
 
 def test_speech_audit_persists_allow_list_without_audio_or_transcript(phase5):
@@ -49,9 +65,31 @@ def test_speech_audit_persists_allow_list_without_audio_or_transcript(phase5):
         assert record.fixture_id == row["fixtureId"]
         assert record.provider_mode == "REPLAY"
         assert record.is_synthetic is True
+        values = [getattr(record, column.name) for column in record.__table__.columns]
+        assert payload not in values
+        assert base64.b64encode(payload).decode("ascii") not in values
+        assert not any(isinstance(value, (bytes, bytearray, memoryview)) for value in values)
     columns = {column["name"] for column in inspect(phase5.database.engine).get_columns("speech_turn_records")}
-    assert "raw_audio" not in columns
-    assert "full_transcript" not in columns
-    assert "full_address" not in columns
-    assert "full_phone" not in columns
-    assert "provider_secret" not in columns
+    metadata_columns = {
+        column.name for column in Base.metadata.tables["speech_turn_records"].columns
+    }
+    assert FORBIDDEN_COLUMNS.isdisjoint(columns)
+    assert FORBIDDEN_COLUMNS.isdisjoint(metadata_columns)
+    assert not any(
+        isinstance(column.type, LargeBinary)
+        for column in Base.metadata.tables["speech_turn_records"].columns
+    )
+    assert all(
+        "BLOB" not in str(column["type"]).upper()
+        and "BINARY" not in str(column["type"]).upper()
+        and "BYTEA" not in str(column["type"]).upper()
+        for column in inspect(phase5.database.engine).get_columns("speech_turn_records")
+    )
+
+
+def test_audio_retention_configuration_cannot_be_enabled(monkeypatch):
+    monkeypatch.setenv("SPEECH_AUDIO_RETENTION_ENABLED", "false")
+    assert SpeechSettings.from_env(app_env="test").audio_retention_enabled is False
+    monkeypatch.setenv("SPEECH_AUDIO_RETENTION_ENABLED", "true")
+    with pytest.raises(ValueError, match="does not permit persistent audio retention"):
+        SpeechSettings.from_env(app_env="test")
