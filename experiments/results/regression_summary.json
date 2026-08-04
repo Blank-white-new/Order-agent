@@ -1,0 +1,59 @@
+{
+  "date": "2026-08-04",
+  "initial_check_all": {
+    "command": ".\\scripts\\check_all.ps1 -Build",
+    "status": "FAILED_ONCE",
+    "backend_pytest": {
+      "passed": 1280,
+      "skipped": 1,
+      "failed": 1,
+      "failure": "tests/phase2/test_integrity_audit.py::test_concurrent_restaurant_wide_publication_has_one_winner_and_no_branch_gap returned two PUBLISHED results"
+    },
+    "note": "The failing SQLite concurrency test is outside experiments/ and no production source was modified. The failure is retained in this audit."
+  },
+  "isolated_concurrency_retries": {
+    "same_test_attempts": 3,
+    "passed": 3,
+    "failed": 0
+  },
+  "final_check_all": {
+    "command": ".\\scripts\\check_all.ps1 -Build",
+    "status": "PASSED",
+    "backend_pytest": {"passed": 1281, "skipped": 1, "failed": 0},
+    "frontend_vitest": {"files_passed": 11, "tests_passed": 88, "failed": 0},
+    "frontend_typescript": "PASSED",
+    "frontend_build": "PASSED"
+  },
+  "explicit_phase4": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_phase4_multilingual_text_eval.py --mode both",
+    "status": "PASSED",
+    "auto": {"total": 360, "intent_matches": 360, "classification_matches": 360, "wrong_mutations": 0, "confirmation_bypasses": 0, "live_llm_triggers": 0},
+    "assisted": {"total": 360, "intent_matches": 360, "classification_matches": 360, "wrong_mutations": 0, "confirmation_bypasses": 0, "live_llm_triggers": 0}
+  },
+  "explicit_phase5": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_phase5_speech_pipeline_eval.py",
+    "status": "PASSED",
+    "total": 240,
+    "audio_validation_matches": 240,
+    "mutation_matches": 240,
+    "confirmation_bypasses": 0,
+    "wrong_mutations": 0,
+    "live_provider_invocations": 0,
+    "live_llm_triggers": 0
+  },
+  "explicit_dialogue_v3": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_dialogue_eval_v3.py --dataset evaluation\\dialogues_v3.jsonl --fail-on-regression",
+    "status": "PASSED",
+    "total": 57,
+    "passed": 57,
+    "failed": 0,
+    "false_mutations": 0,
+    "confirmation_bypasses": 0,
+    "llm_triggers": 0
+  },
+  "experiment_tests": {
+    "token_latency": {"passed": 8, "failed": 0},
+    "barge_in": {"passed": 7, "failed": 0}
+  }
+}
+

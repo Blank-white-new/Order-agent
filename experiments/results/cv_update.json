@@ -1,0 +1,93 @@
+{
+  "excluded_metrics": [
+    "local latency",
+    "Replay latency",
+    "interruption F1/FPR",
+    "recovery",
+    "real speech",
+    "cost"
+  ],
+  "new_metric_inserted": "projected LLM input-token and model-call reduction only",
+  "numeric_consistency": {
+    "bootstrap_ci_percent": [
+      100,
+      100
+    ],
+    "conversations": 160,
+    "reduction_percent": 100,
+    "turns": 868
+  },
+  "render_iterations": [
+    {
+      "iteration": 1,
+      "language": "English",
+      "pages": 1,
+      "result": "accepted"
+    },
+    {
+      "iteration": 1,
+      "language": "Chinese",
+      "pages": 2,
+      "result": "rejected_overflow"
+    },
+    {
+      "iteration": 2,
+      "language": "Chinese",
+      "pages": 1,
+      "result": "accepted"
+    }
+  ],
+  "source_metric": "experiments/reports/resume_metrics_review.md",
+  "updates": [
+    {
+      "after": "Benchmarked the structured deterministic path against a documented full-context LLM baseline on 160 synthetic ordering conversations (868 turns): the offline path retained AUTO_DRAFT, CONFIRM, HANDOFF, and REFUSE gates while reducing projected LLM input-token transfer and model-call requirements by 100% (bootstrap 95% CI, 100%–100%); counts use a deterministic Unicode-codepoint estimator and do not represent billed tokens.",
+      "after_sha256": "0481f7a755de925328bd99ec812a18b340be6d32f277d2d9782c589a87f8d880",
+      "before": "Structured routine ordering operations around canonical intents, deterministic state transitions, and explicit safety rules, while confining optional model-driven reasoning to a validated fallback sandbox for low-confidence cases; designed the architecture to limit unnecessary model calls and long-context transmission and make latency, inference cost, and high-impact actions more controllable, with AUTO_DRAFT, CONFIRM, HANDOFF, and REFUSE pathways.",
+      "before_sha256": "ee7d5a396d44068a3d7599137a64a1bc843fd7ac56159cd31c537759987c1e94",
+      "paragraph_style": "CV Bullet",
+      "path": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\Zhihan_Sun_CV_EN.docx"
+    },
+    {
+      "after": "在 160 组合成订餐会话（868 轮）上成对比较结构化路径与有文档定义的完整上下文 LLM 基线：禁用实时 LLM 的离线配置在保留 AUTO_DRAFT、CONFIRM、HANDOFF、REFUSE 门控下，使预估 LLM 输入 Token 传输量和模型调用需求均降低 100%（Bootstrap 95% CI：100%–100%；Unicode code-point 估算，非实际计费 Token）。",
+      "after_sha256": "c5d6e66727bc02b7ef3422cdcf2e2772139593d250ec80b00cb7cf2e5e18e605",
+      "before": "以规范化意图、确定性状态转换和显式安全规则处理常规订餐操作，仅在经校验的低置信度 fallback 沙箱中保留可选模型推理；该设计旨在减少不必要的模型调用与长上下文传输，使延迟、推理成本和高影响操作更可控，并设置 AUTO_DRAFT、CONFIRM、HANDOFF、REFUSE 四类路径。",
+      "before_sha256": "33a4001d2b3f47c8ea8147b54d8abe2a20a1fb62e1a0ddf9db57d3213abbf0a0",
+      "paragraph_style": "CV Bullet",
+      "path": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\孙之涵_简历_CN.docx"
+    }
+  ],
+  "verification": {
+    "english_chinese_numeric_consistency": true,
+    "files": {
+      "chinese_docx": {
+        "first_project_bullets": 5,
+        "paragraphs": 29,
+        "sha256": "c5d6e66727bc02b7ef3422cdcf2e2772139593d250ec80b00cb7cf2e5e18e605"
+      },
+      "chinese_pdf": {
+        "extracted_characters": 1306,
+        "pages": 1,
+        "sha256": "775c8030b3f8ab44bd51e24d00be7336a5dcf4ca5a59b32666b40abd66572368"
+      },
+      "english_docx": {
+        "first_project_bullets": 5,
+        "paragraphs": 29,
+        "sha256": "0481f7a755de925328bd99ec812a18b340be6d32f277d2d9782c589a87f8d880"
+      },
+      "english_pdf": {
+        "extracted_characters": 3650,
+        "pages": 1,
+        "sha256": "3e7f0ddeed552348d9290a1acbf8ad2fb1047178e21c5f76c0505f4d44847cfd"
+      }
+    },
+    "pdf_page_count_each": 1,
+    "project_bullet_count_each": 5,
+    "unsupported_claims_added": false,
+    "visual_review": {
+      "chinese_pages_inspected": 1,
+      "english_pages_inspected": 1,
+      "method": "Word PDF export, Poppler 150-dpi full-page PNG, manual inspection at original resolution",
+      "overflow_or_clipping": false
+    }
+  }
+}
