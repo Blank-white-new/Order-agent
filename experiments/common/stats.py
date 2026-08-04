@@ -74,4 +74,3 @@ def relative_drift(values: Sequence[float]) -> float:
     if center == 0:
         return 0.0 if max(materialized) == 0 else float("inf")
     return (max(materialized) - min(materialized)) / center
-

@@ -2,4 +2,3 @@
 # Production dependencies and backend lock files are intentionally unchanged.
 numpy==2.3.5
 Pillow==12.2.0
-

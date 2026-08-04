@@ -76,4 +76,3 @@ def build_prompt(*, menu_snapshot: str, history: list[dict[str, str]], user_utte
         f"[CURRENT USER UTTERANCE]\n{user_utterance}\n\n"
         "Return a concise response and a structured draft-state update."
     )
-

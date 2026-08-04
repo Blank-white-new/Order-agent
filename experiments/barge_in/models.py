@@ -227,4 +227,3 @@ def model_from_dict(payload: dict):
             threshold=float(payload["threshold"]),
         )
     raise ValueError(f"unsupported model type {model_type}")
-

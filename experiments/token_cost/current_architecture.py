@@ -24,4 +24,3 @@ def summarize_runtime_result(result: dict[str, Any]) -> dict[str, Any]:
         "execution_path": trace.get("executionPath") or "",
         "response": str(result.get("response") or ""),
     }
-

@@ -38,4 +38,3 @@ def force_offline_environment(label: str) -> None:
     )
     for name in SENSITIVE_PROVIDER_VARIABLES:
         os.environ.pop(name, None)
-

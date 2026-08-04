@@ -93,4 +93,3 @@ def collect_metadata(
     if extra:
         payload.update(extra)
     return payload
-
