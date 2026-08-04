@@ -1,0 +1,31 @@
+{
+  "asr_provider": "NOT_USED",
+  "bootstrap_resamples": 10000,
+  "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+  "dataset_sha256": "0945846779a91ce413283ff05ec3c4c20bf0bbaf7e42778e339cb96590c9c97c",
+  "experiment": "synthetic_barge_in_evaluation",
+  "experiment_base_sha": "e5aea50d3f9e01940420c50260a0ffeb0f651fc5",
+  "git_branch": "experiment/performance-and-interruption-benchmarks",
+  "git_sha": "e5aea50d3f9e01940420c50260a0ffeb0f651fc5",
+  "llm_enabled": false,
+  "logical_cpu_count": 20,
+  "measurement_count": 240,
+  "memory_bytes": 16780587008,
+  "os": "Windows-11-10.0.22621-SP0",
+  "provider_mode": "offline_synthetic_signal_classifier",
+  "python_executable": "C:\\Users\\孙之涵\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+  "python_version": "3.12.13 (main, Mar  3 2026, 15:01:35) [MSC v.1944 64 bit (AMD64)]",
+  "random_seed": 42,
+  "real_speech_used": false,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "selected_model": "gradient_boosting_stumps",
+  "test_group_count": 120,
+  "test_predictions_sha256": "7be2b70fda3842fe0a05a462b5f018500312440accfaf30e242c12bab39529e9",
+  "timestamp": "2026-08-04T14:21:31.232929+00:00",
+  "tts_provider": "NOT_USED",
+  "warmup_count": 0
+}

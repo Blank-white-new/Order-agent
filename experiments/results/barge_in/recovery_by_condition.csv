@@ -1,0 +1,5 @@
+﻿condition,n,successes,recovery_success_rate
+FN,25,25,1.0
+FP,25,25,1.0
+TN,25,25,1.0
+TP,25,25,1.0

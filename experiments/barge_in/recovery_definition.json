@@ -1,0 +1,21 @@
+{
+  "version": "1.0-preregistered-before-recovery-run",
+  "conditions": ["TP", "FP", "FN", "TN"],
+  "cases_per_condition": 25,
+  "success_requires": {
+    "no_unintended_mutation": "FP and TN preserve the exact business draft; TP and FN change only the requested quantity.",
+    "correct_final_draft": "TP/FN end with one menu line at quantity 3; FP/TN retain one menu line at quantity 2.",
+    "no_confirmation_bypass": "submitted=false and confirmation_valid=false in every condition.",
+    "no_duplicate_order": "zero persisted orders and zero duplicate active confirmations/idempotency records.",
+    "correct_safety_state": "No condition enters HANDOFF or REFUSE solely because of the classifier outcome.",
+    "classifier_is_advisory": "A classifier prediction never calls order confirmation or submission directly."
+  },
+  "condition_behavior": {
+    "TP": "mark output interrupted; route the normalized correction through TextEntryService immediately",
+    "FP": "mark output interrupted; do not route cough/noise as text; request clarification and preserve draft",
+    "FN": "do not treat AI playback completion as customer confirmation; route the later correction through TextEntryService",
+    "TN": "continue playback state; do not mutate draft"
+  },
+  "notes": "This is a synthetic state-machine recovery test, not a streaming audio or production barge-in implementation."
+}
+

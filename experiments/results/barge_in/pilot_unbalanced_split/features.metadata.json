@@ -1,0 +1,33 @@
+{
+  "dataset_sha256": "2d8a8d2b62adb8c295e6a41c9626f00e7f215d167c3e72aeb63c0a8733432775",
+  "deterministic": true,
+  "examples": 1600,
+  "feature_names": [
+    "residual_rms",
+    "mixture_rms",
+    "residual_to_ai_db",
+    "zero_crossing_rate",
+    "spectral_centroid_hz",
+    "spectral_bandwidth_hz",
+    "spectral_flatness",
+    "onset_strength",
+    "active_fraction",
+    "active_duration_ms",
+    "crest_factor",
+    "periodicity_proxy",
+    "pulse_count"
+  ],
+  "feature_source": "mixed waveform minus known AI playback reference",
+  "features_csv_sha256": "a04c5772af939f35549c5597ee49e37d8b2be7e2539fc0d541430a34e61dce00",
+  "forbidden_model_inputs": [
+    "label",
+    "semantic_content",
+    "locale",
+    "event_category",
+    "onset_pct",
+    "target_snr_db",
+    "template_group_id",
+    "waveform_seed"
+  ],
+  "text_or_asr_features_used": false
+}

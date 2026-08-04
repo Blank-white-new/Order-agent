@@ -1,0 +1,51 @@
+{
+  "contains_intelligible_tts": false,
+  "contains_real_customer_data": false,
+  "contains_recorded_voice": false,
+  "dataset": "experiments\\datasets\\barge_in_synthetic.jsonl",
+  "dataset_sha256": "0945846779a91ce413283ff05ec3c4c20bf0bbaf7e42778e339cb96590c9c97c",
+  "distribution": {
+    "event_category": {
+      "acknowledgement": 80,
+      "address_correction": 80,
+      "background_synthetic_speech": 80,
+      "breathing_like": 80,
+      "cancellation": 80,
+      "correction": 80,
+      "cough_like": 80,
+      "cutlery_transient": 80,
+      "direct_stop": 80,
+      "imperative_hold": 80,
+      "impulse_noise": 80,
+      "item_change": 80,
+      "low_volume_background_speech": 80,
+      "music_tone_mixture": 80,
+      "negation": 80,
+      "phone_correction": 80,
+      "quantity_change": 80,
+      "restart_request": 80,
+      "silence": 80,
+      "unrelated_speech": 80
+    },
+    "label": {
+      "INTERRUPTION": 800,
+      "NON_INTERRUPTION": 800
+    },
+    "locale": {
+      "en-HK": 400,
+      "mixed": 400,
+      "yue-Hant-HK": 400,
+      "zh-CN": 400
+    },
+    "split": {
+      "test": 240,
+      "train": 1120,
+      "validation": 240
+    }
+  },
+  "examples": 1600,
+  "group_split": "template_group_id; within each class-locale-category cell 7/1.5/1.5 groups on average, with validation/test rotation",
+  "random_seed": 42,
+  "synthetic": true,
+  "waveform_storage": "manifest parameters plus PCM SHA-256; regenerate on demand"
+}
