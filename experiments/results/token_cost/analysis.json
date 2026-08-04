@@ -1,0 +1,268 @@
+{
+  "baseline_llm_calls_per_conversation": {
+    "iqr": 3.0,
+    "max": 9.0,
+    "mean": 5.425,
+    "median": 6.0,
+    "n": 160,
+    "p25": 4.25,
+    "p50": 6.0,
+    "p75": 7.25,
+    "p90": 8.0,
+    "p95": 8.049999999999983,
+    "p99": 9.0,
+    "standard_deviation": 2.297250201994993
+  },
+  "baseline_tokens_per_conversation": {
+    "iqr": 67316.75,
+    "max": 200219.0,
+    "mean": 118622.58125,
+    "median": 130435.5,
+    "n": 160,
+    "p25": 92261.5,
+    "p50": 130435.5,
+    "p75": 159578.25,
+    "p90": 176271.5,
+    "p95": 178404.0999999997,
+    "p99": 199303.76,
+    "standard_deviation": 50589.55359955415
+  },
+  "baseline_tokens_per_turn": {
+    "iqr": 278.75,
+    "max": 22785.0,
+    "mean": 21865.913594470047,
+    "median": 21803.0,
+    "n": 868,
+    "p25": 21687.5,
+    "p50": 21803.0,
+    "p75": 21966.25,
+    "p90": 22224.0,
+    "p95": 22331.45,
+    "p99": 22562.33,
+    "standard_deviation": 223.37435932872717
+  },
+  "cost_projection": "NOT_EVALUATED",
+  "current_llm_calls_per_conversation": {
+    "iqr": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 160,
+    "p25": 0.0,
+    "p50": 0.0,
+    "p75": 0.0,
+    "p90": 0.0,
+    "p95": 0.0,
+    "p99": 0.0,
+    "standard_deviation": 0.0
+  },
+  "current_tokens_per_conversation": {
+    "iqr": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 160,
+    "p25": 0.0,
+    "p50": 0.0,
+    "p75": 0.0,
+    "p90": 0.0,
+    "p95": 0.0,
+    "p99": 0.0,
+    "standard_deviation": 0.0
+  },
+  "current_tokens_per_turn": {
+    "iqr": 0.0,
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n": 868,
+    "p25": 0.0,
+    "p50": 0.0,
+    "p75": 0.0,
+    "p90": 0.0,
+    "p95": 0.0,
+    "p99": 0.0,
+    "standard_deviation": 0.0
+  },
+  "cv_status": "VERIFIED_FOR_CV",
+  "eligibility_checks": {
+    "baseline_documented": true,
+    "bootstrap_ci_available": true,
+    "no_ground_truth_runtime_fields": true,
+    "raw_csv_exists": true,
+    "same_dataset": true,
+    "sample_at_least_100_conversations": true,
+    "three_runs_stable_within_5_percent": true,
+    "tokenizer_determined": true
+  },
+  "evidence": {
+    "run_1_raw_sha256": "fc3e6f8c9c716c633d8fe21e97e594005a726806e2548927074c680fd9048cac",
+    "run_2_raw_sha256": "bbcb0ad9aa6b24f1ff376b30e408b9ed6f8f91df5055a9e371696c50c010356f",
+    "run_3_raw_sha256": "f27891e8390f52dd3da818a6e3cc4e53ca3e81aa4ebd3cf50bdf715e5860067c"
+  },
+  "experiment": "token_cost",
+  "group_summaries": [
+    {
+      "baseline_mean_tokens": 115690.775,
+      "baseline_median_tokens": 109457.0,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "complex",
+      "grouping": "scenario_type",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    },
+    {
+      "baseline_mean_tokens": 157718.125,
+      "baseline_median_tokens": 164469.5,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "routine",
+      "grouping": "scenario_type",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 80
+    },
+    {
+      "baseline_mean_tokens": 43363.3,
+      "baseline_median_tokens": 43353.0,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "safety",
+      "grouping": "scenario_type",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    },
+    {
+      "baseline_mean_tokens": 119541.025,
+      "baseline_median_tokens": 131867.5,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "en-HK",
+      "grouping": "locale",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    },
+    {
+      "baseline_mean_tokens": 118822.175,
+      "baseline_median_tokens": 130842.5,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "mixed",
+      "grouping": "locale",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    },
+    {
+      "baseline_mean_tokens": 118078.025,
+      "baseline_median_tokens": 130468.0,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "yue-Hant-HK",
+      "grouping": "locale",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    },
+    {
+      "baseline_mean_tokens": 118049.1,
+      "baseline_median_tokens": 130378.5,
+      "current_mean_tokens": 0.0,
+      "current_median_tokens": 0.0,
+      "group": "zh-CN",
+      "grouping": "locale",
+      "mean_token_reduction_ratio": 1.0,
+      "n_conversations": 40
+    }
+  ],
+  "llm_call_reduction_ratio": {
+    "mean_bootstrap_95_ci": {
+      "estimate": 1.0,
+      "lower": 1.0,
+      "resamples": 10000,
+      "seed": 42,
+      "upper": 1.0
+    }
+  },
+  "metric_scope": "projected LLM input-token transfer only",
+  "n_conversations": 160,
+  "n_turns": 868,
+  "paired_mean_token_difference_bootstrap_95_ci": {
+    "estimate": 118622.58125,
+    "lower": 110649.945,
+    "resamples": 10000,
+    "seed": 42,
+    "upper": 126559.15812499999
+  },
+  "paired_token_difference_per_conversation": {
+    "iqr": 67316.75,
+    "max": 200219.0,
+    "mean": 118622.58125,
+    "median": 130435.5,
+    "n": 160,
+    "p25": 92261.5,
+    "p50": 130435.5,
+    "p75": 159578.25,
+    "p90": 176271.5,
+    "p95": 178404.0999999997,
+    "p99": 199303.76,
+    "standard_deviation": 50589.55359955415
+  },
+  "run_stability": {
+    "call_reduction_relative_drift": 0.0,
+    "runs": [
+      {
+        "baseline_mean_calls_per_conversation": 5.425,
+        "baseline_mean_tokens_per_conversation": 118622.58125,
+        "current_mean_calls_per_conversation": 0.0,
+        "current_mean_tokens_per_conversation": 0.0,
+        "llm_call_reduction_ratio": 1.0,
+        "n_conversations": 160,
+        "n_turns": 868,
+        "run_id": 1,
+        "token_reduction_ratio": 1.0
+      },
+      {
+        "baseline_mean_calls_per_conversation": 5.425,
+        "baseline_mean_tokens_per_conversation": 118622.58125,
+        "current_mean_calls_per_conversation": 0.0,
+        "current_mean_tokens_per_conversation": 0.0,
+        "llm_call_reduction_ratio": 1.0,
+        "n_conversations": 160,
+        "n_turns": 868,
+        "run_id": 2,
+        "token_reduction_ratio": 1.0
+      },
+      {
+        "baseline_mean_calls_per_conversation": 5.425,
+        "baseline_mean_tokens_per_conversation": 118622.58125,
+        "current_mean_calls_per_conversation": 0.0,
+        "current_mean_tokens_per_conversation": 0.0,
+        "llm_call_reduction_ratio": 1.0,
+        "n_conversations": 160,
+        "n_turns": 868,
+        "run_id": 3,
+        "token_reduction_ratio": 1.0
+      }
+    ],
+    "token_reduction_relative_drift": 0.0
+  },
+  "token_reduction_ratio": {
+    "mean_bootstrap_95_ci": {
+      "estimate": 1.0,
+      "lower": 1.0,
+      "resamples": 10000,
+      "seed": 42,
+      "upper": 1.0
+    },
+    "median_bootstrap_95_ci": {
+      "estimate": 1.0,
+      "lower": 1.0,
+      "resamples": 10000,
+      "seed": 42,
+      "upper": 1.0
+    }
+  },
+  "tokenizer": {
+    "description": "One estimated token per Unicode scalar value in the exact decoded prompt; counts are deterministic tokenizer-specific estimates, not billed model tokens.",
+    "id": "unicode-codepoint-v1"
+  }
+}

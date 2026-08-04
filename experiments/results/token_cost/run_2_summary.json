@@ -1,0 +1,10 @@
+{
+  "baseline_input_tokens": 18979613,
+  "baseline_llm_calls": 868,
+  "conversations": 160,
+  "current_input_tokens": 0,
+  "current_llm_calls": 0,
+  "dataset_sha256": "296d6c69c78da67805069d014f9979e08b7d7ef1408cf707c2b398d976454a9d",
+  "run_id": 2,
+  "turns": 868
+}

@@ -1,0 +1,45 @@
+{
+  "experiment_base_sha": "e5aea50d3f9e01940420c50260a0ffeb0f651fc5",
+  "registered_before_first_run": true,
+  "random_seed": 42,
+  "bootstrap_resamples": 10000,
+  "token": {
+    "comparison_scope": "input_tokens_only",
+    "tokenizer": "unicode-codepoint-v1",
+    "tokenizer_definition": "one Unicode scalar value in the exact UTF-8-decoded prompt equals one estimated token",
+    "supplier_billing_claim": false,
+    "minimum_conversations": 100,
+    "required_runs": 3,
+    "maximum_key_metric_drift": 0.05,
+    "cost_projection": "skip unless a public model price is independently verified during this experiment"
+  },
+  "latency": {
+    "timer": "time.perf_counter_ns",
+    "minimum_warmup_count": 20,
+    "minimum_measurement_count": 100,
+    "required_runs": 3,
+    "maximum_key_metric_drift": 0.05,
+    "local_text_label": "local decision latency",
+    "replay_label": "Synthetic Replay Pipeline Latency",
+    "real_direct_llm_comparison": "NOT_EVALUATED"
+  },
+  "barge_in": {
+    "minimum_examples": 1000,
+    "target_examples": 1200,
+    "split": {"train": 0.7, "validation": 0.15, "test": 0.15},
+    "group_split_key": "template_group_id",
+    "runtime_features": "acoustic_and_temporal_only",
+    "forbid_generator_text_as_feature": true,
+    "cv_thresholds": {
+      "minimum_test_examples": 150,
+      "minimum_f1": 0.8,
+      "minimum_precision": 0.75,
+      "minimum_recall": 0.75,
+      "maximum_false_positive_rate": 0.15,
+      "minimum_recovery_success_rate": 0.95,
+      "maximum_f1_range_across_three_training_seeds": 0.03
+    },
+    "cv_status_if_all_thresholds_pass": "PRELIMINARY_CV_WITH_QUALIFIER"
+  }
+}
+
