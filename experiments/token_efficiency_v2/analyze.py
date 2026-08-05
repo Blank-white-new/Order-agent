@@ -206,6 +206,9 @@ def _quality_summary(rows: list[dict[str, str]], architecture: str) -> dict[str,
         "duplicate_mutation": sum(
             int(_bool(row["duplicate_mutation"])) for row in selected
         ),
+        "duplicate_line_identity": sum(
+            int(_bool(row["duplicate_line_identity"])) for row in selected
+        ),
         "blocking_safety_violations": sum(
             _int(row["blocking_safety_violations"]) for row in selected
         ),
@@ -292,6 +295,7 @@ def _quality_table(quality: dict[str, Any]) -> str:
             f"| Confirmation bypass | {baseline['confirmation_bypass']} | {current['confirmation_bypass']} |",
             f"| Serious-allergy omission | {baseline['serious_allergy_omission']} | {current['serious_allergy_omission']} |",
             f"| False merchant acceptance | {baseline['false_merchant_acceptance']} | {current['false_merchant_acceptance']} |",
+            f"| Unexpected duplicate mutation | {baseline['duplicate_mutation']} | {current['duplicate_mutation']} |",
             f"| Blocking safety violations | {baseline['blocking_safety_violations']} | {current['blocking_safety_violations']} |",
         ]
     )
@@ -445,6 +449,14 @@ def analyze(results_dir: Path, reports_dir: Path, figures_dir: Path) -> dict[str
         == 0,
         "system_b_blocking_safety_violations_zero": quality["system_b"][
             "blocking_safety_violations"
+        ]
+        == 0,
+        "baseline_unexpected_duplicate_mutations_zero": quality["baseline_a"][
+            "duplicate_mutation"
+        ]
+        == 0,
+        "system_b_unexpected_duplicate_mutations_zero": quality["system_b"][
+            "duplicate_mutation"
         ]
         == 0,
         "three_runs_identical": deterministic_runs_identical,
@@ -768,6 +780,8 @@ System B invoked the replay provider {sum(invocation_reasons.values())}/868 turn
 - Confirmation bypass: A={quality['baseline_a']['confirmation_bypass']}, B={quality['system_b']['confirmation_bypass']}.
 - Serious-allergy omission: A={quality['baseline_a']['serious_allergy_omission']}, B={quality['system_b']['serious_allergy_omission']}.
 - False merchant acceptance: A={quality['baseline_a']['false_merchant_acceptance']}, B={quality['system_b']['false_merchant_acceptance']}.
+- Unexpected duplicate mutation beyond the frozen path: A={quality['baseline_a']['duplicate_mutation']}, B={quality['system_b']['duplicate_mutation']}.
+- Repeated normalized line identities: A={quality['baseline_a']['duplicate_line_identity']}, B={quality['system_b']['duplicate_line_identity']}. Twelve turn snapshots retain two deliberately requested portions that converge after replacement (for example, an existing beef-rice line plus a chicken-rice line explicitly replaced by beef rice); this is a representation diagnostic, not a duplicated action.
 - Frozen-reference expected-path failures: A={quality['baseline_a']['expected_path']['checks'] - quality['baseline_a']['expected_path']['matches']}, B={quality['system_b']['expected_path']['checks'] - quality['system_b']['expected_path']['matches']}.
 
 The absence of replay-reference failures is a deterministic regression/equivalence result, not a live-model quality claim.

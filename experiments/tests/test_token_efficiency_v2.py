@@ -4,7 +4,10 @@ import inspect
 
 from experiments.token_efficiency_v2.audit_dataset import audit_dataset
 from experiments.token_efficiency_v2.baseline import build_baseline_request
-from experiments.token_efficiency_v2.quality_eval import DecisionReplayProvider
+from experiments.token_efficiency_v2.quality_eval import (
+    DecisionReplayProvider,
+    has_unexpected_duplicate_mutation,
+)
 from experiments.token_efficiency_v2.selective_llm import decide_selective_invocation
 from experiments.token_efficiency_v2.tokenizer import (
     ENCODING_NAME,
@@ -145,3 +148,15 @@ def test_replay_provider_does_not_accept_expected_labels() -> None:
         conversation_id="TOK-01-001", turn_id=1, prompt_sha256="b" * 64
     )
     assert second["canonical_intent"] == "MENU_QUERY"
+
+
+def test_duplicate_mutation_distinguishes_requested_repeated_lines() -> None:
+    line = {
+        "item_id": "beef_rice",
+        "options": [],
+        "spicy_level": None,
+        "exclusions": [],
+        "notes": None,
+    }
+    assert has_unexpected_duplicate_mutation([line, line], [line, line]) is False
+    assert has_unexpected_duplicate_mutation([line, line], [line]) is True

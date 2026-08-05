@@ -191,6 +191,7 @@ def _row(
         "confirmation_bypass": quality["confirmation_bypass"],
         "serious_allergy_omission": quality["serious_allergy_omission"],
         "false_merchant_acceptance": quality["false_merchant_acceptance"],
+        "duplicate_line_identity": quality["duplicate_line_identity"],
         "duplicate_mutation": quality["duplicate_mutation"],
         "blocking_safety_violations": quality["blocking_safety_violations"],
         "expected_path_correct": quality["expected_path_correct"],
