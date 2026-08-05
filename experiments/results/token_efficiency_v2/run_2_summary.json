@@ -1,0 +1,19 @@
+{
+  "architectures": {
+    "baseline_a": {
+      "input_tokens": 348942,
+      "llm_calls": 868
+    },
+    "system_b": {
+      "input_tokens": 27030,
+      "llm_calls": 52
+    }
+  },
+  "conversations": 160,
+  "dataset_sha256": "296d6c69c78da67805069d014f9979e08b7d7ef1408cf707c2b398d976454a9d",
+  "pair_outcome_mismatches": 0,
+  "reference_sha256": "1f289276457051e8e4b6b33f226b247929d7a0a788557f9aaefe88e84bc81a10",
+  "rows": 1736,
+  "run_id": 2,
+  "turns": 868
+}
