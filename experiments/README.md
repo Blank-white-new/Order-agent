@@ -14,10 +14,16 @@ not selected after seeing results.
 
 ## Runtime boundary
 
-- Token benchmark: prompt construction only; no LLM request. Counts use the
-  deterministic `unicode-codepoint-v1` estimator because no baseline model was
-  selected and the tokenizer wheel was unavailable in the offline project
-  environment. Counts are tokenizer-specific estimates, never billed tokens.
+- Token benchmark v2: the fair paired comparison is under
+  `token_efficiency_v2`. Both architectures use the fixed
+  `gpt-4o-mini-2024-07-18` target definition and `tiktoken==0.13.0`
+  (`o200k_base`). Baseline A invokes a compact full-context interface every
+  turn; System B invokes the same offline decision-replay interface only under
+  the frozen selective-LLM policy. Counts are model-specific input-token
+  estimates, never billed tokens, and output tokens/cost are not evaluated.
+- Token benchmark v1 under `token_cost` is retained for auditability. Its
+  `unicode-codepoint-v1` / disabled-live-LLM 100% result is superseded and is
+  explicitly not eligible for CV use.
 - Text latency: current `TextEntryService` path with SQLite, excluding process
   startup, imports, dataset loading, migrations, and seed work.
 - Speech latency: Phase 5 Replay fixtures and providers only. It is not real
@@ -36,6 +42,14 @@ Reports are always recomputed from raw files; do not hand-edit result tables.
 From the repository root in PowerShell:
 
 ```powershell
+# Fair selective-LLM token benchmark v2 (no provider/network call)
+.\backend\.venv\Scripts\python.exe -m experiments.token_efficiency_v2.audit_dataset
+.\backend\.venv\Scripts\python.exe -m experiments.token_efficiency_v2.build_quality_reference
+1..3 | ForEach-Object {
+  .\backend\.venv\Scripts\python.exe -m experiments.token_efficiency_v2.run_benchmark --run-id $_
+}
+.\backend\.venv\Scripts\python.exe -m experiments.token_efficiency_v2.analyze
+
 # Token / projected input transfer (no provider call)
 .\backend\.venv\Scripts\python.exe -m experiments.token_cost.build_dataset
 1..3 | ForEach-Object {
@@ -71,6 +85,7 @@ without repeating host-sensitive timing unless a fresh machine run is desired.
 ## Tests and production regressions
 
 ```powershell
+.\backend\.venv\Scripts\python.exe -m pytest experiments\tests\test_token_efficiency_v2.py -q
 .\backend\.venv\Scripts\python.exe -m pytest experiments\tests\test_token_and_latency.py -q
 python -m experiments.tests.run_barge_tests
 .\scripts\check_all.ps1 -Build

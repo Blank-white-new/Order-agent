@@ -601,16 +601,24 @@ def analyze(results_dir: Path, reports_dir: Path, figures_dir: Path) -> dict[str
         x_label="Reduction per conversation (%)",
     )
     bar_chart(
-        figures_dir / "mean_tokens_and_calls.png",
-        title="Baseline A vs System B",
-        labels=["A tokens", "B tokens", "A calls", "B calls"],
+        figures_dir / "mean_input_tokens.png",
+        title="Mean model-specific input tokens per conversation",
+        labels=["Baseline A", "System B"],
         values=[
             statistics.fmean(row["input_tokens"] for row in baseline_conversations),
             statistics.fmean(row["input_tokens"] for row in current_conversations),
+        ],
+        y_label="Input tokens (estimated)",
+    )
+    bar_chart(
+        figures_dir / "mean_llm_calls.png",
+        title="Mean simulated LLM calls per conversation",
+        labels=["Baseline A", "System B"],
+        values=[
             statistics.fmean(row["llm_calls"] for row in baseline_conversations),
             statistics.fmean(row["llm_calls"] for row in current_conversations),
         ],
-        y_label="Per-conversation mean (mixed units; labels explicit)",
+        y_label="Simulated invocation count",
     )
     scenario_rows = [row for row in group_rows if row["dimension"] == "scenario_type"]
     bar_chart(
@@ -767,7 +775,9 @@ The Phase 4 labels were designed for isolated scenarios with their own setup sta
 ## Semantic and locale errors
 
 - Intent mismatches: {quality['system_b']['intent']['checks'] - quality['system_b']['intent']['matches']} / {quality['system_b']['intent']['checks']}.
-- Item/quantity/modifier mismatches: {quality['system_b']['item']['checks'] - quality['system_b']['item']['matches']} / {quality['system_b']['quantity']['checks'] - quality['system_b']['quantity']['matches']} / {quality['system_b']['modifier']['checks'] - quality['system_b']['modifier']['matches']}.
+- Item mismatches: {quality['system_b']['item']['checks'] - quality['system_b']['item']['matches']} / {quality['system_b']['item']['checks']}.
+- Quantity mismatches: {quality['system_b']['quantity']['checks'] - quality['system_b']['quantity']['matches']} / {quality['system_b']['quantity']['checks']}.
+- Modifier mismatches: {quality['system_b']['modifier']['checks'] - quality['system_b']['modifier']['matches']} / {quality['system_b']['modifier']['checks']}.
 - Locale mismatches: {quality['system_b']['locale']['checks'] - quality['system_b']['locale']['matches']} / {quality['system_b']['locale']['checks']}, by dataset locale: `{dict(locale_failures)}`. These are mostly mixed-language response-locale changes caused by accumulated conversation context; both architectures share them.
 
 ## Selective invocation distribution
@@ -798,7 +808,7 @@ The absence of replay-reference failures is a deterministic regression/equivalen
         f"preserving expected-path performance and zero blocking safety violations in the evaluation set."
     )
     allowed_cn = (
-        f"在 160 组合成订餐会话（868 轮）上，以离线确定性 decision replay 对结构化 selective-LLM "
+        f"在 160 组合成订餐会话（868 轮）上，以离线确定性决策回放对结构化 selective-LLM "
         f"架构与紧凑完整上下文 LLM 基线进行成对评测；在保持预期路径表现及阻断级安全违规为 0 的情况下，"
         f"模型特定 tokenizer 估算的输入 Token 使用量降低 {token_reduction * 100:.1f}%，模拟 LLM 调用次数降低 {call_reduction * 100:.1f}%。"
     )

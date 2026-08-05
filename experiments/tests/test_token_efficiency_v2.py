@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import json
 
 from experiments.token_efficiency_v2.audit_dataset import audit_dataset
+from experiments.common.io import read_csv
+from experiments.common.metadata import ROOT
 from experiments.token_efficiency_v2.baseline import build_baseline_request
 from experiments.token_efficiency_v2.quality_eval import (
     DecisionReplayProvider,
@@ -160,3 +163,55 @@ def test_duplicate_mutation_distinguishes_requested_repeated_lines() -> None:
     }
     assert has_unexpected_duplicate_mutation([line, line], [line, line]) is False
     assert has_unexpected_duplicate_mutation([line, line], [line]) is True
+
+
+def test_three_v2_runs_are_identical_and_keep_all_rows() -> None:
+    results = ROOT / "experiments" / "results" / "token_efficiency_v2"
+    runs = [read_csv(results / f"run_{run_id}_raw.csv") for run_id in (1, 2, 3)]
+    assert all(len(run) == 1736 for run in runs)
+    fields = (
+        "architecture",
+        "conversation_id",
+        "turn_id",
+        "input_tokens",
+        "LLM_invoked",
+        "invocation_reason",
+        "expected_path_correct",
+        "outcome_fingerprint",
+    )
+    fingerprints = [[tuple(row[field] for field in fields) for row in run] for run in runs]
+    assert fingerprints[0] == fingerprints[1] == fingerprints[2]
+    assert all(row["output_tokens"] == "0" for run in runs for row in run)
+    assert all(row["output_token_status"] == "NOT_MEASURED" for run in runs for row in run)
+
+
+def test_v2_invocation_and_quality_gates_match_policy() -> None:
+    results = ROOT / "experiments" / "results" / "token_efficiency_v2"
+    rows = read_csv(results / "run_1_raw.csv")
+    baseline = [row for row in rows if row["architecture"] == "baseline_a"]
+    current = [row for row in rows if row["architecture"] == "system_b"]
+    assert len(baseline) == len(current) == 868
+    assert all(row["LLM_invoked"] == "True" for row in baseline)
+    assert sum(row["LLM_invoked"] == "True" for row in current) == 52
+    assert all(
+        row["LLM_invoked"] == "False"
+        for row in current
+        if row["decision_class"] in {"HANDOFF", "REFUSE"}
+    )
+    assert sum(int(row["blocking_safety_violations"]) for row in rows) == 0
+    assert sum(row["duplicate_mutation"] == "True" for row in rows) == 0
+    assert all(row["expected_path_correct"] == "True" for row in rows)
+
+
+def test_v2_analysis_is_qualified_not_unqualified_billing_claim() -> None:
+    results = ROOT / "experiments" / "results" / "token_efficiency_v2"
+    analysis = json.loads((results / "analysis.json").read_text(encoding="utf-8"))
+    assert analysis["cv_review"]["status"] == "CV_ELIGIBLE_WITH_QUALIFIER"
+    assert analysis["cv_review"]["all_technical_gates_pass"] is True
+    assert analysis["tokenizer"]["actual_billing_count"] is False
+    assert analysis["provider"]["live_model"] is False
+    assert analysis["provider"]["model_accuracy_measured"] is False
+    assert analysis["efficiency"]["cost"] == "COST_NOT_EVALUATED"
+    examples = (results / "prompt_examples.json").read_text(encoding="utf-8")
+    assert "expected_intent" not in examples
+    assert "expected_classification" not in examples
