@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import inspect
 
+from experiments.token_efficiency_v2.audit_dataset import audit_dataset
 from experiments.token_efficiency_v2.baseline import build_baseline_request
+from experiments.token_efficiency_v2.quality_eval import DecisionReplayProvider
 from experiments.token_efficiency_v2.selective_llm import decide_selective_invocation
 from experiments.token_efficiency_v2.tokenizer import (
     ENCODING_NAME,
@@ -117,3 +119,29 @@ def test_selective_policy_invokes_only_safe_ambiguity_or_real_fallback() -> None
     assert decide_selective_invocation(ambiguous).invoked is True
     assert decide_selective_invocation(safety).invoked is False
     assert decide_selective_invocation(fallback).invoked is True
+
+
+def test_dataset_audit_retains_template_dependence() -> None:
+    audit, manifest = audit_dataset()
+    assert audit["conversations"] == 160
+    assert audit["turns"] == 868
+    assert audit["exact_duplicate_conversations"] == 0
+    assert audit["normalized_duplicate_conversations"] == 0
+    assert audit["semantic_template_groups"] == 30
+    assert audit["dataset_changed_for_v2"] is False
+    assert len({row["template_group_id"] for row in manifest}) == 30
+
+
+def test_replay_provider_does_not_accept_expected_labels() -> None:
+    reference = {("TOK-01-001", 1): {"canonical_intent": "MENU_QUERY"}}
+    provider = DecisionReplayProvider(reference)
+    signature = inspect.signature(provider.invoke)
+    assert "expected_intent" not in signature.parameters
+    first = provider.invoke(
+        conversation_id="TOK-01-001", turn_id=1, prompt_sha256="a" * 64
+    )
+    first["canonical_intent"] = "CHANGED"
+    second = provider.invoke(
+        conversation_id="TOK-01-001", turn_id=1, prompt_sha256="b" * 64
+    )
+    assert second["canonical_intent"] == "MENU_QUERY"
