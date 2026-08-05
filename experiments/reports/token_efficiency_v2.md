@@ -2,11 +2,11 @@
 
 ## Question
 
-Under a fixed validated decision replay and comparable safety/task outcomes, how much model-specific estimated input and how many invocations are avoided by structured selective LLM use versus direct full-context LLM use?
+Under a fixed validated deterministic decision replay, how do the prompt/input requirements and simulated invocation requirements of a structured selective-LLM design compare with those of a direct full-context LLM design?
 
 ## Hypothesis
 
-A rules-first structured path should avoid model requests on deterministic and high-risk turns while using the same model interface for genuine ambiguity/fallback turns, reducing prompt volume without changing the common validated expected path.
+A rules-first structured path should require fewer model prompts on deterministic and high-risk turns while reserving the target-model interface for documented ambiguity/fallback turns, thereby reducing estimated prompt volume and simulated invocation demand under the same frozen deterministic decision reference.
 
 ## Dataset and duplication audit
 
@@ -19,13 +19,13 @@ A rules-first structured path should avoid model requests on deterministic and h
 
 ## Baseline A: reasonable full-context LLM
 
-Every turn invokes the fixed target-model interface. The request contains a concise system instruction, restaurant/branch/locale, core validation policy plus only relevant risk policy, full prior user/assistant history, and current input. It includes all 11 branch menu items only for browse/recommend requests, up to five recalled service-layer candidates for an explicit item reference, and no menu block for unrelated safety/control turns. The downstream schema/menu/state/safety validator is shared with System B.
+For accounting purposes, every turn constructs a request for the fixed target-model interface. The request contains a concise system instruction, restaurant/branch/locale, core validation policy plus only relevant risk policy, full prior user/assistant history, and current input. It includes all 11 branch menu items only for browse/recommend requests, up to five recalled service-layer candidates for an explicit item reference, and no menu block for unrelated safety/control turns. The downstream schema/menu/state/safety validator is shared with System B. No target-model response is generated; the business outcome comes from the deterministic production path and frozen decision replay described below.
 
 This is a realistic direct-LLM architecture, not a deliberately padded worst case.
 
 ## System B: structured + selective LLM
 
-The unchanged production path owns locale, canonical intents, structured state, menu/policy lookup, and safety. Simulated LLM invocation is allowed only for documented ambiguity codes or the production fallback/low-confidence signal after deterministic safety filtering. Severe allergy, cross-contamination, human/complaint/refund/payment paths, cross-tenant/security refusal, unsupported language, and confirmation/version control never delegate the final action.
+The unchanged production path owns locale, canonical intents, structured state, menu/policy lookup, and safety. For experiment-only accounting, simulated LLM invocation is allowed only for documented ambiguity codes or the production fallback/low-confidence signal after deterministic safety filtering. Severe allergy, cross-contamination, human/complaint/refund/payment paths, cross-tenant/security refusal, unsupported language, and confirmation/version control never delegate the final action. This selective policy is not wired into a live production LLM routing path.
 
 The frozen policy and examples are in `experiments/token_efficiency_v2/selective_llm_policy.md`.
 
@@ -45,7 +45,9 @@ No live model is called. Both architectures use the same deterministic validated
 
 Pre-registered quality gate: both blocking-safety counts must be zero and expected-path completion may differ by at most 2 percentage points.
 
-## Task quality
+## Deterministic decision-replay validation
+
+The values below validate the shared frozen outcome reference and downstream execution checks. They are not measurements of target-model task quality: neither Baseline A nor System B obtains semantic decisions from a live LLM.
 
 | Metric | Baseline A | System B |
 |---|---:|---:|
@@ -62,7 +64,7 @@ Pre-registered quality gate: both blocking-safety counts must be zero and expect
 | Unexpected duplicate mutation | 0 | 0 |
 | Blocking safety violations | 0 | 0 |
 
-Expected-path gap: **0.00 percentage points**. Both safety gates pass. The 34 locale mismatches are shared contextual mixed-locale outcomes and are retained in error analysis.
+Decision-replay expected-path gap: **0.00 percentage points**. Both offline validation safety gates pass. The 34 locale mismatches are shared contextual mixed-locale outcomes and are retained in error analysis.
 
 ## Efficiency results
 
@@ -82,6 +84,21 @@ Expected-path gap: **0.00 percentage points**. Both safety gates pass. The 34 lo
 - Mean paired token difference: **2011.95** tokens/conversation; 95% CI **[1833.23, 2186.91]**.
 - Median paired token difference: **1685.50**; 95% CI **[1362.50, 2414.00]**.
 - Model-call reduction: **94.01%**; conversation bootstrap 95% CI **[92.13%, 95.69%]** and template-cluster CI **[89.40%, 97.45%]**.
+
+## Interpretation boundary
+
+This benchmark measures **prompt/input requirements and simulated invocation demand under a fixed deterministic decision replay**. Baseline A and System B construct different prompts and follow different experiment-only invocation policies, but their task outcomes are not independently produced by two live LLM systems. Both accounting paths use the existing deterministic production path (`TextEntryService`) and are checked against the same frozen deterministic outcome reference with the same downstream validation conditions.
+
+Expected-path equivalence therefore shows only that **the two accounting paths were evaluated against the same validated deterministic reference**. It does not show that the target model reproduced those decisions or that two live-model systems achieved equal task performance.
+
+The benchmark does not measure:
+
+- GPT-4o-mini semantic accuracy;
+- live LLM response quality;
+- production model reliability;
+- actual billed token usage;
+- actual monetary savings; or
+- the quality-efficiency trade-off under live inference.
 
 ## Stratified results
 
@@ -251,11 +268,12 @@ Runs 1/2/3 retained identical conversation IDs, prompts, token counts, call deci
 ## Limitations
 
 - Conversations and decision outputs are synthetic/offline; no live user, restaurant, phone, ASR, or TTS is involved.
-- The deterministic decision replay holds semantic quality constant and validates downstream equivalence; it does not measure live `gpt-4o-mini-2024-07-18` accuracy or output naturalness.
+- The deterministic decision replay supplies a common frozen outcome reference and validates downstream equivalence; it does not measure live `gpt-4o-mini-2024-07-18` accuracy, output naturalness, or whether the target model would reproduce those decisions.
 - The tokenizer/accounting result is a model-specific estimate, not production billing evidence.
+- The selective invocation policy is experiment-only and is not currently wired as live production LLM routing.
 - Thirty semantic template groups and repeated Phase 4 source expressions limit external validity; cluster intervals are reported for that reason.
 - No actual API cost, latency, cache behavior, provider retry, or production traffic distribution is measured.
 
 ## CV eligibility
 
-**CV_ELIGIBLE_WITH_QUALIFIER**. All technical gates pass, but the mandatory wording must retain `synthetic`, `offline deterministic replay`, and `model-specific estimated input tokens`. It may not claim actual API billing, live-model accuracy, real-user success, or production savings.
+**CV_ELIGIBLE_WITH_QUALIFIER**. The CV wording must describe a prompt/input-requirement comparison over synthetic conversations in an offline benchmark with deterministic decision replay, using a model-specific tokenizer estimate. It must identify invocation reduction as simulated and must not claim actual billed tokens, production cost savings, live-model accuracy, equal live-model performance, real API-call reduction, real-user success, or deployed production selective-LLM routing.
