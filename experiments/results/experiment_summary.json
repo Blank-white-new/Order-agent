@@ -1,0 +1,98 @@
+[
+  {
+    "cv_action": "INCLUDE",
+    "evidence": "experiments/results/token_cost/analysis.json; three run_*_raw.csv files",
+    "metric": "Projected LLM input-token transfer reduction",
+    "qualifier": "offline synthetic conversations; full-context always-LLM baseline; unicode-codepoint-v1 estimator; projected input only; not billed tokens",
+    "status": "VERIFIED_FOR_CV",
+    "value": "100.00% (95% bootstrap CI 100.00%–100.00%) across 160 conversations / 868 turns"
+  },
+  {
+    "cv_action": "INCLUDE_WITH_TOKEN_CLAIM",
+    "evidence": "experiments/results/token_cost/analysis.json",
+    "metric": "Projected LLM-call requirement reduction",
+    "qualifier": "offline deterministic configuration with live LLM disabled versus one baseline call per turn",
+    "status": "VERIFIED_FOR_CV",
+    "value": "100.00%; mean 5.425 → 0.000 calls/conversation"
+  },
+  {
+    "cv_action": "DO_NOT_INCLUDE_THIS_ROUND",
+    "evidence": "experiments/results/latency/latency_analysis.json; text_run_*_raw.csv",
+    "metric": "Local text decision latency",
+    "qualifier": "local SQLite benchmark; p50 run drift 3.04%, p95 drift 34.74% (>5%)",
+    "status": "PRELIMINARY_CV_WITH_QUALIFIER",
+    "value": "p50 32.395 ms; p95 38.281 ms; N=1228 case-level medians across 3 runs"
+  },
+  {
+    "cv_action": "DO_NOT_INCLUDE_THIS_ROUND",
+    "evidence": "experiments/results/latency/latency_analysis.json; replay_run_*_raw.csv",
+    "metric": "Synthetic Replay input pipeline latency",
+    "qualifier": "Synthetic Replay fixture lookup, text decision, and audit; optional Replay TTS excluded; not real ASR/TTS/phone latency",
+    "status": "PRELIMINARY_CV_WITH_QUALIFIER",
+    "value": "p50 25.061 ms; p95 45.763 ms; N=240"
+  },
+  {
+    "cv_action": "EXCLUDE",
+    "evidence": "experiments/results/barge_in/classifier_analysis.json; selected_test_predictions.csv",
+    "metric": "Synthetic interruption classifier",
+    "qualifier": "programmatic overlapping signals; no intelligible speech or ASR; FPR failed preregistered ≤15% threshold",
+    "status": "NOT_FOR_CV",
+    "value": "F1 0.838; precision 0.726; recall 0.992; FPR 37.50%; N=240"
+  },
+  {
+    "cv_action": "DO_NOT_INCLUDE_BECAUSE_UPSTREAM_DETECTOR_FAILED",
+    "evidence": "experiments/results/barge_in/recovery_analysis.json; recovery_raw.csv",
+    "metric": "Synthetic dialogue-state recovery",
+    "qualifier": "synthetic state-machine test; classifier advisory only; not playback interruption or production barge-in",
+    "status": "PRELIMINARY_CV_WITH_QUALIFIER",
+    "value": "100/100 (100.00%), 25 each TP/FP/FN/TN"
+  },
+  {
+    "cv_action": "RETAIN_EXISTING_CV_CLAIM",
+    "evidence": "evaluation/phase4_multilingual_text.jsonl; explicit Phase 4 regression on 2026-08-04",
+    "metric": "360 multilingual text scenarios",
+    "qualifier": "synthetic/offline multilingual evaluation",
+    "status": "VERIFIED_FOR_CV",
+    "value": "360/360 intent and classification matches in both auto and assisted modes; 0 wrong mutations / confirmation bypasses"
+  },
+  {
+    "cv_action": "RETAIN_EXISTING_CV_CLAIM",
+    "evidence": "evaluation/phase5_speech_pipeline.jsonl; explicit Phase 5 regression on 2026-08-04",
+    "metric": "240 synthetic Replay speech-pipeline scenarios",
+    "qualifier": "synthetic Replay Provider; not ASR/TTS accuracy or real speech",
+    "status": "VERIFIED_FOR_CV",
+    "value": "240 scenarios; 0 wrong mutations, confirmation bypasses, live-provider invocations, or live-LLM triggers"
+  },
+  {
+    "cv_action": "EXCLUDE",
+    "evidence": "No verified price source and no live provider call",
+    "metric": "Actual API cost / production bill",
+    "qualifier": "projected input estimates only",
+    "status": "NOT_FOR_CV",
+    "value": "NOT_EVALUATED"
+  },
+  {
+    "cv_action": "EXCLUDE",
+    "evidence": "provider metadata: no live ASR/TTS, PSTN, SIP, WebRTC, call, or customer",
+    "metric": "Real phone / speech / ASR / TTS latency or accuracy",
+    "qualifier": "none available",
+    "status": "NOT_FOR_CV",
+    "value": "NOT_EVALUATED"
+  },
+  {
+    "cv_action": "EXCLUDE",
+    "evidence": "prototype is isolated under experiments/barge_in",
+    "metric": "Real-world barge-in accuracy / success",
+    "qualifier": "synthetic state-machine and signal experiments only",
+    "status": "NOT_FOR_CV",
+    "value": "NOT_IMPLEMENTED / NOT_EVALUATED"
+  },
+  {
+    "cv_action": "EXCLUDE",
+    "evidence": "No real restaurant or customer data used",
+    "metric": "Restaurant success, complaint, refund, or business cost rate",
+    "qualifier": "none available",
+    "status": "NOT_FOR_CV",
+    "value": "NOT_EVALUATED"
+  }
+]

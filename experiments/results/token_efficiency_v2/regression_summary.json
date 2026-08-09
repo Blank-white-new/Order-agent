@@ -1,0 +1,123 @@
+{
+  "timestamp": "2026-08-05T19:37:13.7542492+08:00",
+  "tested_head": "59740308e0088878acf5b0db94fa48f36c77fada",
+  "offline_provider_guard": true,
+  "token_efficiency_v2_tests": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe -m pytest experiments\\tests\\test_token_efficiency_v2.py -q",
+    "result": "passed",
+    "passed": 11
+  },
+  "check_all_build": {
+    "command": ".\\scripts\\check_all.ps1 -Build",
+    "first_attempt": {
+      "result": "failed",
+      "passed": 1280,
+      "skipped": 1,
+      "failed": 1,
+      "failure": "backend/tests/phase2/test_integrity_audit.py::test_concurrent_restaurant_wide_publication_has_one_winner_and_no_branch_gap",
+      "observed": "both concurrent SQLite publishers returned PUBLISHED",
+      "classification": "existing nondeterministic SQLite concurrency test; no token-efficiency code path overlap"
+    },
+    "targeted_retries": {
+      "runs": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "second_full_attempt": {
+      "result": "passed",
+      "backend_passed": 1281,
+      "backend_skipped": 1,
+      "frontend_test_files_passed": 11,
+      "frontend_tests_passed": 88,
+      "typescript": "passed",
+      "production_build": "passed"
+    }
+  },
+  "phase4_multilingual_text": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_phase4_multilingual_text_eval.py --mode both",
+    "result": "passed",
+    "auto_scenarios": 360,
+    "assisted_scenarios": 360,
+    "failure_count": 0,
+    "confirmation_bypasses": 0,
+    "serious_allergy_omissions": 0,
+    "fake_merchant_acceptance": 0,
+    "duplicate_database_orders": 0,
+    "cross_tenant_data_leak_failures": 0,
+    "live_llm_triggers": 0
+  },
+  "phase5_replay_speech": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_phase5_speech_pipeline_eval.py",
+    "result": "passed",
+    "scenarios": 240,
+    "problems": 0,
+    "confirmation_bypasses": 0,
+    "serious_allergy_omissions": 0,
+    "fake_merchant_acceptance": 0,
+    "duplicate_database_orders": 0,
+    "cross_tenant_data_leak_failures": 0,
+    "live_provider_invocations": 0
+  },
+  "dialogue_v3": {
+    "command": ".\\backend\\.venv\\Scripts\\python.exe evaluation\\run_dialogue_eval_v3.py --dataset evaluation\\dialogues_v3.jsonl --fail-on-regression",
+    "result": "passed",
+    "passed": 57,
+    "failed": 0,
+    "false_mutation_count": 0,
+    "confirmation_bypass_count": 0,
+    "llm_trigger_count": 0
+  },
+  "python_dependency_audit": {
+    "command": "$env:PYTHONUTF8='1'; .\\.tooling-venv\\Scripts\\python.exe -m pip_audit -r backend\\requirements.lock.txt --timeout 60 --progress-spinner off",
+    "result": "passed",
+    "known_vulnerabilities": 0,
+    "prior_environment_retries": [
+      "initial local invocation failed because pip_api decoded a Chinese-path pip version string as UTF-8",
+      "UTF-8 retry reached PyPI but timed out at the default 15-second socket timeout"
+    ]
+  },
+  "npm_dependency_audit": {
+    "command": "npm audit --audit-level=high",
+    "result": "failed",
+    "high_severity_packages": 2,
+    "findings": [
+      {
+        "package": "postcss",
+        "installed": "8.5.15",
+        "dependency_path": "vite@7.3.6 -> postcss@8.5.15",
+        "affected_range": "<=8.5.22",
+        "advisories": [
+          "GHSA-r28c-9q8g-f849",
+          "GHSA-fxqj-rqcc-2cmp"
+        ]
+      },
+      {
+        "package": "undici",
+        "installed": "7.28.0",
+        "dependency_path": "jsdom@29.1.1 -> undici@7.28.0",
+        "affected_range": "7.0.0 - 7.28.0",
+        "advisories": [
+          "GHSA-8xcm-r25x-g524",
+          "GHSA-4cwx-7wf7-3272",
+          "GHSA-m8rv-5g2x-5cg5",
+          "GHSA-jr45-8vmc-qm54",
+          "GHSA-v3r7-h72x-cjcm"
+        ]
+      }
+    ],
+    "scope_decision": "recorded without npm audit fix because this turn is explicitly limited to the Token baseline and dependency-tree changes are out of scope"
+  },
+  "cv_verification": {
+    "result": "passed",
+    "english_docx_pages": 1,
+    "english_pdf_pages": 1,
+    "chinese_docx_pages": 1,
+    "chinese_pdf_pages": 1,
+    "project_bullets_each": 5,
+    "visual_overflow_or_clipping": false,
+    "old_100_percent_claim_present": false
+  },
+  "latency_benchmark_rerun": false,
+  "barge_in_benchmark_rerun": false,
+  "production_behavior_modified": false
+}

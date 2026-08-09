@@ -1,0 +1,21 @@
+{
+  "benchmark_id": "token-efficiency-v2",
+  "bootstrap_resamples": 10000,
+  "dataset": "experiments/datasets/token_conversations.jsonl",
+  "dataset_sha256": "296d6c69c78da67805069d014f9979e08b7d7ef1408cf707c2b398d976454a9d",
+  "input_metric": "model-specific estimated input tokens",
+  "output_tokens": "NOT_MEASURED",
+  "provider_mode": "offline_validated_decision_replay",
+  "quality_gates": {
+    "baseline_blocking_safety_violations_max": 0,
+    "expected_path_completion_gap_percentage_points_max": 2.0,
+    "system_b_blocking_safety_violations_max": 0
+  },
+  "random_seed": 42,
+  "target_model": "gpt-4o-mini-2024-07-18",
+  "tokenizer": {
+    "encoding": "o200k_base",
+    "library": "tiktoken",
+    "version": "0.13.0"
+  }
+}

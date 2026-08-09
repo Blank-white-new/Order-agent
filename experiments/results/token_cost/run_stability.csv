@@ -1,0 +1,4 @@
+﻿run_id,n_conversations,n_turns,baseline_mean_tokens_per_conversation,current_mean_tokens_per_conversation,token_reduction_ratio,baseline_mean_calls_per_conversation,current_mean_calls_per_conversation,llm_call_reduction_ratio
+1,160,868,118622.58125,0.0,1.0,5.425,0.0,1.0
+2,160,868,118622.58125,0.0,1.0,5.425,0.0,1.0
+3,160,868,118622.58125,0.0,1.0,5.425,0.0,1.0

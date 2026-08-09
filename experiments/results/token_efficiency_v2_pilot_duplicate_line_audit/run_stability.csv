@@ -1,0 +1,7 @@
+﻿run_id,architecture,input_tokens,llm_calls,blocking_safety_violations,expected_path_turn_matches
+1,baseline_a,348942,868,0,868
+1,system_b,27030,52,0,868
+2,baseline_a,348942,868,0,868
+2,system_b,27030,52,0,868
+3,baseline_a,348942,868,0,868
+3,system_b,27030,52,0,868

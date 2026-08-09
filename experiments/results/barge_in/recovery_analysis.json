@@ -1,0 +1,37 @@
+{
+  "by_condition": [
+    {
+      "condition": "FN",
+      "n": 25,
+      "recovery_success_rate": 1.0,
+      "successes": 25
+    },
+    {
+      "condition": "FP",
+      "n": 25,
+      "recovery_success_rate": 1.0,
+      "successes": 25
+    },
+    {
+      "condition": "TN",
+      "n": 25,
+      "recovery_success_rate": 1.0,
+      "successes": 25
+    },
+    {
+      "condition": "TP",
+      "n": 25,
+      "recovery_success_rate": 1.0,
+      "successes": 25
+    }
+  ],
+  "classifier_prediction_directly_confirmed_order": false,
+  "definition_sha256": "2c42abeb5ca2b24d6184f555ce73455432dc6c554f51461050729400fdd67f5a",
+  "experiment": "synthetic_state_machine_recovery",
+  "failures": [],
+  "n": 100,
+  "production_barge_in_implemented": false,
+  "qualifier": "synthetic dialogue-state recovery prototype",
+  "recovery_success_rate": 1.0,
+  "successes": 100
+}

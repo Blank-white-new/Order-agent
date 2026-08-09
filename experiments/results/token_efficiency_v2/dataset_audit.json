@@ -1,0 +1,107 @@
+{
+  "balanced_locale": true,
+  "conversation_length": {
+    "distribution": {
+      "2": 40,
+      "5": 36,
+      "6": 28,
+      "7": 16,
+      "8": 32,
+      "9": 8
+    },
+    "maximum": 9,
+    "mean": 5.425,
+    "median": 6.0,
+    "minimum": 2
+  },
+  "conversations": 160,
+  "dataset": "experiments\\datasets\\token_conversations.jsonl",
+  "dataset_changed_for_v2": false,
+  "dataset_sha256": "296d6c69c78da67805069d014f9979e08b7d7ef1408cf707c2b398d976454a9d",
+  "exact_duplicate_conversations": 0,
+  "known_template_dependence": "160 conversations contain 30 semantic template groups; conversation-level and template-cluster bootstrap intervals must both be reported.",
+  "locale_distribution": {
+    "en-HK": 40,
+    "mixed": 40,
+    "yue-Hant-HK": 40,
+    "zh-CN": 40
+  },
+  "maximum_source_scenario_reuse": 20,
+  "most_reused_source_scenarios": [
+    {
+      "scenario_id": "P4-MIX-017",
+      "uses": 20
+    },
+    {
+      "scenario_id": "P4-YUE-017",
+      "uses": 18
+    },
+    {
+      "scenario_id": "P4-EN-017",
+      "uses": 18
+    },
+    {
+      "scenario_id": "P4-ZH-017",
+      "uses": 17
+    },
+    {
+      "scenario_id": "P4-ZH-062",
+      "uses": 15
+    },
+    {
+      "scenario_id": "P4-ZH-063",
+      "uses": 14
+    },
+    {
+      "scenario_id": "P4-YUE-062",
+      "uses": 14
+    },
+    {
+      "scenario_id": "P4-EN-049",
+      "uses": 14
+    },
+    {
+      "scenario_id": "P4-EN-062",
+      "uses": 14
+    },
+    {
+      "scenario_id": "P4-ZH-004",
+      "uses": 13
+    },
+    {
+      "scenario_id": "P4-MIX-004",
+      "uses": 13
+    },
+    {
+      "scenario_id": "P4-MIX-062",
+      "uses": 12
+    },
+    {
+      "scenario_id": "P4-YUE-063",
+      "uses": 11
+    },
+    {
+      "scenario_id": "P4-EN-018",
+      "uses": 11
+    },
+    {
+      "scenario_id": "P4-YUE-004",
+      "uses": 10
+    }
+  ],
+  "normalized_duplicate_conversations": 0,
+  "scenario_distribution": {
+    "complex": 40,
+    "routine": 80,
+    "safety": 40
+  },
+  "semantic_template_groups": 30,
+  "source_scenario_references": 868,
+  "source_text_mismatches": 0,
+  "template_group_size_distribution": {
+    "4": 20,
+    "8": 10
+  },
+  "turns": 868,
+  "unique_source_scenarios": 242
+}

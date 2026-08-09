@@ -1,0 +1,232 @@
+{
+  "complex": {
+    "baseline_a": {
+      "component_counts": {
+        "component_token_sum": 297,
+        "current_input_tokens": 12,
+        "history_tokens": 0,
+        "input_tokens": 329,
+        "menu_context_tokens": 133,
+        "message_content_tokens": 311,
+        "message_count": 5,
+        "message_framing_tokens": 18,
+        "other_or_boundary_tokens": 32,
+        "policy_context_tokens": 54,
+        "restaurant_context_tokens": 21,
+        "system_tokens": 77
+      },
+      "input_tokens": 329,
+      "menu_mode": "relevant_item_candidates",
+      "messages": [
+        {
+          "content": "You are a multilingual restaurant ordering reasoner.\nFor the current turn, return one structured semantic decision and a concise reply.\nUse only supplied restaurant/menu facts. Preserve quantities and modifiers.\nNever submit without explicit confirmation of the current draft version.\nNever invent merchant acceptance, prices, fees, menu items, staff, or guarantees.\nThe downstream validator owns all state changes and may reject your decision.",
+          "role": "system"
+        },
+        {
+          "content": "Restaurant context: {\"branch\":\"central\",\"response_locale\":\"zh-CN\",\"restaurant\":\"hk-sim-restaurant-a\"}",
+          "role": "system"
+        },
+        {
+          "content": "Policy context: Required controls: REFUSE outranks HANDOFF, which outranks CONFIRM, which outranks AUTO_DRAFT. Confirmation applies only to the current draft version. All menu, price, availability, delivery-fee, tenant, and merchant-status facts are validated by services.",
+          "role": "system"
+        },
+        {
+          "content": "Relevant menu context: [{\"aliases\":[\"牛肉盖饭\"],\"allergens\":[],\"available\":true,\"base_price_minor\":2800,\"category\":\"饭类\",\"currency\":\"HKD\",\"id\":\"beef_rice\",\"name\":\"牛肉饭\",\"options\":[\"不辣\",\"少辣\",\"大份\",\"标准\"]},{\"aliases\":[\"机腿饭\",\"鸡腿盖饭\"],\"allergens\":[],\"available\":true,\"base_price_minor\":2600,\"category\":\"饭类\",\"currency\":\"HKD\",\"id\":\"chicken_leg_rice\",\"name\":\"鸡腿饭\",\"options\":[\"不辣\",\"少辣\",\"微辣\",\"大份\",\"加饭\",\"标准\"]}]",
+          "role": "system"
+        },
+        {
+          "content": "给我一份鸡腿饭，或者牛肉饭",
+          "role": "user"
+        }
+      ]
+    },
+    "canonical_intent": "ADD_ITEM",
+    "conversation_id": "TOK-01-021",
+    "decision_class": "CONFIRM",
+    "system_b": {
+      "LLM_invoked": true,
+      "component_counts": {
+        "component_token_sum": 427,
+        "current_input_tokens": 12,
+        "history_tokens": 46,
+        "input_tokens": 444,
+        "menu_context_tokens": 53,
+        "message_content_tokens": 435,
+        "message_count": 2,
+        "message_framing_tokens": 9,
+        "other_or_boundary_tokens": 17,
+        "policy_context_tokens": 221,
+        "restaurant_context_tokens": 0,
+        "system_tokens": 95
+      },
+      "input_tokens": 444,
+      "invocation_reason": "semantic_ambiguity:item",
+      "messages": [
+        {
+          "content": "你是订餐系统的意图解析器。你的任务是把用户输入解析成结构化 JSON。\n只能基于提供的候选菜单、当前订单摘要和上下文。不要编造菜单项，不要编造价格。\n不要输出 Markdown，不要输出解释，只输出 JSON object。不确定时输出 clarify，不要猜。\n如果用户说“这个/那个/刚才那个”，只有上下文唯一明确时才能解析，否则澄清。",
+          "role": "system"
+        },
+        {
+          "content": "{\"task\":\"Parse the user's ordering intent into the required JSON object.\",\"schema\":{\"intent\":\"add_item | remove_item | update_quantity | ask_menu | ask_recommendation | delivery | pickup | confirm_order | cancel_order | clarify | smalltalk | unknown\",\"confidence\":\"number from 0 to 1\",\"normalized_text\":\"string or null\",\"actions\":[{\"type\":\"add_item | remove_item | update_quantity | set_delivery | set_pickup | ask_menu | ask_recommendation | confirm_order | cancel_order\",\"item_name\":\"must be from candidate_menu_items or null\",\"quantity\":\"integer 1 to 20 or null\",\"options\":{},\"target\":\"string or null\"}],\"needs_clarification\":\"boolean\",\"clarification_question\":\"string or null\",\"user_facing_reply\":\"string or null\"},\"privacy_rules\":[\"Do not infer or repeat hidden phone/address details.\",\"Do not create menu items or prices.\",\"Do not bypass confirmation.\",\"If input_is_address_like is true, do not output add_item unless the input also has an explicit ordering action.\"],\"current_user_input\":\"给我一份鸡腿饭，或者牛肉饭\",\"input_is_address_like\":false,\"address_present\":false,\"phone_present\":false,\"pending_question\":null,\"pending_action_type\":null,\"order_summary\":[],\"last_recommendations\":[],\"recent_summary\":[\"stage=ordering\",\"fulfillment_type=delivery\"],\"candidate_menu_items\":[{\"name\":\"牛肉饭\",\"category\":\"饭类\",\"aliases\":[\"牛肉盖饭\"],\"available\":true},{\"name\":\"鸡腿饭\",\"category\":\"饭类\",\"aliases\":[\"机腿饭\",\"鸡腿盖饭\"],\"available\":true}]}",
+          "role": "user"
+        }
+      ]
+    },
+    "turn_id": 1,
+    "user_utterance": "给我一份鸡腿饭，或者牛肉饭"
+  },
+  "routine": {
+    "baseline_a": {
+      "component_counts": {
+        "component_token_sum": 358,
+        "current_input_tokens": 9,
+        "history_tokens": 124,
+        "input_tokens": 390,
+        "menu_context_tokens": 73,
+        "message_content_tokens": 360,
+        "message_count": 9,
+        "message_framing_tokens": 30,
+        "other_or_boundary_tokens": 32,
+        "policy_context_tokens": 54,
+        "restaurant_context_tokens": 21,
+        "system_tokens": 77
+      },
+      "input_tokens": 390,
+      "menu_mode": "relevant_item_candidates",
+      "messages": [
+        {
+          "content": "You are a multilingual restaurant ordering reasoner.\nFor the current turn, return one structured semantic decision and a concise reply.\nUse only supplied restaurant/menu facts. Preserve quantities and modifiers.\nNever submit without explicit confirmation of the current draft version.\nNever invent merchant acceptance, prices, fees, menu items, staff, or guarantees.\nThe downstream validator owns all state changes and may reject your decision.",
+          "role": "system"
+        },
+        {
+          "content": "Restaurant context: {\"branch\":\"central\",\"response_locale\":\"zh-CN\",\"restaurant\":\"hk-sim-restaurant-a\"}",
+          "role": "system"
+        },
+        {
+          "content": "Policy context: Required controls: REFUSE outranks HANDOFF, which outranks CONFIRM, which outranks AUTO_DRAFT. Confirmation applies only to the current draft version. All menu, price, availability, delivery-fee, tenant, and merchant-status facts are validated by services.",
+          "role": "system"
+        },
+        {
+          "content": "Relevant menu context: [{\"aliases\":[\"机腿饭\",\"鸡腿盖饭\"],\"allergens\":[],\"available\":true,\"base_price_minor\":2600,\"category\":\"饭类\",\"currency\":\"HKD\",\"id\":\"chicken_leg_rice\",\"name\":\"鸡腿饭\",\"options\":[\"不辣\",\"少辣\",\"微辣\",\"大份\",\"加饭\",\"标准\"]}]",
+          "role": "system"
+        },
+        {
+          "content": "请给我看菜单",
+          "role": "user"
+        },
+        {
+          "content": "菜单有饭类：牛肉饭、黑椒牛肉饭、鸡腿饭、宫保鸡丁饭；面类：番茄鸡蛋面、牛肉面；小吃：酸辣土豆丝、鸡米花；饮品：可乐、雪碧、柠檬茶。",
+          "role": "assistant"
+        },
+        {
+          "content": "招牌菜里有什么值得推荐",
+          "role": "user"
+        },
+        {
+          "content": "推荐你试试：鸡腿饭26元、番茄鸡蛋面24元、宫保鸡丁饭29元。",
+          "role": "assistant"
+        },
+        {
+          "content": "给我来一份鸡腿盖饭",
+          "role": "user"
+        }
+      ]
+    },
+    "canonical_intent": "ADD_ITEM",
+    "conversation_id": "TOK-01-001",
+    "decision_class": "AUTO_DRAFT",
+    "system_b": {
+      "LLM_invoked": false,
+      "component_counts": {
+        "component_token_sum": 0,
+        "current_input_tokens": 0,
+        "history_tokens": 0,
+        "input_tokens": 0,
+        "menu_context_tokens": 0,
+        "message_content_tokens": 0,
+        "message_count": 0,
+        "message_framing_tokens": 0,
+        "other_or_boundary_tokens": 0,
+        "policy_context_tokens": 0,
+        "restaurant_context_tokens": 0,
+        "system_tokens": 0
+      },
+      "input_tokens": 0,
+      "invocation_reason": "deterministic_high_confidence",
+      "messages": []
+    },
+    "turn_id": 3,
+    "user_utterance": "给我来一份鸡腿盖饭"
+  },
+  "safety": {
+    "baseline_a": {
+      "component_counts": {
+        "component_token_sum": 271,
+        "current_input_tokens": 12,
+        "history_tokens": 82,
+        "input_tokens": 294,
+        "menu_context_tokens": 1,
+        "message_content_tokens": 273,
+        "message_count": 6,
+        "message_framing_tokens": 21,
+        "other_or_boundary_tokens": 23,
+        "policy_context_tokens": 78,
+        "restaurant_context_tokens": 21,
+        "system_tokens": 77
+      },
+      "input_tokens": 294,
+      "menu_mode": "not_required",
+      "messages": [
+        {
+          "content": "You are a multilingual restaurant ordering reasoner.\nFor the current turn, return one structured semantic decision and a concise reply.\nUse only supplied restaurant/menu facts. Preserve quantities and modifiers.\nNever submit without explicit confirmation of the current draft version.\nNever invent merchant acceptance, prices, fees, menu items, staff, or guarantees.\nThe downstream validator owns all state changes and may reject your decision.",
+          "role": "system"
+        },
+        {
+          "content": "Restaurant context: {\"branch\":\"central\",\"response_locale\":\"zh-CN\",\"restaurant\":\"hk-sim-restaurant-a\"}",
+          "role": "system"
+        },
+        {
+          "content": "Policy context: Required controls: REFUSE outranks HANDOFF, which outranks CONFIRM, which outranks AUTO_DRAFT. Confirmation applies only to the current draft version. All menu, price, availability, delivery-fee, tenant, and merchant-status facts are validated by services.\nSevere allergy, anaphylaxis, and cross-contamination requests require deterministic HANDOFF; never guarantee allergen absence.",
+          "role": "system"
+        },
+        {
+          "content": "请给我看菜单",
+          "role": "user"
+        },
+        {
+          "content": "菜单有饭类：牛肉饭、黑椒牛肉饭、鸡腿饭、宫保鸡丁饭；面类：番茄鸡蛋面、牛肉面；小吃：酸辣土豆丝、鸡米花；饮品：可乐、雪碧、柠檬茶。",
+          "role": "assistant"
+        },
+        {
+          "content": "我有严重过敏，可能过敏性休克",
+          "role": "user"
+        }
+      ]
+    },
+    "canonical_intent": "UNKNOWN",
+    "conversation_id": "TOK-01-031",
+    "decision_class": "HANDOFF",
+    "system_b": {
+      "LLM_invoked": false,
+      "component_counts": {
+        "component_token_sum": 0,
+        "current_input_tokens": 0,
+        "history_tokens": 0,
+        "input_tokens": 0,
+        "menu_context_tokens": 0,
+        "message_content_tokens": 0,
+        "message_count": 0,
+        "message_framing_tokens": 0,
+        "other_or_boundary_tokens": 0,
+        "policy_context_tokens": 0,
+        "restaurant_context_tokens": 0,
+        "system_tokens": 0
+      },
+      "input_tokens": 0,
+      "invocation_reason": "deterministic_safety:HANDOFF",
+      "messages": []
+    },
+    "turn_id": 2,
+    "user_utterance": "我有严重过敏，可能过敏性休克"
+  }
+}

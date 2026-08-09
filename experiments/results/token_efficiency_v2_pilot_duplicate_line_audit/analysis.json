@@ -1,0 +1,567 @@
+{
+  "cv_review": {
+    "all_technical_gates_pass": true,
+    "allowed_chinese_wording": "在 160 组合成订餐会话（868 轮）上，以离线确定性 decision replay 对结构化 selective-LLM 架构与紧凑完整上下文 LLM 基线进行成对评测；在保持预期路径表现及阻断级安全违规为 0 的情况下，模型特定 tokenizer 估算的输入 Token 使用量降低 92.3%，模拟 LLM 调用次数降低 94.0%。",
+    "allowed_english_wording": "Benchmarked the structured selective-LLM architecture against a compact full-context LLM baseline on 160 synthetic ordering conversations (868 turns) using an offline deterministic decision replay, reducing model-specific estimated input-token usage by 92.3% and simulated LLM calls by 94.0% while preserving expected-path performance and zero blocking safety violations in the evaluation set.",
+    "gates": {
+      "baseline_blocking_safety_violations_zero": true,
+      "model_specific_tokenizer": true,
+      "not_character_proxy": true,
+      "offline_not_production_billing": true,
+      "paired_comparison": true,
+      "raw_results_present": true,
+      "reasonable_full_context_baseline_documented": true,
+      "selective_fallback_policy_documented": true,
+      "system_b_blocking_safety_violations_zero": true,
+      "task_quality_gap_at_most_2pp": true,
+      "three_runs_identical": true
+    },
+    "maximum_status_reason": "The semantic provider is deterministic replay rather than a live target model, so the claim requires offline/synthetic/model-specific-estimate qualifiers.",
+    "status": "CV_ELIGIBLE_WITH_QUALIFIER"
+  },
+  "dataset": {
+    "balanced_locale": true,
+    "conversation_length": {
+      "distribution": {
+        "2": 40,
+        "5": 36,
+        "6": 28,
+        "7": 16,
+        "8": 32,
+        "9": 8
+      },
+      "maximum": 9,
+      "mean": 5.425,
+      "median": 6.0,
+      "minimum": 2
+    },
+    "conversations": 160,
+    "dataset": "experiments\\datasets\\token_conversations.jsonl",
+    "dataset_changed_for_v2": false,
+    "dataset_sha256": "296d6c69c78da67805069d014f9979e08b7d7ef1408cf707c2b398d976454a9d",
+    "exact_duplicate_conversations": 0,
+    "known_template_dependence": "160 conversations contain 30 semantic template groups; conversation-level and template-cluster bootstrap intervals must both be reported.",
+    "locale_distribution": {
+      "en-HK": 40,
+      "mixed": 40,
+      "yue-Hant-HK": 40,
+      "zh-CN": 40
+    },
+    "maximum_source_scenario_reuse": 20,
+    "most_reused_source_scenarios": [
+      {
+        "scenario_id": "P4-MIX-017",
+        "uses": 20
+      },
+      {
+        "scenario_id": "P4-YUE-017",
+        "uses": 18
+      },
+      {
+        "scenario_id": "P4-EN-017",
+        "uses": 18
+      },
+      {
+        "scenario_id": "P4-ZH-017",
+        "uses": 17
+      },
+      {
+        "scenario_id": "P4-ZH-062",
+        "uses": 15
+      },
+      {
+        "scenario_id": "P4-ZH-063",
+        "uses": 14
+      },
+      {
+        "scenario_id": "P4-YUE-062",
+        "uses": 14
+      },
+      {
+        "scenario_id": "P4-EN-049",
+        "uses": 14
+      },
+      {
+        "scenario_id": "P4-EN-062",
+        "uses": 14
+      },
+      {
+        "scenario_id": "P4-ZH-004",
+        "uses": 13
+      },
+      {
+        "scenario_id": "P4-MIX-004",
+        "uses": 13
+      },
+      {
+        "scenario_id": "P4-MIX-062",
+        "uses": 12
+      },
+      {
+        "scenario_id": "P4-YUE-063",
+        "uses": 11
+      },
+      {
+        "scenario_id": "P4-EN-018",
+        "uses": 11
+      },
+      {
+        "scenario_id": "P4-YUE-004",
+        "uses": 10
+      }
+    ],
+    "normalized_duplicate_conversations": 0,
+    "scenario_distribution": {
+      "complex": 40,
+      "routine": 80,
+      "safety": 40
+    },
+    "semantic_template_groups": 30,
+    "source_scenario_references": 868,
+    "source_text_mismatches": 0,
+    "template_group_size_distribution": {
+      "4": 20,
+      "8": 10
+    },
+    "turns": 868,
+    "unique_source_scenarios": 242
+  },
+  "efficiency": {
+    "aggregate_call_reduction": 0.9400921658986175,
+    "aggregate_call_reduction_conversation_bootstrap_ci": {
+      "estimate": 0.9400921658986175,
+      "lower": 0.9213346167384477,
+      "resamples": 10000,
+      "seed": 43,
+      "upper": 0.9569160997732427
+    },
+    "aggregate_call_reduction_template_cluster_bootstrap_ci": {
+      "cluster_unit": "semantic_template_group",
+      "clusters": 30,
+      "estimate": 0.9400921658986175,
+      "lower": 0.8940397350993378,
+      "resamples": 10000,
+      "seed": 43,
+      "upper": 0.9744525547445255
+    },
+    "aggregate_token_reduction": 0.9225372698041509,
+    "aggregate_token_reduction_conversation_bootstrap_ci": {
+      "estimate": 0.9225372698041509,
+      "lower": 0.8987237690122253,
+      "resamples": 10000,
+      "seed": 42,
+      "upper": 0.9439378538797533
+    },
+    "aggregate_token_reduction_template_cluster_bootstrap_ci": {
+      "cluster_unit": "semantic_template_group",
+      "clusters": 30,
+      "estimate": 0.9225372698041509,
+      "lower": 0.860839288614585,
+      "resamples": 10000,
+      "seed": 42,
+      "upper": 0.9673729804440319
+    },
+    "baseline_input_tokens_per_conversation": {
+      "iqr": 1748.75,
+      "max": 4358.0,
+      "mean": 2180.8875,
+      "median": 1958.5,
+      "n": 160,
+      "p25": 1302.75,
+      "p50": 1958.5,
+      "p75": 3051.5,
+      "p90": 3704.0999999999995,
+      "p95": 3906.1999999999994,
+      "p99": 4237.05,
+      "standard_deviation": 1096.8052348130034
+    },
+    "baseline_llm_calls_per_conversation": {
+      "iqr": 3.0,
+      "max": 9.0,
+      "mean": 5.425,
+      "median": 6.0,
+      "n": 160,
+      "p25": 4.25,
+      "p50": 6.0,
+      "p75": 7.25,
+      "p90": 8.0,
+      "p95": 8.049999999999983,
+      "p99": 9.0,
+      "standard_deviation": 2.297250201994993
+    },
+    "conversations": 160,
+    "cost": "COST_NOT_EVALUATED",
+    "median_per_conversation_reduction_ci": {
+      "estimate": 1.0,
+      "lower": 1.0,
+      "resamples": 10000,
+      "seed": 46,
+      "upper": 1.0
+    },
+    "paired_mean_token_difference_ci": {
+      "estimate": 2011.95,
+      "lower": 1833.22875,
+      "resamples": 10000,
+      "seed": 44,
+      "upper": 2186.90640625
+    },
+    "paired_median_token_difference_ci": {
+      "estimate": 1685.5,
+      "lower": 1362.5,
+      "resamples": 10000,
+      "seed": 45,
+      "upper": 2414.0
+    },
+    "paired_token_difference_distribution": {
+      "iqr": 1797.75,
+      "max": 4358.0,
+      "mean": 2011.95,
+      "median": 1685.5,
+      "n": 160,
+      "p25": 1139.0,
+      "p50": 1685.5,
+      "p75": 2936.75,
+      "p90": 3669.899999999999,
+      "p95": 3906.1999999999994,
+      "p99": 4237.05,
+      "standard_deviation": 1137.3115203582624
+    },
+    "per_conversation_token_reduction_distribution": {
+      "iqr": 0.041677943166441134,
+      "max": 1.0,
+      "mean": 0.9167703022812146,
+      "median": 1.0,
+      "n": 160,
+      "p25": 0.9583220568335589,
+      "p50": 1.0,
+      "p75": 1.0,
+      "p90": 1.0,
+      "p95": 1.0,
+      "p99": 1.0,
+      "standard_deviation": 0.15863182945950682
+    },
+    "system_b_input_tokens_per_conversation": {
+      "iqr": 103.75,
+      "max": 1083.0,
+      "mean": 168.9375,
+      "median": 0.0,
+      "n": 160,
+      "p25": 0.0,
+      "p50": 0.0,
+      "p75": 103.75,
+      "p90": 628.1999999999999,
+      "p95": 885.25,
+      "p99": 1069.41,
+      "standard_deviation": 309.94141640602595
+    },
+    "system_b_llm_calls_per_conversation": {
+      "iqr": 0.25,
+      "max": 2.0,
+      "mean": 0.325,
+      "median": 0.0,
+      "n": 160,
+      "p25": 0.0,
+      "p50": 0.0,
+      "p75": 0.25,
+      "p90": 1.0,
+      "p95": 2.0,
+      "p99": 2.0,
+      "standard_deviation": 0.6096704956019663
+    },
+    "turns": 868
+  },
+  "provider": {
+    "live_model": false,
+    "mode": "offline_validated_decision_replay",
+    "model_accuracy_measured": false,
+    "output_tokens": "NOT_MEASURED",
+    "quality_interpretation": "task-equivalent replay/validation comparison; not evidence that the target model would produce the replayed decision"
+  },
+  "quality": {
+    "baseline_a": {
+      "blocking_safety": {
+        "accuracy": 1.0,
+        "checks": 52,
+        "matches": 52
+      },
+      "blocking_safety_violations": 0,
+      "confirmation_bypass": 0,
+      "duplicate_mutation": 12,
+      "expected_path": {
+        "accuracy": 1.0,
+        "checks": 160,
+        "definition": "all turn outcomes equal the frozen conversation-aware reference; this is replay equivalence, not live-model accuracy",
+        "matches": 160
+      },
+      "false_merchant_acceptance": 0,
+      "intent": {
+        "accuracy": 1.0,
+        "checks": 868,
+        "matches": 868
+      },
+      "item": {
+        "accuracy": 1.0,
+        "checks": 336,
+        "matches": 336
+      },
+      "locale": {
+        "accuracy": 0.9608294930875576,
+        "checks": 868,
+        "matches": 834
+      },
+      "modifier": {
+        "accuracy": 1.0,
+        "checks": 44,
+        "matches": 44
+      },
+      "mutation": {
+        "accuracy": 1.0,
+        "checks": 868,
+        "matches": 868
+      },
+      "quantity": {
+        "accuracy": 1.0,
+        "checks": 224,
+        "matches": 224
+      },
+      "serious_allergy_omission": 0
+    },
+    "system_b": {
+      "blocking_safety": {
+        "accuracy": 1.0,
+        "checks": 52,
+        "matches": 52
+      },
+      "blocking_safety_violations": 0,
+      "confirmation_bypass": 0,
+      "duplicate_mutation": 12,
+      "expected_path": {
+        "accuracy": 1.0,
+        "checks": 160,
+        "definition": "all turn outcomes equal the frozen conversation-aware reference; this is replay equivalence, not live-model accuracy",
+        "matches": 160
+      },
+      "false_merchant_acceptance": 0,
+      "intent": {
+        "accuracy": 1.0,
+        "checks": 868,
+        "matches": 868
+      },
+      "item": {
+        "accuracy": 1.0,
+        "checks": 336,
+        "matches": 336
+      },
+      "locale": {
+        "accuracy": 0.9608294930875576,
+        "checks": 868,
+        "matches": 834
+      },
+      "modifier": {
+        "accuracy": 1.0,
+        "checks": 44,
+        "matches": 44
+      },
+      "mutation": {
+        "accuracy": 1.0,
+        "checks": 868,
+        "matches": 868
+      },
+      "quantity": {
+        "accuracy": 1.0,
+        "checks": 224,
+        "matches": 224
+      },
+      "serious_allergy_omission": 0
+    }
+  },
+  "quality_gap_percentage_points": 0.0,
+  "question": "Under a fixed validated decision replay and comparable safety/task outcomes, how much model-specific estimated input and how many invocations are avoided by structured selective LLM use versus direct full-context LLM use?",
+  "run_totals": [
+    {
+      "architecture": "baseline_a",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 348942,
+      "llm_calls": 868,
+      "run_id": 1
+    },
+    {
+      "architecture": "system_b",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 27030,
+      "llm_calls": 52,
+      "run_id": 1
+    },
+    {
+      "architecture": "baseline_a",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 348942,
+      "llm_calls": 868,
+      "run_id": 2
+    },
+    {
+      "architecture": "system_b",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 27030,
+      "llm_calls": 52,
+      "run_id": 2
+    },
+    {
+      "architecture": "baseline_a",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 348942,
+      "llm_calls": 868,
+      "run_id": 3
+    },
+    {
+      "architecture": "system_b",
+      "blocking_safety_violations": 0,
+      "expected_path_turn_matches": 868,
+      "input_tokens": 27030,
+      "llm_calls": 52,
+      "run_id": 3
+    }
+  ],
+  "stability": {
+    "call_reduction_by_run": [
+      0.9400921658986175,
+      0.9400921658986175,
+      0.9400921658986175
+    ],
+    "call_reduction_relative_drift": 0.0,
+    "runs_identical": true,
+    "token_reduction_by_run": [
+      0.9225372698041509,
+      0.9225372698041509,
+      0.9225372698041509
+    ],
+    "token_reduction_relative_drift": 0.0
+  },
+  "stratified": [
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 1960.175,
+      "baseline_mean_llm_calls": 5.3,
+      "call_reduction": 0.7924528301886793,
+      "conversations": 40,
+      "dimension": "scenario_type",
+      "group": "complex",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 555.225,
+      "system_b_mean_llm_calls": 1.1,
+      "token_reduction": 0.7167472292014744,
+      "token_reduction_ci_lower": 0.6572703088330227,
+      "token_reduction_ci_upper": 0.7772781277645257
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 2963.0375,
+      "baseline_mean_llm_calls": 7.2,
+      "call_reduction": 0.9861111111111112,
+      "conversations": 80,
+      "dimension": "scenario_type",
+      "group": "routine",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 60.2625,
+      "system_b_mean_llm_calls": 0.1,
+      "token_reduction": 0.9796619178798783,
+      "token_reduction_ci_lower": 0.9656363887907647,
+      "token_reduction_ci_upper": 0.9921927849247064
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 837.3,
+      "baseline_mean_llm_calls": 2.0,
+      "call_reduction": 1.0,
+      "conversations": 40,
+      "dimension": "scenario_type",
+      "group": "safety",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 0.0,
+      "system_b_mean_llm_calls": 0.0,
+      "token_reduction": 1.0,
+      "token_reduction_ci_lower": 1.0,
+      "token_reduction_ci_upper": 1.0
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 2160.675,
+      "baseline_mean_llm_calls": 5.425,
+      "call_reduction": 0.9400921658986175,
+      "conversations": 40,
+      "dimension": "locale",
+      "group": "en-HK",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 168.7,
+      "system_b_mean_llm_calls": 0.325,
+      "token_reduction": 0.9219225473521007,
+      "token_reduction_ci_lower": 0.8721907730764411,
+      "token_reduction_ci_upper": 0.9636888439645644
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 2060.45,
+      "baseline_mean_llm_calls": 5.425,
+      "call_reduction": 0.9400921658986175,
+      "conversations": 40,
+      "dimension": "locale",
+      "group": "mixed",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 165.975,
+      "system_b_mean_llm_calls": 0.325,
+      "token_reduction": 0.9194472081341455,
+      "token_reduction_ci_lower": 0.8681593798146464,
+      "token_reduction_ci_upper": 0.9623326458417668
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 2287.7,
+      "baseline_mean_llm_calls": 5.425,
+      "call_reduction": 0.9400921658986175,
+      "conversations": 40,
+      "dimension": "locale",
+      "group": "yue-Hant-HK",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 171.375,
+      "system_b_mean_llm_calls": 0.325,
+      "token_reduction": 0.9250885168509857,
+      "token_reduction_ci_lower": 0.8764695719069454,
+      "token_reduction_ci_upper": 0.9651845001698683
+    },
+    {
+      "baseline_completion_accuracy": 1.0,
+      "baseline_mean_input_tokens": 2214.725,
+      "baseline_mean_llm_calls": 5.425,
+      "call_reduction": 0.9400921658986175,
+      "conversations": 40,
+      "dimension": "locale",
+      "group": "zh-CN",
+      "system_b_completion_accuracy": 1.0,
+      "system_b_mean_input_tokens": 169.7,
+      "system_b_mean_llm_calls": 0.325,
+      "token_reduction": 0.9233764914379889,
+      "token_reduction_ci_lower": 0.873102033585764,
+      "token_reduction_ci_upper": 0.9646823926743779
+    }
+  ],
+  "tokenizer": {
+    "accounting_id": "tiktoken-o200k-content-plus-3-per-message-plus-3-primer-v1",
+    "actual_billing_count": false,
+    "encoding": "o200k_base",
+    "encoding_fingerprint": "bdb776852d59f023c1eb0fc7e24b6dfabc4e3ccb9e962856c7727de8a71e2b98",
+    "encoding_n_vocab": 200019,
+    "library": "tiktoken",
+    "library_version": "0.13.0",
+    "model_mapping_api": "tiktoken.encoding_for_model",
+    "official_tokenizer_reference": "https://platform.openai.com/tokenizer/",
+    "reply_primer_tokens_assumption": 3,
+    "scope": "model-specific estimated input tokens; no API usage response",
+    "target_model": "gpt-4o-mini-2024-07-18",
+    "tokens_per_message_assumption": 3
+  }
+}

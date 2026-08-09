@@ -1,0 +1,8 @@
+﻿grouping,group,n_conversations,baseline_mean_tokens,baseline_median_tokens,current_mean_tokens,current_median_tokens,mean_token_reduction_ratio
+scenario_type,complex,40,115690.775,109457.0,0.0,0.0,1.0
+scenario_type,routine,80,157718.125,164469.5,0.0,0.0,1.0
+scenario_type,safety,40,43363.3,43353.0,0.0,0.0,1.0
+locale,en-HK,40,119541.025,131867.5,0.0,0.0,1.0
+locale,mixed,40,118822.175,130842.5,0.0,0.0,1.0
+locale,yue-Hant-HK,40,118078.025,130468.0,0.0,0.0,1.0
+locale,zh-CN,40,118049.1,130378.5,0.0,0.0,1.0

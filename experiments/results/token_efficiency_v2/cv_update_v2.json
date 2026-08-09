@@ -1,0 +1,97 @@
+{
+  "backup_files": [
+    {
+      "backup": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\backups\\20260805_token_efficiency_v2\\Zhihan_Sun_CV_EN.docx",
+      "sha256": "0481f7a755de925328bd99ec812a18b340be6d32f277d2d9782c589a87f8d880",
+      "source": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\Zhihan_Sun_CV_EN.docx"
+    },
+    {
+      "backup": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\backups\\20260805_token_efficiency_v2\\Zhihan_Sun_CV_EN.pdf",
+      "sha256": "3e7f0ddeed552348d9290a1acbf8ad2fb1047178e21c5f76c0505f4d44847cfd",
+      "source": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\Zhihan_Sun_CV_EN.pdf"
+    },
+    {
+      "backup": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\backups\\20260805_token_efficiency_v2\\孙之涵_简历_CN.docx",
+      "sha256": "c5d6e66727bc02b7ef3422cdcf2e2772139593d250ec80b00cb7cf2e5e18e605",
+      "source": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\孙之涵_简历_CN.docx"
+    },
+    {
+      "backup": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\backups\\20260805_token_efficiency_v2\\孙之涵_简历_CN.pdf",
+      "sha256": "775c8030b3f8ab44bd51e24d00be7336a5dcf4ca5a59b32666b40abd66572368",
+      "source": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\孙之涵_简历_CN.pdf"
+    }
+  ],
+  "excluded_metrics": [
+    "actual API billing",
+    "live-model semantic accuracy",
+    "local/replay latency",
+    "barge-in/recovery",
+    "real speech/phone/user/restaurant outcomes"
+  ],
+  "metric_status": "CV_ELIGIBLE_WITH_QUALIFIER",
+  "numeric_consistency": {
+    "conversations": 160,
+    "input_token_reduction_percent": 92.3,
+    "simulated_call_reduction_percent": 94.0,
+    "turns": 868
+  },
+  "qualifiers": [
+    "synthetic conversations",
+    "offline deterministic decision replay",
+    "model-specific estimated input tokens",
+    "simulated LLM calls"
+  ],
+  "source_metric": "experiments/reports/resume_metrics_review_v2.md",
+  "updates": [
+    {
+      "after": "Benchmarked the structured selective-LLM architecture against a compact full-context LLM baseline on 160 synthetic ordering conversations (868 turns) using an offline deterministic decision replay, reducing model-specific estimated input-token usage by 92.3% and simulated LLM calls by 94.0% while preserving expected-path performance and zero blocking safety violations in the evaluation set.",
+      "after_sha256": "5347656938300beedf045f74152b7c391a8f8d003a18a2f5343bd23524958de6",
+      "before": "Benchmarked the structured deterministic path against a documented full-context LLM baseline on 160 synthetic ordering conversations (868 turns): the offline path retained AUTO_DRAFT, CONFIRM, HANDOFF, and REFUSE gates while reducing projected LLM input-token transfer and model-call requirements by 100% (bootstrap 95% CI, 100%–100%); counts use a deterministic Unicode-codepoint estimator and do not represent billed tokens.",
+      "before_sha256": "0481f7a755de925328bd99ec812a18b340be6d32f277d2d9782c589a87f8d880",
+      "paragraph_style": "CV Bullet",
+      "path": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\Zhihan_Sun_CV_EN.docx"
+    },
+    {
+      "after": "在 160 组合成订餐会话（868 轮）上，以离线确定性决策回放对结构化 selective-LLM 架构与紧凑完整上下文 LLM 基线进行成对评测；在保持预期路径表现及阻断级安全违规为 0 的情况下，模型特定 tokenizer 估算的输入 Token 使用量降低 92.3%，模拟 LLM 调用次数降低 94.0%。",
+      "after_sha256": "6996eeba5fd9c7d73af71238c96404b4007a047f0ea6e487c8b801822f6a3cbc",
+      "before": "在 160 组合成订餐会话（868 轮）上成对比较结构化路径与有文档定义的完整上下文 LLM 基线：禁用实时 LLM 的离线配置在保留 AUTO_DRAFT、CONFIRM、HANDOFF、REFUSE 门控下，使预估 LLM 输入 Token 传输量和模型调用需求均降低 100%（Bootstrap 95% CI：100%–100%；Unicode code-point 估算，非实际计费 Token）。",
+      "before_sha256": "c5d6e66727bc02b7ef3422cdcf2e2772139593d250ec80b00cb7cf2e5e18e605",
+      "paragraph_style": "CV Bullet",
+      "path": "C:\\Users\\孙之涵\\Desktop\\PhD_CV\\孙之涵_简历_CN.docx"
+    }
+  ],
+  "verification": {
+    "english_chinese_numeric_consistency": true,
+    "files": {
+      "chinese_docx": {
+        "first_project_bullets": 5,
+        "paragraphs": 29,
+        "sha256": "6996eeba5fd9c7d73af71238c96404b4007a047f0ea6e487c8b801822f6a3cbc"
+      },
+      "chinese_pdf": {
+        "extracted_characters": 1262,
+        "pages": 1,
+        "sha256": "d244a7b86fdf3d8689ceb5c8a7fcda773cd920a0130979d8160e363cb78b4dae"
+      },
+      "english_docx": {
+        "first_project_bullets": 5,
+        "paragraphs": 29,
+        "sha256": "5347656938300beedf045f74152b7c391a8f8d003a18a2f5343bd23524958de6"
+      },
+      "english_pdf": {
+        "extracted_characters": 3618,
+        "pages": 1,
+        "sha256": "90fc0496f6fd7e8b93c10687eebe0d3f3f18633ee754a1f63208850dbf6a13b5"
+      }
+    },
+    "pdf_page_count_each": 1,
+    "project_bullet_count_each": 5,
+    "unsupported_claims_added": false,
+    "visual_review": {
+      "chinese_pages_inspected": 1,
+      "english_pages_inspected": 1,
+      "method": "Word PDF export and full-page PNG manual inspection at original resolution",
+      "overflow_or_clipping": false
+    }
+  }
+}

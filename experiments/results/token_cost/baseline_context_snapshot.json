@@ -1,0 +1,2012 @@
+{
+  "branch_code": "central",
+  "menu_snapshot": [
+    {
+      "aliases": {
+        "en-HK": [
+          "beef rice bowl"
+        ],
+        "yue-Hant-HK": [
+          "牛肉碟頭飯"
+        ],
+        "zh-CN": [
+          "牛肉盖饭"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 2800,
+      "category": "饭类",
+      "code": "beef_rice",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "beef_rice-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "beef_rice-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_rice-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_rice-options",
+              "internalName": "大份",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "large portion"
+                  ],
+                  "name": "Large"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "大碟"
+                  ],
+                  "name": "大份"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加大"
+                  ],
+                  "name": "大份"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_rice-options",
+              "internalName": "标准",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Beef rice",
+        "yue-Hant-HK": "牛肉飯",
+        "zh-CN": "牛肉饭"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "black pepper beef bowl"
+        ],
+        "yue-Hant-HK": [
+          "黑椒牛肉碟頭飯"
+        ],
+        "zh-CN": [
+          "黑椒饭",
+          "黑胶牛肉饭",
+          "黑角牛肉饭"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 3000,
+      "category": "饭类",
+      "code": "black_pepper_beef_rice",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "black_pepper_beef_rice-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "black_pepper_beef_rice-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "black_pepper_beef_rice-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "black_pepper_beef_rice-options",
+              "internalName": "大份",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "large portion"
+                  ],
+                  "name": "Large"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "大碟"
+                  ],
+                  "name": "大份"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加大"
+                  ],
+                  "name": "大份"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "black_pepper_beef_rice-options",
+              "internalName": "标准",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Black pepper beef rice",
+        "yue-Hant-HK": "黑椒牛肉飯",
+        "zh-CN": "黑椒牛肉饭"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "chicken leg rice bowl"
+        ],
+        "yue-Hant-HK": [
+          "雞髀碟頭飯"
+        ],
+        "zh-CN": [
+          "机腿饭",
+          "鸡腿盖饭"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 2600,
+      "category": "饭类",
+      "code": "chicken_leg_rice",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "chicken_leg_rice-options",
+          "maxSelections": 6,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "微辣",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "mild chilli"
+                  ],
+                  "name": "Mild spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少少辣"
+                  ],
+                  "name": "微辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "一点辣"
+                  ],
+                  "name": "微辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "大份",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "large portion"
+                  ],
+                  "name": "Large"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "大碟"
+                  ],
+                  "name": "大份"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加大"
+                  ],
+                  "name": "大份"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "加饭",
+              "optionCode": "option-5",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "add rice"
+                  ],
+                  "name": "Extra rice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加飯"
+                  ],
+                  "name": "加底"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多加米饭"
+                  ],
+                  "name": "加饭"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "chicken_leg_rice-options",
+              "internalName": "标准",
+              "optionCode": "option-6",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Chicken leg rice",
+        "yue-Hant-HK": "雞髀飯",
+        "zh-CN": "鸡腿饭"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "kung pao rice"
+        ],
+        "yue-Hant-HK": [
+          "宮保雞丁碟頭飯"
+        ],
+        "zh-CN": [
+          "宫保饭",
+          "宫保鸡丁"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 2900,
+      "category": "饭类",
+      "code": "kung_pao_chicken_rice",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "kung_pao_chicken_rice-options",
+          "maxSelections": 5,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "kung_pao_chicken_rice-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "kung_pao_chicken_rice-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "kung_pao_chicken_rice-options",
+              "internalName": "微辣",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "mild chilli"
+                  ],
+                  "name": "Mild spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少少辣"
+                  ],
+                  "name": "微辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "一点辣"
+                  ],
+                  "name": "微辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "kung_pao_chicken_rice-options",
+              "internalName": "加饭",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "add rice"
+                  ],
+                  "name": "Extra rice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加飯"
+                  ],
+                  "name": "加底"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多加米饭"
+                  ],
+                  "name": "加饭"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "kung_pao_chicken_rice-options",
+              "internalName": "标准",
+              "optionCode": "option-5",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Kung pao chicken rice",
+        "yue-Hant-HK": "宮保雞丁飯",
+        "zh-CN": "宫保鸡丁饭"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "tomato egg soup noodles"
+        ],
+        "yue-Hant-HK": [
+          "蕃茄蛋湯麵"
+        ],
+        "zh-CN": [
+          "番茄面",
+          "鸡蛋面"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 2400,
+      "category": "面类",
+      "code": "tomato_egg_noodles",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "tomato_egg_noodles-options",
+          "maxSelections": 6,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "加面",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "extra noodles"
+                  ],
+                  "name": "Extra noodles"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加底麵"
+                  ],
+                  "name": "加麵"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多加面"
+                  ],
+                  "name": "加面"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "加蛋",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "extra egg"
+                  ],
+                  "name": "Add egg"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加隻蛋"
+                  ],
+                  "name": "加蛋"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多一个蛋"
+                  ],
+                  "name": "加蛋"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "加青菜",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "extra vegetables"
+                  ],
+                  "name": "Add vegetables"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加菜"
+                  ],
+                  "name": "加菜"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多加青菜"
+                  ],
+                  "name": "加青菜"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "不要葱",
+              "optionCode": "option-5",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without spring onion"
+                  ],
+                  "name": "No spring onion"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要蔥"
+                  ],
+                  "name": "走蔥"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "去葱"
+                  ],
+                  "name": "不要葱"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "tomato_egg_noodles-options",
+              "internalName": "标准",
+              "optionCode": "option-6",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Tomato egg noodles",
+        "yue-Hant-HK": "蕃茄蛋麵",
+        "zh-CN": "番茄鸡蛋面"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "beef soup noodles"
+        ],
+        "yue-Hant-HK": [
+          "牛肉湯麵"
+        ],
+        "zh-CN": [
+          "牛肉汤面"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 2800,
+      "category": "面类",
+      "code": "beef_noodles",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "beef_noodles-options",
+          "maxSelections": 6,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "加面",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "extra noodles"
+                  ],
+                  "name": "Extra noodles"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "加底麵"
+                  ],
+                  "name": "加麵"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "多加面"
+                  ],
+                  "name": "加面"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "不要香菜",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without coriander"
+                  ],
+                  "name": "No coriander"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走芫荽"
+                  ],
+                  "name": "走芫茜"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "去香菜"
+                  ],
+                  "name": "不要香菜"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "不要葱",
+              "optionCode": "option-5",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without spring onion"
+                  ],
+                  "name": "No spring onion"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要蔥"
+                  ],
+                  "name": "走蔥"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "去葱"
+                  ],
+                  "name": "不要葱"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "beef_noodles-options",
+              "internalName": "标准",
+              "optionCode": "option-6",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Beef noodles",
+        "yue-Hant-HK": "牛肉麵",
+        "zh-CN": "牛肉面"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "sour spicy potato strips"
+        ],
+        "yue-Hant-HK": [
+          "醒胃薯仔絲"
+        ],
+        "zh-CN": [
+          "土豆丝"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 1800,
+      "category": "小吃",
+      "code": "sour_spicy_potato",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "sour_spicy_potato-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "sour_spicy_potato-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sour_spicy_potato-options",
+              "internalName": "少辣",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "milder"
+                  ],
+                  "name": "Less spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲辣"
+                  ],
+                  "name": "少辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少放辣"
+                  ],
+                  "name": "少辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sour_spicy_potato-options",
+              "internalName": "微辣",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "mild chilli"
+                  ],
+                  "name": "Mild spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少少辣"
+                  ],
+                  "name": "微辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "一点辣"
+                  ],
+                  "name": "微辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sour_spicy_potato-options",
+              "internalName": "标准",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Sour and spicy potato",
+        "yue-Hant-HK": "酸辣薯仔絲",
+        "zh-CN": "酸辣土豆丝"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "crispy popcorn chicken"
+        ],
+        "yue-Hant-HK": [
+          "炸雞粒"
+        ],
+        "zh-CN": [
+          "炸鸡米花"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 1600,
+      "category": "小吃",
+      "code": "popcorn_chicken",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "popcorn_chicken-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "popcorn_chicken-options",
+              "internalName": "不辣",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "no chilli"
+                  ],
+                  "name": "Not spicy"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "走辣"
+                  ],
+                  "name": "走辣"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要辣"
+                  ],
+                  "name": "不辣"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "popcorn_chicken-options",
+              "internalName": "番茄酱",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "tomato ketchup"
+                  ],
+                  "name": "Ketchup"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "番茄醬"
+                  ],
+                  "name": "茄汁"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "番茄沙司"
+                  ],
+                  "name": "番茄酱"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "popcorn_chicken-options",
+              "internalName": "不要番茄酱",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without ketchup"
+                  ],
+                  "name": "No ketchup"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要茄汁"
+                  ],
+                  "name": "走茄汁"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "去番茄酱"
+                  ],
+                  "name": "不要番茄酱"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "popcorn_chicken-options",
+              "internalName": "标准",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "regular option"
+                  ],
+                  "name": "Standard"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "正常"
+                  ],
+                  "name": "標準"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "正常份量"
+                  ],
+                  "name": "标准"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Popcorn chicken",
+        "yue-Hant-HK": "雞米花",
+        "zh-CN": "鸡米花"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "cola drink"
+        ],
+        "yue-Hant-HK": [
+          "罐裝可樂"
+        ],
+        "zh-CN": [
+          "可口可乐"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 600,
+      "category": "饮品",
+      "code": "cola",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "cola-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "cola-options",
+              "internalName": "常温",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "room temperature"
+                  ],
+                  "name": "Ambient"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔凍"
+                  ],
+                  "name": "常溫"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不冰"
+                  ],
+                  "name": "常温"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "cola-options",
+              "internalName": "冰",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "iced"
+                  ],
+                  "name": "With ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "凍飲"
+                  ],
+                  "name": "加冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加冰"
+                  ],
+                  "name": "冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "cola-options",
+              "internalName": "去冰",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without ice"
+                  ],
+                  "name": "No ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要冰"
+                  ],
+                  "name": "走冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要冰"
+                  ],
+                  "name": "去冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "cola-options",
+              "internalName": "少冰",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "light ice"
+                  ],
+                  "name": "Less ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲冰"
+                  ],
+                  "name": "少冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少点冰"
+                  ],
+                  "name": "少冰"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Cola",
+        "yue-Hant-HK": "可樂",
+        "zh-CN": "可乐"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "lemon lime soda"
+        ],
+        "yue-Hant-HK": [
+          "罐裝雪碧"
+        ],
+        "zh-CN": [
+          "柠檬汽水"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 600,
+      "category": "饮品",
+      "code": "sprite",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "sprite-options",
+          "maxSelections": 4,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "sprite-options",
+              "internalName": "常温",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "room temperature"
+                  ],
+                  "name": "Ambient"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔凍"
+                  ],
+                  "name": "常溫"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不冰"
+                  ],
+                  "name": "常温"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sprite-options",
+              "internalName": "冰",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "iced"
+                  ],
+                  "name": "With ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "凍飲"
+                  ],
+                  "name": "加冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加冰"
+                  ],
+                  "name": "冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sprite-options",
+              "internalName": "去冰",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without ice"
+                  ],
+                  "name": "No ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要冰"
+                  ],
+                  "name": "走冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要冰"
+                  ],
+                  "name": "去冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "sprite-options",
+              "internalName": "少冰",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "light ice"
+                  ],
+                  "name": "Less ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲冰"
+                  ],
+                  "name": "少冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少点冰"
+                  ],
+                  "name": "少冰"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Sprite",
+        "yue-Hant-HK": "雪碧",
+        "zh-CN": "雪碧"
+      }
+    },
+    {
+      "aliases": {
+        "en-HK": [
+          "lemon tea drink"
+        ],
+        "yue-Hant-HK": [
+          "凍檸茶"
+        ],
+        "zh-CN": [
+          "冻柠茶",
+          "柠檬红茶"
+        ]
+      },
+      "available": true,
+      "basePriceMinor": 800,
+      "category": "饮品",
+      "code": "lemon_tea",
+      "currency": "HKD",
+      "modifierGroups": [
+        {
+          "active": true,
+          "code": "lemon_tea-options",
+          "maxSelections": 5,
+          "minSelections": 0,
+          "options": [
+            {
+              "active": true,
+              "groupCode": "lemon_tea-options",
+              "internalName": "常温",
+              "optionCode": "option-1",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "room temperature"
+                  ],
+                  "name": "Ambient"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔凍"
+                  ],
+                  "name": "常溫"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不冰"
+                  ],
+                  "name": "常温"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "lemon_tea-options",
+              "internalName": "冰",
+              "optionCode": "option-2",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "iced"
+                  ],
+                  "name": "With ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "凍飲"
+                  ],
+                  "name": "加冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "加冰"
+                  ],
+                  "name": "冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "lemon_tea-options",
+              "internalName": "去冰",
+              "optionCode": "option-3",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "without ice"
+                  ],
+                  "name": "No ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "唔要冰"
+                  ],
+                  "name": "走冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "不要冰"
+                  ],
+                  "name": "去冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "lemon_tea-options",
+              "internalName": "少冰",
+              "optionCode": "option-4",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "light ice"
+                  ],
+                  "name": "Less ice"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "少啲冰"
+                  ],
+                  "name": "少冰"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "少点冰"
+                  ],
+                  "name": "少冰"
+                }
+              }
+            },
+            {
+              "active": true,
+              "groupCode": "lemon_tea-options",
+              "internalName": "热的",
+              "optionCode": "option-5",
+              "priceDeltaMinor": 0,
+              "translations": {
+                "en-HK": {
+                  "aliases": [
+                    "hot drink"
+                  ],
+                  "name": "Hot"
+                },
+                "yue-Hant-HK": {
+                  "aliases": [
+                    "熱飲"
+                  ],
+                  "name": "熱"
+                },
+                "zh-CN": {
+                  "aliases": [
+                    "热饮"
+                  ],
+                  "name": "热的"
+                }
+              }
+            }
+          ],
+          "required": false,
+          "translations": {
+            "en-HK": {
+              "aliases": [
+                "choices"
+              ],
+              "name": "Options"
+            },
+            "yue-Hant-HK": {
+              "aliases": [
+                "配搭"
+              ],
+              "name": "選項"
+            },
+            "zh-CN": {
+              "aliases": [
+                "可选项"
+              ],
+              "name": "选项"
+            }
+          }
+        }
+      ],
+      "names": {
+        "en-HK": "Lemon tea",
+        "yue-Hant-HK": "檸檬茶",
+        "zh-CN": "柠檬茶"
+      }
+    }
+  ],
+  "reconstruction": "Use experiments.token_cost.baseline.build_prompt with this menu and the preceding raw assistant responses.",
+  "restaurant_code": "hk-sim-restaurant-a",
+  "tokenizer_id": "unicode-codepoint-v1"
+}

@@ -1,0 +1,22 @@
+{
+  "feature_names": [
+    "residual_rms",
+    "mixture_rms",
+    "residual_to_ai_db",
+    "zero_crossing_rate",
+    "spectral_centroid_hz",
+    "spectral_bandwidth_hz",
+    "spectral_flatness",
+    "onset_strength",
+    "active_fraction",
+    "active_duration_ms",
+    "crest_factor",
+    "periodicity_proxy",
+    "pulse_count"
+  ],
+  "model_type": "rule_baseline",
+  "rule_version": "acoustic-rule-v1",
+  "seed": 42,
+  "selection_split": "validation",
+  "threshold": 0.5
+}

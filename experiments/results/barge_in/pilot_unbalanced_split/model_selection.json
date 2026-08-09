@@ -1,0 +1,55 @@
+{
+  "group_counts": {
+    "test_locked": 24,
+    "train": 112,
+    "validation": 24
+  },
+  "model_rationale": {
+    "gradient_boosting_stumps": "bounded nonlinear capability without a high-capacity deep model; group split and seed stability monitor overfitting",
+    "logistic_regression": "interpretable linear boundary suitable for 1,120 training samples",
+    "rule_baseline": "transparent and near-zero inference cost, but limited nonlinear separation"
+  },
+  "selected_model": "gradient_boosting_stumps",
+  "selection_rule": "highest mean validation F1 across seeds; ties prefer lower complexity",
+  "split_counts": {
+    "test_locked": 240,
+    "train": 1120,
+    "validation": 240
+  },
+  "test_labels_accessed_during_selection": false,
+  "validation_comparison": [
+    {
+      "model": "rule_baseline",
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "validation_max_f1": 0.9251101321585904,
+      "validation_mean_f1": 0.9251101321585904,
+      "validation_min_f1": 0.9251101321585904
+    },
+    {
+      "model": "logistic_regression",
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "validation_max_f1": 0.9482071713147411,
+      "validation_mean_f1": 0.9482071713147411,
+      "validation_min_f1": 0.9482071713147411
+    },
+    {
+      "model": "gradient_boosting_stumps",
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "validation_max_f1": 0.99581589958159,
+      "validation_mean_f1": 0.99581589958159,
+      "validation_min_f1": 0.99581589958159
+    }
+  ]
+}
